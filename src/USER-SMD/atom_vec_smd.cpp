@@ -1055,13 +1055,13 @@ void AtomVecSMD::data_atom(double *coord, imageint imagetmp, char **values) {
 
 	e[nlocal] = 0.0;
 
-	x0[nlocal][0] = atof(values[7]);
-	x0[nlocal][1] = atof(values[8]);
-	x0[nlocal][2] = atof(values[9]);
+	x0[nlocal][0] = atof(values[10]);
+	x0[nlocal][1] = atof(values[11]);
+	x0[nlocal][2] = atof(values[12]);
 
-	x[nlocal][0] = coord[0];
-	x[nlocal][1] = coord[1];
-	x[nlocal][2] = coord[2];
+	x[nlocal][0] = atof(values[7]); //coord[0];
+	x[nlocal][1] = atof(values[8]); //coord[1];
+	x[nlocal][2] = atof(values[9]); //coord[2];
 
 	image[nlocal] = imagetmp;
 
@@ -1144,9 +1144,13 @@ void AtomVecSMD::pack_data(double **buf) {
 		buf[i][8] = x[i][1];
 		buf[i][9] = x[i][2];
 
-		buf[i][10] = ubuf((image[i] & IMGMASK) - IMGMAX).d;
-		buf[i][11] = ubuf((image[i] >> IMGBITS & IMGMASK) - IMGMAX).d;
-		buf[i][12] = ubuf((image[i] >> IMG2BITS) - IMGMAX).d;
+		buf[i][10] = x0[i][0];
+                buf[i][11] = x0[i][1];
+                buf[i][12] = x0[i][2];
+
+		buf[i][13] = ubuf((image[i] & IMGMASK) - IMGMAX).d;
+		buf[i][14] = ubuf((image[i] >> IMGBITS & IMGMASK) - IMGMAX).d;
+		buf[i][15] = ubuf((image[i] >> IMG2BITS) - IMGMAX).d;
 	}
 }
 
@@ -1167,9 +1171,9 @@ void AtomVecSMD::write_data(FILE *fp, int n, double **buf) {
 	for (int i = 0; i < n; i++)
 		fprintf(fp,
 		TAGINT_FORMAT
-		" %d %d %-1.16e %-1.16e %-1.16e %-1.16e %-1.16e %-1.16e %-1.16e %d %d %d\n", (tagint) ubuf(buf[i][0]).i,
+		" %d %d %-1.16e %-1.16e %-1.16e %-1.16e %-1.16e %-1.16e %-1.16e %-1.16e %-1.16e %-1.16e\n", (tagint) ubuf(buf[i][0]).i,
 				(int) ubuf(buf[i][1]).i, (int) ubuf(buf[i][2]).i, buf[i][3], buf[i][4], buf[i][5], buf[i][6], buf[i][7], buf[i][8],
-				buf[i][9], (int) ubuf(buf[i][7]).i, (int) ubuf(buf[i][8]).i, (int) ubuf(buf[i][9]).i);
+			buf[i][9], buf[i][10], buf[i][11], buf[i][12]);
 }
 
 /* ----------------------------------------------------------------------

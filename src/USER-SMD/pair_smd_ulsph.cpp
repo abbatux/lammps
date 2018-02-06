@@ -743,9 +743,10 @@ void PairULSPH::AssembleStressTensor() {
 					break;
 
 				case STRENGTH_LINEAR_PLASTIC:
+				        double damage = 0.0;
 					yieldStress = Lookup[YIELD_STRENGTH][itype] + Lookup[HARDENING_PARAMETER][itype] * eff_plastic_strain[i];
 					LinearPlasticStrength(Lookup[SHEAR_MODULUS][itype], yieldStress, oldStressDeviator, d_dev, dt,
-							newStressDeviator, stressRateDev, plastic_strain_increment);
+							      newStressDeviator, stressRateDev, plastic_strain_increment, damage);
 					eff_plastic_strain[i] += plastic_strain_increment;
 
 					break;

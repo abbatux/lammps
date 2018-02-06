@@ -57,10 +57,65 @@ using namespace LAMMPS_NS;
 using namespace SMD_Math;
 
 #define JAUMANN false
-#define DETF_MIN 0.2 // maximum compression deformation allow
-#define DETF_MAX 2.0 // maximum tension deformation allowed
+#define DETF_MIN 0.002 // maximum compression deformation allow
+#define DETF_MAX 200.0 // maximum tension deformation allowed
 #define TLSPH_DEBUG 0
 #define PLASTIC_STRAIN_AVERAGE_WINDOW 100.0
+
+
+static double CalculateScale(const float degradation, double r, double r0) {
+  //return 1.0 - degradation;
+  double strain1d = (r - r0) / r0;
+  
+  if (strain1d > 0.0) {
+    return 1 - degradation;
+  } else {
+    return 1.0;
+  }
+}
+
+static Matrix3d CreateOrthonormalBasisFromOneVector(Vector3d sU) {
+  Matrix3d P;
+  Vector3d sV, sW;
+  double sU_Norm;
+
+  // Make sure that sU has a norm of one:
+  sU_Norm = sU.norm();
+  if (sU_Norm != 1.0) {
+    sU /= sU_Norm;
+  }
+
+  if (abs(float(sU[1])) > 1.0e-15) {
+    sV[0] = 0.0;
+    sV[1] = - sU[2];
+    sV[2] = sU[1];
+  } else if (abs(float(sU[2])) > 1.0e-15) {
+    sV[0] = sU[2];
+    sV[1] = 0.0;
+    sV[2] = -sU[0];
+  } else {
+    sV[0] = 0.0;
+    sV[1] = 1.0;
+    sV[2] = 0.0;
+  }
+
+  if (sU.dot(sV) > 1.0e-15) {
+    printf("Error: sU.sV = %f != 0\n", sU.dot(sV));
+    cout << "Here is sU: " << endl << sU << endl;
+    cout << "Here is sV: " << endl << sV << endl;
+    cout << "Here is sW: " << endl << sW << endl;
+  }
+  
+  sV /= sV.norm();
+  sW = sU.cross(sV);
+  sW /= sW.norm();
+
+  P.col(0) = sU;
+  P.col(1) = sV;
+  P.col(2) = sW;
+
+  return P;
+}
 
 /* ---------------------------------------------------------------------- */
 
@@ -73,15 +128,17 @@ PairTlsph::PairTlsph(LAMMPS *lmp) :
 	strengthModel = eos = NULL;
 
 	nmax = 0; // make sure no atom on this proc such that initial memory allocation is correct
-	Fdot = Fincr = K = PK1 = NULL;
+	Fdot = Fincr = K = Kundeg = PK1 = NULL;
 	R = FincrInv = W = D = NULL;
 	detF = NULL;
 	smoothVelDifference = NULL;
+	surfaceNormal = NULL;
 	numNeighsRefConfig = NULL;
 	CauchyStress = NULL;
 	hourglass_error = NULL;
 	Lookup = NULL;
 	particle_dt = NULL;
+	vij_max = NULL;
 
 	updateFlag = 0;
 	first = true;
@@ -113,9 +170,11 @@ PairTlsph::~PairTlsph() {
 		delete[] Fdot;
 		delete[] Fincr;
 		delete[] K;
+		delete[] Kundeg;
 		delete[] detF;
 		delete[] PK1;
 		delete[] smoothVelDifference;
+		delete[] surfaceNormal;
 		delete[] R;
 		delete[] FincrInv;
 		delete[] W;
@@ -124,6 +183,7 @@ PairTlsph::~PairTlsph() {
 		delete[] CauchyStress;
 		delete[] hourglass_error;
 		delete[] particle_dt;
+		delete[] vij_max;
 
 		delete[] failureModel;
 	}
@@ -147,6 +207,7 @@ void PairTlsph::PreCompute() {
 	tagint *tag = atom->tag;
 	int *type = atom->type;
 	int nlocal = atom->nlocal;
+	double dt = update->dt;
 	int jnum, jj, i, j, itype, idim;
 
 	tagint **partner = ((FixSMD_TLSPH_ReferenceConfiguration *) modify->fix[ifix_tlsph])->partner;
@@ -154,26 +215,48 @@ void PairTlsph::PreCompute() {
 	float **wfd_list = ((FixSMD_TLSPH_ReferenceConfiguration *) modify->fix[ifix_tlsph])->wfd_list;
 	float **wf_list = ((FixSMD_TLSPH_ReferenceConfiguration *) modify->fix[ifix_tlsph])->wf_list;
 	float **degradation_ij = ((FixSMD_TLSPH_ReferenceConfiguration *) modify->fix[ifix_tlsph])->degradation_ij;
-	double r0, r0Sq, wf, wfd, h, irad, voli, volj, scale, shepardWeight;
-	Vector3d dx, dx0, dv, g;
+	Vector3d **partnerx0 = ((FixSMD_TLSPH_ReferenceConfiguration *) modify->fix[ifix_tlsph])->partnerx0;
+	double **partnervol = ((FixSMD_TLSPH_ReferenceConfiguration *) modify->fix[ifix_tlsph])->partnervol;
+	double r, r0, r0Sq, wf, wfd, h, irad, voli, volj, scale, shepardWeight, strain1d;
+	Vector3d dx, dx0, dx0mirror, dv, g;
 	Matrix3d Ktmp, Ftmp, Fdottmp, L, U, eye;
 	Vector3d vi, vj, vinti, vintj, xi, xj, x0i, x0j, dvint;
 	int periodic = (domain->xperiodic || domain->yperiodic || domain->zperiodic);
 	bool status;
 	Matrix3d F0;
+	double surfaceNormalNormi;
 
+	dtCFL = 1.0e22;
 	eye.setIdentity();
 
 	for (i = 0; i < nlocal; i++) {
+		vij_max[i] = 0.0;
 
 		itype = type[i];
+		/*if ((damage[i] >= 1.0) && (mol[i] >= 0)) {
+		  printf("deleting particle [%d] because damage = %f\n", tag[i], damage[i]);
+		  mol[i] = -1;
+		  D[i].setZero();
+		  Fdot[i].setZero();
+		  Fincr[i].setIdentity();
+		  smoothVelDifference[i].setZero();
+		  detF[i] = 1.0;
+		  K[i].setIdentity();
+
+		  vint[i][0] = 0.0;
+		  vint[i][1] = 0.0;
+		  vint[i][2] = 0.0;
+		  }*/
+		
 		if (setflag[itype][itype] == 1) {
 
 			K[i].setZero();
+			Kundeg[i].setZero();
 			Fincr[i].setZero();
 			Fdot[i].setZero();
 			numNeighsRefConfig[i] = 0;
 			smoothVelDifference[i].setZero();
+			surfaceNormal[i].setZero();
 			hourglass_error[i] = 0.0;
 
 			if (mol[i] < 0) { // valid SPH particle have mol > 0
@@ -197,16 +280,41 @@ void PairTlsph::PreCompute() {
 				vi(idim) = v[i][idim];
 				vinti(idim) = vint[i][idim];
 			}
-
+			
+			//Matrix3d gradAbsX;
+			//gradAbsX.setZero();
 			for (jj = 0; jj < jnum; jj++) {
-
-				if (partner[i][jj] == 0)
-					continue;
+			  
+				if (degradation_ij[i][jj] >= 1.0) 
+				  {	
+				    volj = partnervol[i][jj];
+				    dx0 = partnerx0[i][jj] - x0i;
+				    
+				    if (periodic)
+				      domain->minimum_image(dx0(0), dx0(1), dx0(2));
+				    
+				    r0 = dx0.norm();
+				    Kundeg[i] -= volj * (wfd_list[i][jj] / r0) * dx0 * dx0.transpose();
+				    surfaceNormal[i] += volj * wfd_list[i][jj] * dx0;
+				    //printf("Link between %d and %d destroyed!\n", tag[i], partner[i][jj]);
+				    continue;
+				  }
 				j = atom->map(partner[i][jj]);
 				if (j < 0) { //			// check if lost a partner without first breaking bond
-					partner[i][jj] = 0;
-					continue;
+				  printf("Link between %d and %d destroyed without first breaking bond! Damage level in the link was: %f\n", tag[i], partner[i][jj], degradation_ij[i][jj]);
+				  volj = partnervol[i][jj];
+				  dx0 = partnerx0[i][jj] - x0i;
+				  				  
+				  if (periodic)
+				    domain->minimum_image(dx0(0), dx0(1), dx0(2));
+				  
+				  r0 = dx0.norm();
+				  Kundeg[i] -= volj * (wfd_list[i][jj] / r0) * dx0 * dx0.transpose();
+				  surfaceNormal[i] += volj * wfd_list[i][jj] * dx0;
+				  degradation_ij[i][jj] = 1.0;
+				  continue;
 				}
+
 
 				if (mol[j] < 0) { // particle has failed. do not include it for computing any property
 					continue;
@@ -215,6 +323,13 @@ void PairTlsph::PreCompute() {
 				if (mol[i] != mol[j]) {
 					continue;
 				}
+				/*if (failureModel[itype].integration_point_wise){ // check if the particles are fully damaged. If so, the bond is broken. This is important when the list of neighbors is updated.
+				  if ((damage[i] == 1) || (damage[j] == 1)) {
+				    degradation_ij[i][jj] = 1;
+                                    partner[i][jj] = 0;
+				    continue;
+				  }
+				  }*/
 
 				// initialize Eigen data structures from LAMMPS data structures
 				for (idim = 0; idim < 3; idim++) {
@@ -223,8 +338,17 @@ void PairTlsph::PreCompute() {
 					vj(idim) = v[j][idim];
 					vintj(idim) = vint[j][idim];
 				}
+
+				//Check if partnerx0 is equal to x0j:
+				if((partnerx0[i][jj][0] != x0j[0]) || (partnerx0[i][jj][1] != x0j[1]) || (partnerx0[i][jj][2] != x0j[2]) ) {
+                                  printf("x0 does not correspond to partnerx0 for j=%d\n", tag[j]);
+                                  cout << "Here is x0" << endl << x0j << endl;
+                                  cout << "Here is partnerx0" << endl << partnerx0[i][jj] << endl;
+				}
+				
 				dx0 = x0j - x0i;
 				dx = xj - xi;
+				r = dx.norm(); // current distance
 
 				if (periodic)
 					domain->minimum_image(dx0(0), dx0(1), dx0(2));
@@ -238,6 +362,10 @@ void PairTlsph::PreCompute() {
 				// distance vectors in current and reference configuration, velocity difference
 				dv = vj - vi;
 				dvint = vintj - vinti;
+				vij_max[i] = MAX(vij_max[i], dv.norm());
+
+		   
+                                
 
 				// scale the interaction according to the damage variable
 				scale = 1.0 - degradation_ij[i][jj];
@@ -251,11 +379,28 @@ void PairTlsph::PreCompute() {
 				Ftmp = -(dx - dx0) * g.transpose();
 
 				K[i] += volj * Ktmp;
+				Kundeg[i] -= volj * (wfd_list[i][jj] / r0) * dx0 * dx0.transpose();
 				Fdot[i] += volj * Fdottmp;
 				Fincr[i] += volj * Ftmp;
 				shepardWeight += volj * wf;
 				smoothVelDifference[i] += volj * wf * dvint;
+				
+				//Vector3d dx0sq;
+				//dx0sq[0] = dx0[0]*abs(dx0[0]);
+				//dx0sq[1] = dx0[1]*abs(dx0[1]);
+				//dx0sq[2] = dx0[2]*abs(dx0[2]);
+				surfaceNormal[i] += volj * wfd_list[i][jj] * dx0; 
+				
+				//gradAbsX += volj * (wfd_list[i][jj] / r0) * dx0 * dx0.transpose().cwiseAbs();
 				numNeighsRefConfig[i]++;
+				//if (tag[i] == 1) {
+				//  cout << "Here is dx0:" << endl << dx0 << endl;
+				//  Matrix3d Tmp;
+				//  Tmp = volj * Ktmp;
+				//  pseudo_inverse_SVD(Tmp);
+				//  cout << "Here is surfaceNormalij:" << endl << volj * wfd / r0 * dx0sq << endl;
+				//  cout << "Here is Kij-1:" << endl << Tmp << endl;
+				//}
 			} // end loop over j
 
 			// normalize average velocity field around an integration point
@@ -265,10 +410,88 @@ void PairTlsph::PreCompute() {
 				smoothVelDifference[i].setZero();
 			}
 
+
 			pseudo_inverse_SVD(K[i]);
+			Matrix3d KundegINV;
+			KundegINV = Kundeg[i];
+			pseudo_inverse_SVD(KundegINV);
 			Fdot[i] *= K[i];
 			Fincr[i] *= K[i];
 			Fincr[i] += eye;
+			surfaceNormal[i] = KundegINV * surfaceNormal[i];
+			//gradAbsX = gradAbsX * KundegINV;
+			//surfaceNormal[i][0] = gradAbsX(0, 0);
+			//surfaceNormal[i][1] = gradAbsX(1, 1);
+			//surfaceNormal[i][2] = gradAbsX(2, 2);
+			
+			// Recalculate Kundeg to include mirror particles:
+			
+			surfaceNormalNormi = surfaceNormal[i].norm();
+			//Vector3d sU;
+			//sU = surfaceNormal[i] / surfaceNormalNormi;
+
+			if (surfaceNormalNormi > 0.75) {
+			  surfaceNormal[i] /= surfaceNormalNormi;
+			  
+			  for (jj = 0; jj < jnum; jj++) {
+			    
+			    if (degradation_ij[i][jj] >= 1.0) 
+			      {
+				volj = partnervol[i][jj];
+				dx0 = partnerx0[i][jj] - x0i;
+								
+				if (periodic)
+				  domain->minimum_image(dx0(0), dx0(1), dx0(2));
+
+				if (surfaceNormal[i].dot(dx0) > -0.5*pow(volj, 1.0/3.0)) {
+				  continue;
+				}
+
+				dx0mirror = dx0 - 2 * (dx0.dot(surfaceNormal[i])) * surfaceNormal[i];
+				r0 = dx0.norm();
+				Kundeg[i] -= volj * (wfd_list[i][jj] / r0) * dx0mirror * dx0mirror.transpose();
+				continue;
+			      }
+			    j = atom->map(partner[i][jj]);
+			    if (j < 0) { //			// check if lost a partner without first breaking bond
+			      error->all(FLERR, "Bond broken not detected during PreCompute - 1!");
+			      continue;
+			    }
+			    
+			    if (mol[j] < 0) { // particle has failed. do not include it for computing any property
+			      continue;
+			    }
+			    
+			    if (mol[i] != mol[j]) {
+			      continue;
+			    }
+			    			    
+			    // initialize Eigen data structures from LAMMPS data structures
+			    for (idim = 0; idim < 3; idim++) {
+			      x0j(idim) = x0[j][idim];
+			    }
+			    dx0 = x0j - x0i;
+			    
+			    if (periodic)
+			      domain->minimum_image(dx0(0), dx0(1), dx0(2));
+			    
+			    if (surfaceNormal[i].dot(dx0) > -0.5*pow(volj, 1.0/3.0)) {
+			      continue;
+			    }
+			    
+			    dx0mirror = dx0 - 2 * (dx0.dot(surfaceNormal[i])) * surfaceNormal[i];
+			    r0 = dx0.norm();
+			    volj = vfrac[j];
+			    
+			    Kundeg[i] -= volj * (wfd_list[i][jj] / r0) * dx0mirror * dx0mirror.transpose();
+			  }
+			  
+			} else {
+			  surfaceNormal[i].setZero();
+			}
+			// END RECALCULATE Kundeg
+			pseudo_inverse_SVD(Kundeg[i]);
+			
 
 			if (JAUMANN) {
 				R[i].setIdentity(); // for Jaumann stress rate, we do not need a subsequent rotation back into the reference configuration
@@ -306,22 +529,27 @@ void PairTlsph::PreCompute() {
 			 * make sure F stays within some limits
 			 */
 
-			if ((detF[i] < DETF_MIN) || (detF[i] > DETF_MAX) || (numNeighsRefConfig[i] == 0)) {
-				printf("deleting particle [%d] because det(F)=%f is outside stable range %f -- %f \n", tag[i],
-						Fincr[i].determinant(),
-						DETF_MIN, DETF_MAX);
-				printf("nn = %d, damage=%f\n", numNeighsRefConfig[i], damage[i]);
-				cout << "Here is matrix F:" << endl << Fincr[i] << endl;
-				cout << "Here is matrix F-1:" << endl << FincrInv[i] << endl;
-				cout << "Here is matrix K-1:" << endl << K[i] << endl;
-				cout << "Here is matrix K:" << endl << K[i].inverse() << endl;
-				cout << "Here is det of K" << endl << (K[i].inverse()).determinant() << endl;
-				cout << "Here is matrix R:" << endl << R[i] << endl;
-				cout << "Here is det of R" << endl << R[i].determinant() << endl;
-				cout << "Here is matrix U:" << endl << U << endl;
-				mol[i] = -1;
-				//error->one(FLERR, "");
+			if ((numNeighsRefConfig[i] == 0)) {
+			  printf("deleting particle [%d] because nn = %d\n", tag[i], numNeighsRefConfig[i]);
+			  dtCFL = MIN(dtCFL, dt); //Keep the same (small) time step when a particule breaks.		       
+			  mol[i] = -1;
 			}
+			/*if ((detF[i] < DETF_MIN) || (detF[i] > DETF_MAX) || (numNeighsRefConfig[i] == 0)) {
+			 	printf("deleting particle [%d] because det(F)=%f is outside stable range %f -- %f \n", tag[i],
+			 			Fincr[i].determinant(),
+			 			DETF_MIN, DETF_MAX);
+			 	printf("nn = %d, damage=%f\n", numNeighsRefConfig[i], damage[i]);
+			 	cout << "Here is matrix F:" << endl << Fincr[i] << endl;
+			 	cout << "Here is matrix F-1:" << endl << FincrInv[i] << endl;
+			 	cout << "Here is matrix K-1:" << endl << K[i] << endl;
+			 	cout << "Here is matrix K:" << endl << K[i].inverse() << endl;
+			 	cout << "Here is det of K" << endl << (K[i].inverse()).determinant() << endl;
+			 	cout << "Here is matrix R:" << endl << R[i] << endl;
+			 	cout << "Here is det of R" << endl << R[i].determinant() << endl;
+			 	cout << "Here is matrix U:" << endl << U << endl;
+			 	mol[i] = -1;
+			 	//error->one(FLERR, "");
+				}*/
 
 			if (mol[i] < 0) {
 				D[i].setZero();
@@ -330,6 +558,7 @@ void PairTlsph::PreCompute() {
 				smoothVelDifference[i].setZero();
 				detF[i] = 1.0;
 				K[i].setIdentity();
+				Kundeg[i].setIdentity();
 
 				vint[i][0] = 0.0;
 				vint[i][1] = 0.0;
@@ -351,12 +580,16 @@ void PairTlsph::compute(int eflag, int vflag) {
 		Fincr = new Matrix3d[nmax]; // memory usage: 9 doubles
 		delete[] K;
 		K = new Matrix3d[nmax]; // memory usage: 9 doubles
+		delete[] Kundeg;
+		Kundeg = new Matrix3d[nmax]; // memory usage: 9 doubles
 		delete[] PK1;
 		PK1 = new Matrix3d[nmax]; // memory usage: 9 doubles; total 5*9=45 doubles
 		delete[] detF;
 		detF = new double[nmax]; // memory usage: 1 double; total 46 doubles
 		delete[] smoothVelDifference;
 		smoothVelDifference = new Vector3d[nmax]; // memory usage: 3 doubles; total 49 doubles
+		delete[] surfaceNormal;
+		surfaceNormal = new Vector3d[nmax]; // memory usage: 3 doubles; total 49 doubles
 		delete[] R;
 		R = new Matrix3d[nmax]; // memory usage: 9 doubles; total 67 doubles
 		delete[] FincrInv;
@@ -373,6 +606,8 @@ void PairTlsph::compute(int eflag, int vflag) {
 		hourglass_error = new double[nmax];
 		delete[] particle_dt;
 		particle_dt = new double[nmax];
+		delete[] vij_max;
+		vij_max = new double[nmax];
 	}
 
 	if (first) { // return on first call, because reference connectivity lists still needs to be built. Also zero quantities which are otherwise undefined.
@@ -387,6 +622,7 @@ void PairTlsph::compute(int eflag, int vflag) {
 			CauchyStress[i].setZero();
 			hourglass_error[i] = 0.0;
 			particle_dt[i] = 0.0;
+			vij_max[i] = 0.0;
 		}
 
 		return;
@@ -413,10 +649,14 @@ void PairTlsph::compute(int eflag, int vflag) {
 	 */
 	updateFlag = 0;
 	ComputeForces(eflag, vflag);
+
+	UpdateDegradation();
+	
 }
 
 void PairTlsph::ComputeForces(int eflag, int vflag) {
 	tagint *mol = atom->molecule;
+	tagint *tag = atom->tag;
 	double **x = atom->x;
 	double **v = atom->vest;
 	double **x0 = atom->x0;
@@ -433,6 +673,7 @@ void PairTlsph::ComputeForces(int eflag, int vflag) {
 	double r, hg_mag, wf, wfd, h, r0, r0Sq, voli, volj;
 	double delVdotDelR, visc_magnitude, deltaE, mu_ij, hg_err, gamma_dot_dx, delta, scale;
 	double strain1d, strain1d_max, softening_strain, shepardWeight;
+	double surfaceNormalNormi;
 	char str[128];
 	Vector3d fi, fj, dx0, dx, dv, f_stress, f_hg, dxp_i, dxp_j, gamma, g, gamma_i, gamma_j, x0i, x0j;
 	Vector3d xi, xj, vi, vj, f_visc, sumForces, f_spring;
@@ -444,8 +685,11 @@ void PairTlsph::ComputeForces(int eflag, int vflag) {
 	float **wf_list = ((FixSMD_TLSPH_ReferenceConfiguration *) modify->fix[ifix_tlsph])->wf_list;
 	float **degradation_ij = ((FixSMD_TLSPH_ReferenceConfiguration *) modify->fix[ifix_tlsph])->degradation_ij;
 	float **energy_per_bond = ((FixSMD_TLSPH_ReferenceConfiguration *) modify->fix[ifix_tlsph])->energy_per_bond;
-	Matrix3d eye;
+	Vector3d **partnerx0 = ((FixSMD_TLSPH_ReferenceConfiguration *) modify->fix[ifix_tlsph])->partnerx0;
+        double **partnervol = ((FixSMD_TLSPH_ReferenceConfiguration *) modify->fix[ifix_tlsph])->partnervol;
+	Matrix3d eye, sigmaBC_i;
 	eye.setIdentity();
+	sigmaBC_i.setZero();
 
 	if (eflag || vflag)
 		ev_setup(eflag, vflag);
@@ -461,7 +705,7 @@ void PairTlsph::ComputeForces(int eflag, int vflag) {
 	dtRelative = 1.0e22;
 
 	for (i = 0; i < nlocal; i++) {
-
+		
 		if (mol[i] < 0) {
 			continue; // Particle i is not a valid SPH particle (anymore). Skip all interactions with this particle.
 		}
@@ -481,14 +725,19 @@ void PairTlsph::ComputeForces(int eflag, int vflag) {
 			xi(idim) = x[i][idim];
 			vi(idim) = v[i][idim];
 		}
+		
+		// Calculate sigmaBC_i if the particle is on the surface:
+		
+		surfaceNormalNormi = surfaceNormal[i].norm();
+		if (surfaceNormalNormi > 0.5) {
+		  AdjustStressForZeroForceBC(PK1[i], surfaceNormal[i], sigmaBC_i);
+		}
 
 		for (jj = 0; jj < jnum; jj++) {
-			if (partner[i][jj] == 0)
-				continue;
 			j = atom->map(partner[i][jj]);
 			if (j < 0) { //			// check if lost a partner without first breaking bond
-				partner[i][jj] = 0;
-				continue;
+			  error->all(FLERR, "Bond broken not detected during PreCompute - 2!");
+			  continue;
 			}
 
 			if (mol[j] < 0) {
@@ -503,7 +752,7 @@ void PairTlsph::ComputeForces(int eflag, int vflag) {
 				sprintf(str, "particle pair is not of same type!");
 				error->all(FLERR, str);
 			}
-
+			
 			for (idim = 0; idim < 3; idim++) {
 				x0j(idim) = x0[j][idim];
 				xj(idim) = x[j][idim];
@@ -525,29 +774,48 @@ void PairTlsph::ComputeForces(int eflag, int vflag) {
 			dx = xj - xi;
 			dv = vj - vi;
 			r = dx.norm(); // current distance
-
+			
 			// scale the interaction according to the damage variable
+			//scale = CalculateScale(degradation_ij[i][jj], r, r0);
 			scale = 1.0 - degradation_ij[i][jj];
-			wf = wf_list[i][jj] * scale;
-			wfd = wfd_list[i][jj] * scale;
+			strain1d = ( r - r0 ) / r0;
+			wf = wf_list[i][jj];// * scale;
+			wfd = wfd_list[i][jj];// * scale;
 
-			g = (wfd / r0) * dx0; // uncorrected kernel gradient
+			g = (wfd_list[i][jj] / r0) * dx0; // uncorrected kernel gradient
 
 			/*
 			 * force contribution -- note that the kernel gradient correction has been absorbed into PK1
 			 */
+			
+			// What is required is to build a basis with surfaceNormal as one of the vectors:
 
-			f_stress = -voli * volj * (PK1[i] + PK1[j]) * g;
+			f_stress = -voli * volj * scale * (PK1[j] + PK1[i]) * Kundeg[i] * g;
+			if ((surfaceNormalNormi > 0.5) && (surfaceNormal[i].dot(dx0) <= -0.5*pow(volj, 1.0/3.0))) {
+			  Matrix3d P = CreateOrthonormalBasisFromOneVector(surfaceNormal[i]);
+			  Vector3d sU = P.col(0);
+			  Vector3d sV = P.col(1);
+			  Vector3d sW = P.col(2);
+			  
+			  f_stress -= voli * volj * (2* sigmaBC_i) * Kundeg[i] * (g.dot(sV)*sV + g.dot(sW)*sW);
+			  f_stress += voli * volj * (2* sigmaBC_i) * Kundeg[i] * g.dot(sU)*sU;
+			}
 
+			energy_per_bond[i][jj] = f_stress.dot(dx); // THIS IS NOT THE ENERGY PER BOND, I AM USING THIS VARIABLE TO STORE THIS VALUE TEMPORARILY
+			
 			/*
 			 * artificial viscosity
 			 */
 			delVdotDelR = dx.dot(dv) / (r + 0.1 * h); // project relative velocity onto unit particle distance vector [m/s]
 			LimitDoubleMagnitude(delVdotDelR, 0.01 * Lookup[SIGNAL_VELOCITY][itype]);
 			mu_ij = h * delVdotDelR / (r + 0.1 * h); // units: [m * m/s / m = m/s]
+			//if (delVdotDelR < 0) { // i.e. if (dx.dot(dv) < 0) // To be consistent with the viscosity proposed by Monaghan
 			visc_magnitude = (-Lookup[VISCOSITY_Q1][itype] * Lookup[SIGNAL_VELOCITY][itype] * mu_ij
-					+ Lookup[VISCOSITY_Q2][itype] * mu_ij * mu_ij) / Lookup[REFERENCE_DENSITY][itype]; // units: m^5/(s^2 kg))
+					  + Lookup[VISCOSITY_Q2][itype] * mu_ij * mu_ij) / Lookup[REFERENCE_DENSITY][itype]; // units: m^5/(s^2 kg))
 			f_visc = rmass[i] * rmass[j] * visc_magnitude * wfd * dx / (r + 1.0e-2 * h); // units: kg^2 * m^5/(s^2 kg) * m^-4 = kg m / s^2 = N
+			  //} else {
+			  //f_visc = Vector3d(0.0, 0.0, 0.0);
+			  //}
 
 			/*
 			 * hourglass deviation of particles i and j
@@ -621,66 +889,8 @@ void PairTlsph::ComputeForces(int eflag, int vflag) {
 				}
 			}
 
-			if (failureModel[itype].failure_max_pairwise_strain) {
-
-				strain1d = (r - r0) / r0;
-				strain1d_max = Lookup[FAILURE_MAX_PAIRWISE_STRAIN_THRESHOLD][itype];
-				softening_strain = 2.0 * strain1d_max;
-
-				if (strain1d > strain1d_max) {
-					degradation_ij[i][jj] = (strain1d - strain1d_max) / softening_strain;
-				} else {
-					degradation_ij[i][jj] = 0.0;
-				}
-
-				if (degradation_ij[i][jj] >= 1.0) { // delete interaction if fully damaged
-					partner[i][jj] = 0;
-				}
-			}
-
 			if (failureModel[itype].failure_energy_release_rate) {
-
-				// integration approach
-				energy_per_bond[i][jj] += update->dt * f_stress.dot(dv) / (voli * volj);
-				double Vic = (2.0 / 3.0) * h * h * h; // interaction volume for 2d plane strain
-				double critical_energy_per_bond = Lookup[CRITICAL_ENERGY_RELEASE_RATE][itype] / (2.0 * Vic);
-
-				if (energy_per_bond[i][jj] > critical_energy_per_bond) {
-					//degradation_ij[i][jj] = 1.0;
-					partner[i][jj] = 0;
-				}
-			}
-
-			if (failureModel[itype].integration_point_wise) {
-
-				strain1d = (r - r0) / r0;
-
-				if (strain1d > 0.0) {
-
-					if ((damage[i] == 1.0) && (damage[j] == 1.0)) {
-						// check if damage_onset is already defined
-						if (energy_per_bond[i][jj] == 0.0) { // pair damage not defined yet
-							energy_per_bond[i][jj] = strain1d;
-						} else { // damage initiation strain already defined
-							strain1d_max = energy_per_bond[i][jj];
-							softening_strain = 2.0 * strain1d_max;
-
-							if (strain1d > strain1d_max) {
-								degradation_ij[i][jj] = (strain1d - strain1d_max) / softening_strain;
-							} else {
-								degradation_ij[i][jj] = 0.0;
-							}
-						}
-					}
-
-					if (degradation_ij[i][jj] >= 1.0) { // delete interaction if fully damaged
-						partner[i][jj] = 0;
-					}
-
-				} else {
-					degradation_ij[i][jj] = 0.0;
-				} // end failureModel[itype].integration_point_wise
-
+			  energy_per_bond[i][jj] += update->dt * f_stress.dot(dv) / (voli * volj);
 			}
 
 		} // end loop over jj neighbors of i
@@ -688,9 +898,16 @@ void PairTlsph::ComputeForces(int eflag, int vflag) {
 		if (shepardWeight != 0.0) {
 			hourglass_error[i] /= shepardWeight;
 		}
+		double deltat_1 = sqrt(2 * radius[i] * rmass[i]/ sqrt( f[i][0]*f[i][0] + f[i][1]*f[i][1] + f[i][2]*f[i][2] ));
+		if (particle_dt[i] > deltat_1) {
+		  printf("particle_dt[%d] > deltat_1 with f = [%f %f %f]\n", tag[i], f[i][0], f[i][1], f[i][2]);
+		}
+		particle_dt[i] = MIN(particle_dt[i], deltat_1); // Monaghan deltat_1 
+		dtCFL = MIN(dtCFL, particle_dt[i]);
 
 	} // end loop over i
 
+	//cout << "Here is sumf_stress.norm(): " << sumf_stress.norm() << endl;
 	if (vflag_fdotr)
 		virial_fdotr_compute();
 }
@@ -702,6 +919,7 @@ void PairTlsph::ComputeForces(int eflag, int vflag) {
  ------------------------------------------------------------------------- */
 void PairTlsph::AssembleStress() {
 	tagint *mol = atom->molecule;
+	double **v = atom->vest;
 	double *eff_plastic_strain = atom->eff_plastic_strain;
 	double *eff_plastic_strain_rate = atom->eff_plastic_strain_rate;
 	double **tlsph_stress = atom->smd_stress;
@@ -712,16 +930,16 @@ void PairTlsph::AssembleStress() {
 	double *vfrac = atom->vfrac;
 	double *e = atom->e;
 	double pInitial, d_iso, pFinal, p_rate, plastic_strain_increment;
-	int i, itype;
+	int i, itype, idim;
 	int nlocal = atom->nlocal;
 	double dt = update->dt;
 	double M_eff, p_wave_speed, mass_specific_energy, vol_specific_energy, rho;
 	Matrix3d sigma_rate, eye, sigmaInitial, sigmaFinal, T, T_damaged, Jaumann_rate, sigma_rate_check;
 	Matrix3d d_dev, sigmaInitial_dev, sigmaFinal_dev, sigma_dev_rate, strain;
-	Vector3d x0i, xi, xp;
+	Vector3d vi;
 
 	eye.setIdentity();
-	dtCFL = 1.0e22;
+	//dtCFL = 1.0e22;
 	pFinal = 0.0;
 
 	for (i = 0; i < nlocal; i++) {
@@ -775,8 +993,8 @@ void PairTlsph::AssembleStress() {
 
 				// compute a characteristic time over which to average the plastic strain
 				double tav = 1000 * radius[i] / (Lookup[SIGNAL_VELOCITY][itype]);
-				eff_plastic_strain_rate[i] -= eff_plastic_strain_rate[i] / tav;
-				eff_plastic_strain_rate[i] += (plastic_strain_increment / dt) / tav;
+				eff_plastic_strain_rate[i] -= eff_plastic_strain_rate[i] * dt / tav;
+				eff_plastic_strain_rate[i] += plastic_strain_increment / tav;
 				eff_plastic_strain_rate[i] = MAX(0.0, eff_plastic_strain_rate[i]);
 
 				/*
@@ -823,8 +1041,8 @@ void PairTlsph::AssembleStress() {
 				 */
 
 				if (failureModel[itype].integration_point_wise) {
-					ComputeDamage(i, strain, T, T_damaged);
-					//T = T_damaged; Do not do this, it is undefined as of now
+				  ComputeDamage(i, strain, T, T_damaged, plastic_strain_increment);
+				  T = T_damaged;
 				}
 
 				// store rotated, "true" Cauchy stress
@@ -840,7 +1058,7 @@ void PairTlsph::AssembleStress() {
 				/*
 				 * pre-multiply stress tensor with shape matrix to save computation in force loop
 				 */
-				PK1[i] = PK1[i] * K[i];
+				//PK1[i] = PK1[i] * K[i];
 
 				/*
 				 * compute stable time step according to Pronto 2d
@@ -858,13 +1076,18 @@ void PairTlsph::AssembleStress() {
 				if (mol[i] < 0) {
 					error->one(FLERR, "this should not happen");
 				}
-
-				particle_dt[i] = 2.0 * radius[i] / p_wave_speed;
+				
+				for (idim = 0; idim < 3; idim++) {
+				  vi(idim) = v[i][idim];
+				}
+				//double max_damage = max(0.0001, 1 - damage[i]);
+				particle_dt[i] = 2.0 * radius[i] / (p_wave_speed + vij_max[i]); //* max(0.0001, 1 - damage[i] * vi.norm()*dt/radius[i]);
 				dtCFL = MIN(dtCFL, particle_dt[i]);
 
 			} else { // end if mol > 0
 				PK1[i].setZero();
 				K[i].setIdentity();
+				Kundeg[i].setIdentity();
 				CauchyStress[i].setZero();
 				sigma_rate.setZero();
 				tlsph_stress[i][0] = 0.0;
@@ -1066,7 +1289,7 @@ void PairTlsph::coeff(int narg, char **arg) {
 	Lookup[HEAT_CAPACITY][itype] = force->numeric(FLERR, arg[ioffset + 7]);
 
 	Lookup[LAME_LAMBDA][itype] = Lookup[YOUNGS_MODULUS][itype] * Lookup[POISSON_RATIO][itype]
-			/ ((1.0 + Lookup[POISSON_RATIO][itype] * (1.0 - 2.0 * Lookup[POISSON_RATIO][itype])));
+	  / ((1.0 + Lookup[POISSON_RATIO][itype]) * (1.0 - 2.0 * Lookup[POISSON_RATIO][itype]));
 	Lookup[SHEAR_MODULUS][itype] = Lookup[YOUNGS_MODULUS][itype] / (2.0 * (1.0 + Lookup[POISSON_RATIO][itype]));
 	Lookup[M_MODULUS][itype] = Lookup[LAME_LAMBDA][itype] + 2.0 * Lookup[SHEAR_MODULUS][itype];
 	Lookup[SIGNAL_VELOCITY][itype] = sqrt(
@@ -1469,6 +1692,7 @@ void PairTlsph::coeff(int narg, char **arg) {
 
 			failureModel[itype].failure_max_plastic_strain = true;
 			failureModel[itype].integration_point_wise = true;
+			failureModel[itype].failure_none = false;
 			Lookup[FAILURE_MAX_PLASTIC_STRAIN_THRESHOLD][itype] = force->numeric(FLERR, arg[ioffset + 1]);
 
 			if (comm->me == 0) {
@@ -1512,7 +1736,8 @@ void PairTlsph::coeff(int narg, char **arg) {
 			}
 
 			failureModel[itype].failure_max_pairwise_strain = true;
-			failureModel[itype].integration_point_wise = true;
+			failureModel[itype].integration_point_wise = false;
+			failureModel[itype].failure_none = false;
 			Lookup[FAILURE_MAX_PAIRWISE_STRAIN_THRESHOLD][itype] = force->numeric(FLERR, arg[ioffset + 1]);
 
 			if (comm->me == 0) {
@@ -1553,6 +1778,7 @@ void PairTlsph::coeff(int narg, char **arg) {
 
 			failureModel[itype].failure_max_principal_strain = true;
 			failureModel[itype].integration_point_wise = true;
+			failureModel[itype].failure_none = false;
 			Lookup[FAILURE_MAX_PRINCIPAL_STRAIN_THRESHOLD][itype] = force->numeric(FLERR, arg[ioffset + 1]);
 
 			if (comm->me == 0) {
@@ -1562,7 +1788,7 @@ void PairTlsph::coeff(int narg, char **arg) {
 			}
 		} // end maximum principal strain failure criterion
 		else if (strcmp(arg[ioffset], "*FAILURE_JOHNSON_COOK") == 0) {
-			error->all(FLERR, "this failure model is currently unsupported");
+		  //error->all(FLERR, "this failure model is currently unsupported");
 			if (comm->me == 0) {
 				printf("reading *FAILURE_JOHNSON_COOK\n");
 			}
@@ -1589,6 +1815,7 @@ void PairTlsph::coeff(int narg, char **arg) {
 
 			failureModel[itype].failure_johnson_cook = true;
 			failureModel[itype].integration_point_wise = true;
+			failureModel[itype].failure_none = false;
 
 			Lookup[FAILURE_JC_D1][itype] = force->numeric(FLERR, arg[ioffset + 1]);
 			Lookup[FAILURE_JC_D2][itype] = force->numeric(FLERR, arg[ioffset + 2]);
@@ -1638,6 +1865,7 @@ void PairTlsph::coeff(int narg, char **arg) {
 
 			failureModel[itype].failure_max_principal_stress = true;
 			failureModel[itype].integration_point_wise = true;
+			failureModel[itype].failure_none = false;
 			Lookup[FAILURE_MAX_PRINCIPAL_STRESS_THRESHOLD][itype] = force->numeric(FLERR, arg[ioffset + 1]);
 
 			if (comm->me == 0) {
@@ -1673,6 +1901,7 @@ void PairTlsph::coeff(int narg, char **arg) {
 			}
 
 			failureModel[itype].failure_energy_release_rate = true;
+			failureModel[itype].failure_none = false;
 			Lookup[CRITICAL_ENERGY_RELEASE_RATE][itype] = force->numeric(FLERR, arg[ioffset + 1]);
 
 			if (comm->me == 0) {
@@ -1809,8 +2038,12 @@ void *PairTlsph::extract(const char *str, int &i) {
 		return (void *) detF;
 	} else if (strcmp(str, "smd/tlsph/PK1_ptr") == 0) {
 		return (void *) PK1;
+	} else if (strcmp(str, "smd/tlsph/Kundeg_ptr") == 0) {
+	  return (void *) Kundeg;
 	} else if (strcmp(str, "smd/tlsph/smoothVel_ptr") == 0) {
 		return (void *) smoothVelDifference;
+	} else if (strcmp(str, "smd/tlsph/surfaceNormal_ptr") == 0) {
+	  return (void *) surfaceNormal;
 	} else if (strcmp(str, "smd/tlsph/numNeighsRefConfig_ptr") == 0) {
 		return (void *) numNeighsRefConfig;
 	} else if (strcmp(str, "smd/tlsph/stressTensor_ptr") == 0) {
@@ -1952,12 +2185,21 @@ void PairTlsph::effective_longitudinal_modulus(const int itype, const double dt,
 		K_eff = Lookup[BULK_MODULUS][itype];
 	}
 
+	//if (K_eff < Lookup[BULK_MODULUS][itype]) printf("K_eff = %f\n", K_eff);
+
 	if (domain->dimension == 3) {
 // Calculate 2 mu by looking at ratio shear stress / shear strain. Use numerical softening to avoid divide-by-zero.
-		mu_eff = 0.5
-				* (sigma_dev_rate(0, 1) / (d_dev(0, 1) + 1.0e-16) + sigma_dev_rate(0, 2) / (d_dev(0, 2) + 1.0e-16)
-						+ sigma_dev_rate(1, 2) / (d_dev(1, 2) + 1.0e-16));
-
+		mu_eff = 0.5 * (sigma_dev_rate(0, 1) + sigma_dev_rate(0, 2) + sigma_dev_rate(1, 2) ) / (d_dev(0, 1) + d_dev(0, 2) + d_dev(1, 2) + 1.0e-16);
+		// mu_eff = 0.5
+		//		* (sigma_dev_rate(0, 1) / (d_dev(0, 1) + 1.0e-16) + sigma_dev_rate(0, 2) / (d_dev(0, 2) + 1.0e-16)
+		//				+ sigma_dev_rate(1, 2) / (d_dev(1, 2) + 1.0e-16)); //This gives a mu_eff up to three times higher than what it should be.
+		//double mut = 0.5*max(max((sigma_dev_rate(0, 1) / (d_dev(0, 1) + 1.0e-16)), sigma_dev_rate(0, 2) / (d_dev(0, 2) + 1.0e-16)), sigma_dev_rate(1, 2) / (d_dev(1, 2) + 1.0e-16));
+		//if (mu_eff > 1.1*mut) {
+		//  printf("mu_eff = %f, mut = %f\n", mu_eff, mut);
+		//  printf("sigma_dev_rate(0, 1) / d_dev(0, 1) = %f\n", (sigma_dev_rate(0, 1) / (d_dev(0, 1) + 1.0e-16)));
+		//  printf("sigma_dev_rate(0, 2) / d_dev(0, 2) = %f\n", (sigma_dev_rate(0, 2) / (d_dev(0, 2) + 1.0e-16)));
+		//  printf("sigma_dev_rate(1, 2) / d_dev(1, 2) = %f\n", (sigma_dev_rate(1, 2) / (d_dev(1, 2) + 1.0e-16)));
+		//}
 // Calculate magnitude of deviatoric strain rate. This is used for deciding if shear modulus should be computed from current rate or be taken as the initial value.
 		shear_rate_sq = d_dev(0, 1) * d_dev(0, 1) + d_dev(0, 2) * d_dev(0, 2) + d_dev(1, 2) * d_dev(1, 2);
 	} else {
@@ -2047,6 +2289,7 @@ void PairTlsph::ComputeStressDeviator(const int i, const Matrix3d sigmaInitial_d
 	double dt = update->dt;
 	double yieldStress;
 	int itype;
+	double *damage = atom->damage;
 
 	double mass_specific_energy = e[i] / rmass[i]; // energy per unit mass
 	plastic_strain_increment = 0.0;
@@ -2071,13 +2314,13 @@ void PairTlsph::ComputeStressDeviator(const int i, const Matrix3d sigmaInitial_d
 
 		yieldStress = Lookup[YIELD_STRESS][itype] + Lookup[HARDENING_PARAMETER][itype] * eff_plastic_strain[i];
 		LinearPlasticStrength(Lookup[SHEAR_MODULUS][itype], yieldStress, sigmaInitial_dev, d_dev, dt, sigmaFinal_dev,
-				sigma_dev_rate, plastic_strain_increment);
+				      sigma_dev_rate, plastic_strain_increment, damage[i]);
 		break;
 	case STRENGTH_JOHNSON_COOK:
 		JohnsonCookStrength(Lookup[SHEAR_MODULUS][itype], Lookup[HEAT_CAPACITY][itype], mass_specific_energy, Lookup[JC_A][itype],
 				Lookup[JC_B][itype], Lookup[JC_a][itype], Lookup[JC_C][itype], Lookup[JC_epdot0][itype], Lookup[JC_T0][itype],
 				Lookup[JC_Tmelt][itype], Lookup[JC_M][itype], dt, eff_plastic_strain[i], eff_plastic_strain_rate[i],
-				sigmaInitial_dev, d_dev, sigmaFinal_dev, sigma_dev_rate, plastic_strain_increment);
+				sigmaInitial_dev, d_dev, sigmaFinal_dev, sigma_dev_rate, plastic_strain_increment, damage[i]);
 		break;
 	case STRENGTH_NONE:
 		sigmaFinal_dev.setZero();
@@ -2093,7 +2336,7 @@ void PairTlsph::ComputeStressDeviator(const int i, const Matrix3d sigmaInitial_d
 /* ----------------------------------------------------------------------
  Compute damage. Called from AssembleStress().
  ------------------------------------------------------------------------- */
-void PairTlsph::ComputeDamage(const int i, const Matrix3d strain, const Matrix3d stress, Matrix3d &stress_damaged) {
+void PairTlsph::ComputeDamage(const int i, const Matrix3d strain, const Matrix3d stress, Matrix3d &stress_damaged, double plastic_strain_increment) {
 	double *eff_plastic_strain = atom->eff_plastic_strain;
 	double *eff_plastic_strain_rate = atom->eff_plastic_strain_rate;
 	double *radius = atom->radius;
@@ -2107,6 +2350,16 @@ void PairTlsph::ComputeDamage(const int i, const Matrix3d strain, const Matrix3d
 	eye.setIdentity();
 	stress_deviator = Deviator(stress);
 	double pressure = -stress.trace() / 3.0;
+
+	//// First apply damage to integration point (to stay consistent throughout the loop):
+	//if (pressure > 0.0) { // compression: particle can carry compressive load but reduced shear
+	//  stress_damaged = -pressure * eye + (1.0 - damage[i]) * Deviator(stress);
+        //} else { // tension: particle has reduced tensile and shear load bearing capability
+	//  stress_damaged = (1.0 - damage[i]) * (-pressure * eye + Deviator(stress));
+        //}
+
+	stress_damaged = stress;
+	// Then calculate updated damage onset value:
 
 	if (failureModel[itype].failure_max_principal_stress) {
 		error->one(FLERR, "not yet implemented");
@@ -2127,34 +2380,286 @@ void PairTlsph::ComputeDamage(const int i, const Matrix3d strain, const Matrix3d
 			//damage[i] = (eff_plastic_strain[i] - Lookup[FAILURE_MAX_PLASTIC_STRAIN_THRESHOLD][itype]) / damage_gap;
 		}
 	} else if (failureModel[itype].failure_johnson_cook) {
-
-		//cout << "this is stress deviator" << stress_deviator << endl;
-
-		jc_failure_strain = JohnsonCookFailureStrain(pressure, stress_deviator, Lookup[FAILURE_JC_D1][itype],
-				Lookup[FAILURE_JC_D2][itype], Lookup[FAILURE_JC_D3][itype], Lookup[FAILURE_JC_D4][itype],
-				Lookup[FAILURE_JC_EPDOT0][itype], eff_plastic_strain_rate[i]);
-
-		//cout << "plastic strain increment is " << plastic_strain_increment << "  jc fs is " << jc_failure_strain << endl;
-		//printf("JC failure strain is: %f\n", jc_failure_strain);
-
-		if (eff_plastic_strain[i] >= jc_failure_strain) {
-			double damage_rate = Lookup[SIGNAL_VELOCITY][itype] / (100.0 * radius[i]);
-			damage[i] += damage_rate * update->dt;
-			//damage[i] = 1.0;
-		}
+	  damage[i] += JohnsonCookDamageIncrement(pressure, stress_deviator, Lookup[FAILURE_JC_D1][itype],
+						  Lookup[FAILURE_JC_D2][itype], Lookup[FAILURE_JC_D3][itype], Lookup[FAILURE_JC_D4][itype],
+						  Lookup[FAILURE_JC_EPDOT0][itype], eff_plastic_strain_rate[i], plastic_strain_increment);
 	}
+
+	damage[i] = MIN(damage[i], 1.0);
+	//damage[i] = MIN(damage[i], 0.99);
 
 	/*
 	 * Apply damage to integration point
 	 */
 
-//	damage[i] = MIN(damage[i], 0.8);
-//
-//	if (pressure > 0.0) { // compression: particle can carry compressive load but reduced shear
-//		stress_damaged = -pressure * eye + (1.0 - damage[i]) * Deviator(stress);
-//	} else { // tension: particle has reduced tensile and shear load bearing capability
-//		stress_damaged = (1.0 - damage[i]) * (-pressure * eye + Deviator(stress));
-//	}
+	if (pressure > 0.0) { // compression: particle can carry compressive load but reduced shear
+		stress_damaged = -pressure * eye + (1.0 - damage[i]) * Deviator(stress);
+	} else { // tension: particle has reduced tensile and shear load bearing capability
+		stress_damaged = (1.0 - damage[i]) * (-pressure * eye + Deviator(stress));
+	}
+	
 
 }
 
+void PairTlsph::UpdateDegradation() {
+	tagint *mol = atom->molecule;
+	tagint *tag = atom->tag;
+	double **x = atom->x;
+	double **v = atom->vest;
+	double **x0 = atom->x0;
+	double **f = atom->f;
+	double *vfrac = atom->vfrac;
+	double *radius = atom->radius;
+	double *damage = atom->damage;
+	double **vint = atom->v;
+	double *plastic_strain = atom->eff_plastic_strain;
+	double *eff_plastic_strain_rate = atom->eff_plastic_strain_rate;
+	int *type = atom->type;
+	int nlocal = atom->nlocal;
+	int i, j, jj, jnum, itype, idim;
+	double r, h, r0, r0Sq;
+	double strain1d, strain1d_max, softening_strain;
+	Vector3d dx0, dx, dv, x0i, x0j;
+	Vector3d xi, xj;
+	int periodic = (domain->xperiodic || domain->yperiodic || domain->zperiodic);
+
+	char str[128];
+	tagint **partner = ((FixSMD_TLSPH_ReferenceConfiguration *) modify->fix[ifix_tlsph])->partner;
+	int *npartner = ((FixSMD_TLSPH_ReferenceConfiguration *) modify->fix[ifix_tlsph])->npartner;
+	float **degradation_ij = ((FixSMD_TLSPH_ReferenceConfiguration *) modify->fix[ifix_tlsph])->degradation_ij;
+	float **energy_per_bond = ((FixSMD_TLSPH_ReferenceConfiguration *) modify->fix[ifix_tlsph])->energy_per_bond;
+        Vector3d **partnerx0 = ((FixSMD_TLSPH_ReferenceConfiguration *) modify->fix[ifix_tlsph])->partnerx0;
+        double **partnervol = ((FixSMD_TLSPH_ReferenceConfiguration *) modify->fix[ifix_tlsph])->partnervol;
+
+	for (i = 0; i < nlocal; i++) {
+
+		if (mol[i] < 0) {
+			continue; // Particle i is not a valid SPH particle (anymore). Skip all interactions with this particle.
+		}
+
+		itype = type[i];
+		
+		if (failureModel[itype].failure_none) { // Do not update degradation if no failure mode is activated for the mol.
+		  continue;
+		}
+
+		itype = type[i];
+		jnum = npartner[i];
+
+		// initialize aveage mass density
+		h = 2.0 * radius[i];
+		r = 0.0;
+
+		for (idim = 0; idim < 3; idim++) {
+			x0i(idim) = x0[i][idim];
+			xi(idim) = x[i][idim];
+		}
+
+		int numNeighbors = 0;
+		
+		for (jj = 0; jj < jnum; jj++) {
+			if (degradation_ij[i][jj] >= 1.0)
+				continue;
+			j = atom->map(partner[i][jj]);
+			if (j < 0) { //			// check if lost a partner without first breaking bond
+			  error->all(FLERR, "Bond broken not detected during PreCompute -3!");
+			  continue;
+			}
+
+			if (mol[j] < 0) {
+				continue; // Particle j is not a valid SPH particle (anymore). Skip all interactions with this particle.
+			}
+
+			if (mol[i] != mol[j]) {
+				continue;
+			}
+
+			if (type[j] != itype) {
+				sprintf(str, "particle pair is not of same type!");
+				error->all(FLERR, str);
+			}
+
+			for (idim = 0; idim < 3; idim++) {
+				x0j(idim) = x0[j][idim];
+				xj(idim) = x[j][idim];
+			}
+
+			if (periodic)
+				domain->minimum_image(dx0(0), dx0(1), dx0(2));
+
+			// check that distance between i and j (in the reference config) is less than cutoff
+			dx0 = x0j - x0i;
+			r0Sq = dx0.squaredNorm();
+			h = radius[i] + radius[j];
+			r0 = sqrt(r0Sq);
+
+			// distance vectors in current and reference configuration, velocity difference
+			dx = xj - xi;
+			r = dx.norm(); // current distance
+
+			if (failureModel[itype].failure_max_pairwise_strain) {
+
+				strain1d = (r - r0) / r0;
+				strain1d_max = Lookup[FAILURE_MAX_PAIRWISE_STRAIN_THRESHOLD][itype];
+				softening_strain = 2.0 * strain1d_max;
+
+				if (strain1d > strain1d_max) {
+				  degradation_ij[i][jj] = max(degradation_ij[i][jj], float((strain1d - strain1d_max) / softening_strain));
+				  if (degradation_ij[i][jj] >= 0.99) {
+				    printf("Link between %d and %d destroyed.\n", tag[i], partner[i][jj]);
+				    cout << "Here is dx0:" << endl << dx0 << endl;
+				    degradation_ij[i][jj] = 0.99;
+				  }
+				  //degradation_ij[i][jj] = (strain1d - strain1d_max) / softening_strain;
+				} else {
+				  //degradation_ij[i][jj] = 0.0;
+				}
+			}
+
+			if (failureModel[itype].failure_energy_release_rate) {
+			  
+				double Vic = (2.0 / 3.0) * h * h * h * h; // interaction volume for 2d plane strain
+				double critical_energy_per_bond = Lookup[CRITICAL_ENERGY_RELEASE_RATE][itype] / (2.0 * Vic);
+
+				if (energy_per_bond[i][jj] > critical_energy_per_bond) {
+					degradation_ij[i][jj] = 1.0;
+				}
+			}
+
+			if (failureModel[itype].integration_point_wise) {
+			  degradation_ij[i][jj] = 1 - (1 - damage[i]) * (1 - damage[j]);
+			  if (degradation_ij[i][jj] >= 1.0) { // delete interaction if fully damaged
+			    printf("Link between %d and %d destroyed due to complete degradation.\n", tag[i], partner[i][jj]);
+			    degradation_ij[i][jj] = 1.0;
+			  }
+			  /*
+			  if ((damage[i] == 1.0) && (damage[j]==1.0)) {
+			    strain1d = (r - r0) / r0;
+
+			    if (energy_per_bond[i][jj] > 0.0) { // f_stress.dot(dx) > 0.0 if the link i-jj is in tension, only then we apply degradation
+			      if (strain1d > 0.0) {
+				
+				// check if damage_onset is already defined
+				softening_strain = 0.01;
+				
+				degradation_ij[i][jj] += 0.5 * (eff_plastic_strain_rate[i] + eff_plastic_strain_rate[j]) * update->dt / softening_strain;
+				
+			      }
+			    }
+			      
+			      
+			    if (degradation_ij[i][jj] >= 1.0) { // delete interaction if fully damaged
+			      printf("Link between %d and %d destroyed due to complete degradation.\n", tag[i], tag[jj]);
+			      degradation_ij[i][jj] = 1.0;
+			    }
+			    }*/
+			}
+			
+			if (degradation_ij[i][jj] < 1.0) {
+			  numNeighbors += 1;
+			}
+		} // end loop over jj neighbors of i
+		
+		if (numNeighbors == 0) {
+		  //printf("Deleting particle [%d] because damage = %f\n", tag[i], damage[i]);
+		  //dtCFL = MIN(dtCFL, update->dt);
+		  //mol[i] = -1;
+		  vint[i][0] = 0.0;
+		  vint[i][1] = 0.0;
+		  vint[i][2] = 0.0;
+		  f[i][0] = 0.0;
+		  f[i][1] = 0.0;
+		  f[i][2] = 0.0;
+		  smoothVelDifference[i].setZero();
+		  }
+
+	} // end loop over i
+}
+
+
+void PairTlsph:: AdjustStressForZeroForceBC(const Matrix3d sigma, const Vector3d sU, Matrix3d &sigmaBC) {
+  Vector3d sV, sW, sigman;
+  Matrix3d P;
+  //cout << "Creating mirror particle i=" << tag[i] << " and j=" << tag[j] << endl;
+  
+  P = CreateOrthonormalBasisFromOneVector(sU);
+
+  sigmaBC = P.transpose() * sigma * P; // We transform sigmaBC to the surface basis
+  
+  
+  // sigmaBC.[1, 0, 0] == [0 0 0] if there is no stress on the boundary!
+  sigmaBC.col(0).setZero();
+  sigmaBC.row(0).setZero();
+  
+  sigmaBC = P * sigmaBC * P.transpose();
+
+  // Check if sigmaBC * surfaceNormalNormi = 0:
+  sigman = sigmaBC * sU;
+  if (sigman.norm() > 1.0e-5){
+    cout << "Here is sigman :" << endl << sigman << endl;
+    cout << "Here is P.transpose() * sigmaBC * P :" << endl << P.transpose() * sigmaBC * P << endl;
+    cout << "Here is P.transpose() * sU :" << endl << P.transpose() * sU << endl;
+    cout << "Here is P :" << endl << P << endl;
+  }
+}
+
+
+Vector3d PairTlsph::ComputeFstress(const int i, const int j, const int jj, const double surfaceNormalNormi, const Vector3d dx0, const double r0, const Vector3d g, const Matrix3d sigmaBC_i, const double scale, const double strain1d) {
+  double *vfrac = atom->vfrac;
+  float **wfd_list = ((FixSMD_TLSPH_ReferenceConfiguration *) modify->fix[ifix_tlsph])->wfd_list;
+  double voli, volj;
+  Matrix3d sigmaInternalBC;
+  Vector3d fij, eij, compForce, shearForce;
+
+  voli = vfrac[i];
+  volj = vfrac[j];
+
+  eij = dx0/r0;
+
+  if (strain1d > 0.0) {
+    // The bond ij is in tension, the whole contribution needs to be scaled
+    if (scale == 0.0) {
+      fij = PK1[i] * Kundeg[i] * g;
+    } else {
+      fij = (scale * PK1[j] + PK1[i]) * Kundeg[i] * g; 
+    }
+  } else {
+    fij = PK1[j] * Kundeg[i] * g;
+    
+    if (scale < 1.0) {
+      // The bond ij is in compression, only shear forces need to be scaled:
+      
+      Matrix3d P = CreateOrthonormalBasisFromOneVector(dx0);
+      Vector3d sU = P.col(0);
+      Vector3d sV = P.col(1);
+      Vector3d sW = P.col(2);
+      
+      compForce = fij.dot(sU) * sU;
+      shearForce = ( fij.dot(sV) * sV + fij.dot(sW) * sW)*scale;
+      if (abs(compForce.dot(shearForce)) > 1.0e-10) {
+	printf("compForce and shearForce should be orthogonal.");
+	cout << "Here is P:" << endl << P << endl;
+	cout << "sU.sV = " << sU.dot(sV) << endl;
+	cout <<"sU.sW = " << sU.dot(sW) << endl;
+	cout <<"sV.sW = " << sV.dot(sW) << endl;
+	cout << "Here is compForce: " << endl << compForce << endl;
+	cout << "Here is shearForce: " << endl << shearForce << endl;
+	cout << "compForce dot shearForce =  " << compForce.dot(shearForce) << endl;
+	//error->all(FLERR, "Error. compForce and shearForce should be orthogonal.");
+      }
+      fij = compForce + shearForce;
+    }
+    fij += PK1[i]*Kundeg[i]*g;
+    
+  }
+  
+  
+  if ((surfaceNormalNormi > 0.5) && (surfaceNormal[i].dot(dx0) <= -0.5*pow(volj, 1.0/3.0))) {
+    // i is a surface particle, and j is in the bulk.
+    Vector3d dx0mirror = dx0 - 2 * (dx0.dot(surfaceNormal[i])) * surfaceNormal[i];
+    //fij += (PK1[i] - sigmaBC_i) * Kundeg[i] * (wfd_list[i][jj] / r0) * dx0mirror; // Contribution of the virtual mirror particle (is not affected by damage!)
+    fij += PK1[i] * Kundeg[i] * (wfd_list[i][jj] / r0) * dx0mirror; // Contribution of the virtual mirror particle (is not affected by damage!)
+  }
+  return -voli * volj * fij;
+  
+}

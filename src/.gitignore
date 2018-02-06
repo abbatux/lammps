@@ -960,6 +960,8 @@
 /compute_smd_tlsph_defgrad.h
 /compute_smd_tlsph_dt.cpp
 /compute_smd_tlsph_dt.h
+/compute_smd_tlsph_kundeg.cpp
+/compute_smd_tlsph_kundeg.h
 /compute_smd_tlsph_num_neighs.cpp
 /compute_smd_tlsph_num_neighs.h
 /compute_smd_tlsph_shape.cpp
@@ -970,6 +972,8 @@
 /compute_smd_tlsph_strain_rate.h
 /compute_smd_tlsph_stress.cpp
 /compute_smd_tlsph_stress.h
+/compute_smd_tlsph_surface_normal.cpp
+/compute_smd_tlsph_surface_normal.h
 /compute_smd_triangle_mesh_vertices.cpp
 /compute_smd_triangle_mesh_vertices.h
 /compute_smd_ulsph_effm.cpp

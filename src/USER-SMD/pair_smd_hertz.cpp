@@ -99,6 +99,7 @@ void PairHertz::compute(int eflag, int vflag) {
 	int nlocal = atom->nlocal;
 	double *radius = atom->contact_radius;
 	double *sph_radius = atom->radius;
+	double *damage = atom->damage;
 	double rcutSq;
 	double delx0, dely0, delz0, rSq0, sphCut;
 
@@ -172,9 +173,10 @@ void PairHertz::compute(int eflag, int vflag) {
 				delta = rcut - r; // overlap distance
 				r_geom = ri * rj / rcut;
 				//assuming poisson ratio = 1/4 for 3d
-				fpair = 1.066666667e0 * bulkmodulus[itype][jtype] * delta * sqrt(delta * r_geom); //  units: N
+				fpair = 1.066666667e0 * bulkmodulus[itype][jtype] * (1 - damage[i])*(1 - damage[j]) * delta * sqrt(delta * r_geom); //  units: N
 				evdwl = fpair * 0.4e0 * delta; // GCG 25 April: this expression conserves total energy
-				dt_crit = 3.14 * sqrt(0.5 * (rmass[i] + rmass[j]) / (fpair / delta));
+				//dt_crit = 3.14 * sqrt(0.5 * (rmass[i] + rmass[j]) / (fpair / delta));
+				dt_crit = sqrt(rmass[i] * sqrt(r_geom) / (1.066666667e0 * bulkmodulus[itype][jtype] * delta * sqrt(delta) + 1.0e-16));
 
 				stable_time_increment = MIN(stable_time_increment, dt_crit);
 				if (r > 2.0e-16) {

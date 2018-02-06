@@ -75,7 +75,7 @@ void ShockEOS(double rho, double rho0, double e, double e0, double c0, double S,
 	double mu = rho / rho0 - 1.0;
 	double pH = rho0 * square(c0) * mu * (1.0 + mu) / square(1.0 - (S - 1.0) * mu);
 
-	pFinal = (pH + rho * Gamma * (e - e0));
+	pFinal = (-pH + rho * Gamma * (e - e0));
 
 	//printf("shock EOS: rho = %g, rho0 = %g, Gamma=%f, c0=%f, S=%f, e=%f, e0=%f\n", rho, rho0, Gamma, c0, S, e, e0);
 	//printf("pFinal = %f\n", pFinal);
@@ -237,7 +237,7 @@ void LinearStrength(const double mu, const Matrix3d sigmaInitial_dev, const Matr
  output:  sigmaFinal_dev, sigmaFinal_dev_rate__: final stress deviator and its rate.
  ------------------------------------------------------------------------- */
 void LinearPlasticStrength(const double G, const double yieldStress, const Matrix3d sigmaInitial_dev, const Matrix3d d_dev,
-		const double dt, Matrix3d &sigmaFinal_dev__, Matrix3d &sigma_dev_rate__, double &plastic_strain_increment) {
+			   const double dt, Matrix3d &sigmaFinal_dev__, Matrix3d &sigma_dev_rate__, double &plastic_strain_increment, const double damage) {
 
 	Matrix3d sigmaTrial_dev, dev_rate;
 	double J2;
@@ -258,6 +258,7 @@ void LinearPlasticStrength(const double G, const double yieldStress, const Matri
 	J2 = sqrt(3. / 2.) * sigmaTrial_dev.norm();
 
 	if (J2 < yieldStress) {
+	  //if (J2 < yieldStress * (1 - damage)) {
 		/*
 		 * no yielding has occured.
 		 * final deviatoric stress is trial deviatoric stress
@@ -272,8 +273,9 @@ void LinearPlasticStrength(const double G, const double yieldStress, const Matri
 		/*
 		 * yielding has occured
 		 */
-		plastic_strain_increment = (J2 - yieldStress) / (3.0 * G);
 
+	        //plastic_strain_increment = (J2 - yieldStress * (1 - damage)) / (3.0 * G);
+		plastic_strain_increment = (J2 - yieldStress) / (3.0 * G);
 		/*
 		 * new deviatoric stress:
 		 * obtain by scaling the trial stress deviator
@@ -309,7 +311,7 @@ void LinearPlasticStrength(const double G, const double yieldStress, const Matri
 void JohnsonCookStrength(const double G, const double cp, const double espec, const double A, const double B, const double a,
 		const double C, const double epdot0, const double T0, const double Tmelt, const double M, const double dt, const double ep,
 		const double epdot, const Matrix3d sigmaInitial_dev, const Matrix3d d_dev, Matrix3d &sigmaFinal_dev__,
-		Matrix3d &sigma_dev_rate__, double &plastic_strain_increment) {
+			 Matrix3d &sigma_dev_rate__, double &plastic_strain_increment, const double damage) {
 
 	Matrix3d sigmaTrial_dev, dev_rate;
 	double J2, yieldStress;
@@ -321,7 +323,7 @@ void JohnsonCookStrength(const double G, const double cp, const double espec, co
 	epdot_ratio = MAX(epdot_ratio, 1.0);
 	//printf("current temperature delta is %f, TH=%f\n", deltaT, TH);
 
-	yieldStress = (A + B * pow(ep, a)) * (1.0 + C * log(epdot_ratio)); // * (1.0 - pow(TH, M));
+	yieldStress = (A + B * pow(ep, a)) * (1.0 + C * log(epdot_ratio)); // * (1.0 - damage); // * (1.0 - pow(TH, M));
 
 	/*
 	 * deviatoric rate of unrotated stress
@@ -435,8 +437,8 @@ bool IsotropicMaxStressDamage(const Matrix3d S, const double maxStress) {
 
  ------------------------------------------------------------------------- */
 
-double JohnsonCookFailureStrain(const double p, const Matrix3d Sdev, const double d1, const double d2, const double d3,
-		const double d4, const double epdot0, const double epdot) {
+double JohnsonCookDamageIncrement(const double p, const Matrix3d Sdev, const double d1, const double d2, const double d3,
+				  const double d4, const double epdot0, const double epdot, const double plastic_strain_increment) {
 
 
 
@@ -448,27 +450,30 @@ double JohnsonCookFailureStrain(const double p, const Matrix3d Sdev, const doubl
 	}
 
 	// determine stress triaxiality
-	double triax = p / (vm + 0.01 * fabs(p)); // have softening in denominator to avoid divison by zero
-	if (triax < 0.0) {
-		triax = 0.0;
-	} else if (triax > 3.0) {
-		triax = 3.0;
+	double triax = 0.0;
+	if (p != 0.0 && vm != 0.0) {
+	  triax = -p / (vm + 0.01 * fabs(p)); // have softening in denominator to avoid divison by zero
 	}
-
+	if (triax > 3.0) {                                                                                                                                                                                
+	  triax = 3.0;
+	}
 	// Johnson-Cook failure strain, dependence on stress triaxiality
-	double jc_failure_strain = d1 + d2 * exp(d3 * triax);
-
-	// include strain rate dependency if parameter d4 is defined and current plastic strain rate exceeds reference strain rate
-	if (d4 > 0.0) { //
-		if (epdot > epdot0) {
-			double epdot_ratio = epdot / epdot0;
-			jc_failure_strain *= (1.0 + d4 * log(epdot_ratio));
-			//printf("epsdot=%f, epsdot0=%f, factor = %f\n", epdot, epdot0, (1.0 + d4 * log(epdot_ratio)));
-			//exit(1);
-
-		}
+	if (triax >= -1.0/3.0) {
+	  double jc_failure_strain = d1 + d2 * exp(d3 * triax);
+	  //printf("d1=%f, d2=%f, d3 = %f, triax = %f, jc_failure_strain = %f\n", d1, d2, d3, triax, jc_failure_strain);
+	  // include strain rate dependency if parameter d4 is defined and current plastic strain rate exceeds reference strain rate
+	  if (d4 > 0.0) { //
+	    if (epdot > epdot0) {
+	      double epdot_ratio = epdot / epdot0;
+	      jc_failure_strain *= (1.0 + d4 * log(epdot_ratio));
+	      //printf("epsdot=%f, epsdot0=%f, factor = %f\n", epdot, epdot0, (1.0 + d4 * log(epdot_ratio)));
+	      //exit(1);
+	      
+	    }
+	  }
+	  return plastic_strain_increment/jc_failure_strain;
+	} else {
+	  return 0;
 	}
-
-	return jc_failure_strain;
 
 }
