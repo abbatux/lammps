@@ -328,7 +328,7 @@ void JohnsonCookStrength(const double G, const double cp, const double espec, co
 	/*
 	 * deviatoric rate of unrotated stress
 	 */
-	dev_rate = 2.0 * G * d_dev;
+	dev_rate = 2.0 * G * (1 - damage) * d_dev;
 
 	/*
 	 * perform a trial elastic update to the deviatoric stress
@@ -338,7 +338,7 @@ void JohnsonCookStrength(const double G, const double cp, const double espec, co
 	/*
 	 * check yield condition
 	 */
-	J2 = (1 - damage) * sqrt(3. / 2.) * sigmaTrial_dev.norm();
+	J2 = sqrt(3. / 2.) * sigmaTrial_dev.norm();
 
 	if (J2 < yieldStress) {
 		/*
@@ -355,7 +355,7 @@ void JohnsonCookStrength(const double G, const double cp, const double espec, co
 		/*
 		 * yielding has occured
 		 */
-		plastic_strain_increment = (J2 - yieldStress) / (3.0 * G);
+		plastic_strain_increment = (J2 - yieldStress) / (3.0 * G * (1 - damage));
 
 		/*
 		 * new deviatoric stress:
