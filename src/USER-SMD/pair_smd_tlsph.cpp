@@ -928,12 +928,13 @@ void PairTlsph::AssembleStress() {
 	double *damage = atom->damage;
 	double *rmass = atom->rmass;
 	double *vfrac = atom->vfrac;
+	double *rho = atom->rho;
 	double *e = atom->e;
 	double pInitial, d_iso, pFinal, p_rate, plastic_strain_increment;
 	int i, itype, idim;
 	int nlocal = atom->nlocal;
 	double dt = update->dt;
-	double M_eff, p_wave_speed, mass_specific_energy, vol_specific_energy, rho;
+	double M_eff, p_wave_speed, mass_specific_energy, vol_specific_energy;
 	Matrix3d sigma_rate, eye, sigmaInitial, sigmaFinal, T, T_damaged, Jaumann_rate, sigma_rate_check;
 	Matrix3d d_dev, sigmaInitial_dev, sigmaFinal_dev, sigma_dev_rate, strain;
 	Vector3d vi;
@@ -971,14 +972,14 @@ void PairTlsph::AssembleStress() {
 				d_dev = Deviator(D[i]); // deviatoric part of stretch rate
 				strain = 0.5 * (Fincr[i].transpose() * Fincr[i] - eye);
 				mass_specific_energy = e[i] / rmass[i]; // energy per unit mass
-				rho = rmass[i] / (detF[i] * vfrac[i]);
-				vol_specific_energy = mass_specific_energy * rho; // energy per current volume
+				rho[i] = rmass[i] / (detF[i] * vfrac[i]);
+				vol_specific_energy = mass_specific_energy * rho[i]; // energy per current volume
 
 				/*
 				 * pressure: compute pressure rate p_rate and final pressure pFinal
 				 */
 
-				ComputePressure(i, rho, mass_specific_energy, vol_specific_energy, pInitial, d_iso, pFinal, p_rate);
+				ComputePressure(i, rho[i], mass_specific_energy, vol_specific_energy, pInitial, d_iso, pFinal, p_rate);
 
 				/*
 				 * material strength
@@ -1071,7 +1072,7 @@ void PairTlsph::AssembleStress() {
 
 				double K_eff, mu_eff;
 				effective_longitudinal_modulus(itype, dt, d_iso, p_rate, d_dev, sigma_dev_rate, damage[i], K_eff, mu_eff, M_eff);
-				p_wave_speed = sqrt(M_eff / rho);
+				p_wave_speed = sqrt(M_eff / rho[i]);
 
 				if (mol[i] < 0) {
 					error->one(FLERR, "this should not happen");

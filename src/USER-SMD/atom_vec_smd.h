@@ -94,7 +94,7 @@ class AtomVecSMD : public AtomVec {
   double *eff_plastic_strain;
   double *damage;
   double *eff_plastic_strain_rate;
-
+  double *rho;
 
 };
 
