@@ -1001,9 +1001,6 @@ void PairTlsph::AssembleStress() {
 				/*
 				 *  assemble total stress from pressure and deviatoric stress
 				 */
-				if (pFinal > 0.0) {
-				  pFinal *= (1 - damage[i]); // Apply damage to the non-deviatoric part of the stress. The deviatoric part already includes damage.
-				}
 				sigmaFinal = pFinal * eye + sigmaFinal_dev; // this is the stress that is kept
 
 				if (JAUMANN) {
@@ -2264,7 +2261,7 @@ void PairTlsph::ComputePressure(const int i, const double rho, const double mass
 	case EOS_SHOCK:
 //  rho,  rho0,  e,  e0,  c0,  S,  Gamma,  pInitial,  dt,  &pFinal,  &p_rate);
 		ShockEOS(rho, Lookup[REFERENCE_DENSITY][itype], mass_specific_energy, 0.0, Lookup[EOS_SHOCK_C0][itype],
-				Lookup[EOS_SHOCK_S][itype], Lookup[EOS_SHOCK_GAMMA][itype], pInitial, dt, pFinal, p_rate);
+			 Lookup[EOS_SHOCK_S][itype], Lookup[EOS_SHOCK_GAMMA][itype], pInitial, dt, pFinal, p_rate, damage[i]);
 		break;
 	case EOS_POLYNOMIAL:
 		polynomialEOS(rho, Lookup[REFERENCE_DENSITY][itype], vol_specific_energy, Lookup[EOS_POLYNOMIAL_C0][itype],
