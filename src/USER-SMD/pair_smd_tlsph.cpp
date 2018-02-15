@@ -63,15 +63,16 @@ using namespace SMD_Math;
 #define PLASTIC_STRAIN_AVERAGE_WINDOW 100.0
 
 
-static double CalculateScale(const float degradation, double r, double r0) {
-  //return 1.0 - degradation;
-  double strain1d = (r - r0) / r0;
-  
-  if (strain1d > 0.0) {
-    return 1 - degradation;
-  } else {
+static double CalculateScale(const float degradation) {
+  double start = 0.9;
+  if (degradation <= start) {
     return 1.0;
   }
+  if (degradation >= 1.0) {
+    return 0.0;
+  }
+  
+  return 0.5 + 0.5 * cos( M_PI * (degradation - start) / (1.0 - start) );
 }
 
 static Matrix3d CreateOrthonormalBasisFromOneVector(Vector3d sU) {
@@ -368,7 +369,7 @@ void PairTlsph::PreCompute() {
                                 
 
 				// scale the interaction according to the damage variable
-				scale = 1.0 - degradation_ij[i][jj];
+				scale = CalculateScale(degradation_ij[i][jj]);
 				wf = wf_list[i][jj] * scale;
 				wfd = wfd_list[i][jj] * scale;
 				g = (wfd / r0) * dx0;
@@ -777,7 +778,7 @@ void PairTlsph::ComputeForces(int eflag, int vflag) {
 			
 			// scale the interaction according to the damage variable
 			//scale = CalculateScale(degradation_ij[i][jj], r, r0);
-			scale = 1.0 - degradation_ij[i][jj];
+			scale =CalculateScale(degradation_ij[i][jj]);
 			strain1d = ( r - r0 ) / r0;
 			wf = wf_list[i][jj];// * scale;
 			wfd = wfd_list[i][jj];// * scale;
