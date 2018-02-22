@@ -367,12 +367,12 @@ void PairTlsph::PreCompute() {
 				scale = CalculateScale(degradation_ij[i][jj]);
 				wf = wf_list[i][jj] * scale;
 				wfd = wfd_list[i][jj] * scale;
-				g = (wfd / r0) * dx0.transpose();
+				g = (wfd / r0) * dx0;
 
 				/* build matrices */
-				Ktmp = -dx0 * g;
-				Fdottmp = -dv * g;
-				Ftmp = -(dx - dx0) * g;
+				Ktmp = -g * dx0.transpose();
+				Fdottmp = -dv * g.transpose();
+				Ftmp = -(dx - dx0) * g.transpose();
 
 				K[i].noalias() += volj * Ktmp;
 				if (updateKundegFlag == 1) Kundeg[i].noalias() -= volj * (wfd_list[i][jj] / r0) * dx0 * dx0.transpose();
@@ -2424,10 +2424,11 @@ void PairTlsph::UpdateDegradation() {
 		// initialize aveage mass density
 		h = 2.0 * radius[i];
 		r = 0.0;
-
-		for (idim = 0; idim < 3; idim++) {
-			x0i(idim) = x0[i][idim];
-			xi(idim) = x[i][idim];
+		if (failureModel[itype].failure_max_pairwise_strain) {
+		  for (idim = 0; idim < 3; idim++) {
+		    x0i(idim) = x0[i][idim];
+		    xi(idim) = x[i][idim];
+		  }
 		}
 
 		int numNeighbors = 0;
@@ -2454,45 +2455,45 @@ void PairTlsph::UpdateDegradation() {
 				error->all(FLERR, str);
 			}
 
-			for (idim = 0; idim < 3; idim++) {
-				x0j(idim) = x0[j][idim];
-				xj(idim) = x[j][idim];
-			}
-
-			if (periodic)
-				domain->minimum_image(dx0(0), dx0(1), dx0(2));
-
-			// check that distance between i and j (in the reference config) is less than cutoff
-			dx0 = x0j - x0i;
-			r0Sq = dx0.squaredNorm();
-			h = radius[i] + radius[j];
-			r0 = sqrt(r0Sq);
-
-			// distance vectors in current and reference configuration, velocity difference
-			dx = xj - xi;
-			r = dx.norm(); // current distance
-
 			if (failureModel[itype].failure_max_pairwise_strain) {
+			  for (idim = 0; idim < 3; idim++) {
+			    x0j(idim) = x0[j][idim];
+			    xj(idim) = x[j][idim];
+			  }
 
-				strain1d = (r - r0) / r0;
-				strain1d_max = Lookup[FAILURE_MAX_PAIRWISE_STRAIN_THRESHOLD][itype];
-				softening_strain = 2.0 * strain1d_max;
+			  if (periodic)
+			    domain->minimum_image(dx0(0), dx0(1), dx0(2));
 
-				if (strain1d > strain1d_max) {
-				  degradation_ij[i][jj] = max(degradation_ij[i][jj], float((strain1d - strain1d_max) / softening_strain));
-				  if (degradation_ij[i][jj] >= 0.99) {
-				    printf("Link between %d and %d destroyed.\n", tag[i], partner[i][jj]);
-				    cout << "Here is dx0:" << endl << dx0 << endl;
-				    degradation_ij[i][jj] = 0.99;
-				  }
-				  //degradation_ij[i][jj] = (strain1d - strain1d_max) / softening_strain;
-				} else {
-				  //degradation_ij[i][jj] = 0.0;
-				}
+			  // check that distance between i and j (in the reference config) is less than cutoff
+			  dx0 = x0j - x0i;
+			  r0Sq = dx0.squaredNorm();
+			  h = radius[i] + radius[j];
+			  r0 = sqrt(r0Sq);
+
+			  // distance vectors in current and reference configuration, velocity difference
+			  dx = xj - xi;
+			  r = dx.norm(); // current distance
+
+			  strain1d = (r - r0) / r0;
+			  strain1d_max = Lookup[FAILURE_MAX_PAIRWISE_STRAIN_THRESHOLD][itype];
+			  softening_strain = 2.0 * strain1d_max;
+
+			  if (strain1d > strain1d_max) {
+			    degradation_ij[i][jj] = max(degradation_ij[i][jj], float((strain1d - strain1d_max) / softening_strain));
+			    if (degradation_ij[i][jj] >= 0.99) {
+			      printf("Link between %d and %d destroyed.\n", tag[i], partner[i][jj]);
+			      cout << "Here is dx0:" << endl << dx0 << endl;
+			      degradation_ij[i][jj] = 0.99;
+			    }
+			    //degradation_ij[i][jj] = (strain1d - strain1d_max) / softening_strain;
+			  } else {
+			    //degradation_ij[i][jj] = 0.0;
+			  }
 			}
 
 			if (failureModel[itype].failure_energy_release_rate) {
 			  
+				h = radius[i] + radius[j];
 				double Vic = (2.0 / 3.0) * h * h * h * h; // interaction volume for 2d plane strain
 				double critical_energy_per_bond = Lookup[CRITICAL_ENERGY_RELEASE_RATE][itype] / (2.0 * Vic);
 
