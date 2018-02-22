@@ -297,8 +297,8 @@ void PairTlsph::PreCompute() {
 				      domain->minimum_image(dx0(0), dx0(1), dx0(2));
 				    
 				    r0 = dx0.norm();
-				    if (updateKundegFlag == 1) Kundeg[i] -= volj * (wfd_list[i][jj] / r0) * dx0 * dx0.transpose();
-				    if (updateSurfaceNormal == 1) surfaceNormal[i] += volj * wfd_list[i][jj] * dx0;
+				    if (updateKundegFlag == 1) Kundeg[i].noalias() -= volj * (wfd_list[i][jj] / r0) * dx0 * dx0.transpose();
+				    if (updateSurfaceNormal == 1) surfaceNormal[i].noalias() += volj * wfd_list[i][jj] * dx0;
 				    //printf("Link between %d and %d destroyed!\n", tag[i], partner[i][jj]);
 				    continue;
 				  }
@@ -312,8 +312,8 @@ void PairTlsph::PreCompute() {
 				    domain->minimum_image(dx0(0), dx0(1), dx0(2));
 				  
 				  r0 = dx0.norm();
-				  if (updateKundegFlag == 1) Kundeg[i] -= volj * (wfd_list[i][jj] / r0) * dx0 * dx0.transpose();
-				  if (updateSurfaceNormal == 1) surfaceNormal[i] += volj * wfd_list[i][jj] * dx0;
+				  if (updateKundegFlag == 1) Kundeg[i].noalias() -= volj * (wfd_list[i][jj] / r0) * dx0 * dx0.transpose();
+				  if (updateSurfaceNormal == 1) surfaceNormal[i].noalias() += volj * wfd_list[i][jj] * dx0;
 				  degradation_ij[i][jj] = 1.0;
 				  continue;
 				}
@@ -381,18 +381,18 @@ void PairTlsph::PreCompute() {
 				Fdottmp = -dv * g.transpose();
 				Ftmp = -(dx - dx0) * g.transpose();
 
-				K[i] += volj * Ktmp;
-				if (updateKundegFlag == 1) Kundeg[i] -= volj * (wfd_list[i][jj] / r0) * dx0 * dx0.transpose();
-				Fdot[i] += volj * Fdottmp;
-				Fincr[i] += volj * Ftmp;
+				K[i].noalias() += volj * Ktmp;
+				if (updateKundegFlag == 1) Kundeg[i].noalias() -= volj * (wfd_list[i][jj] / r0) * dx0 * dx0.transpose();
+				Fdot[i].noalias() += volj * Fdottmp;
+				Fincr[i].noalias() += volj * Ftmp;
 				shepardWeight += volj * wf;
-				smoothVelDifference[i] += volj * wf * dvint;
+				smoothVelDifference[i].noalias() += volj * wf * dvint;
 				
 				//Vector3d dx0sq;
 				//dx0sq[0] = dx0[0]*abs(dx0[0]);
 				//dx0sq[1] = dx0[1]*abs(dx0[1]);
 				//dx0sq[2] = dx0[2]*abs(dx0[2]);
-				if (updateSurfaceNormal == 1) surfaceNormal[i] += volj * wfd_list[i][jj] * dx0; 
+				if (updateSurfaceNormal == 1) surfaceNormal[i].noalias() += volj * wfd_list[i][jj] * dx0; 
 				
 				//gradAbsX += volj * (wfd_list[i][jj] / r0) * dx0 * dx0.transpose().cwiseAbs();
 				numNeighsRefConfig[i]++;
@@ -457,7 +457,7 @@ void PairTlsph::PreCompute() {
 
 				dx0mirror = dx0 - 2 * (dx0.dot(surfaceNormal[i])) * surfaceNormal[i];
 				r0 = dx0.norm();
-				Kundeg[i] -= volj * (wfd_list[i][jj] / r0) * dx0mirror * dx0mirror.transpose();
+				Kundeg[i].noalias() -= volj * (wfd_list[i][jj] / r0) * dx0mirror * dx0mirror.transpose();
 				continue;
 			      }
 			    j = atom->map(partner[i][jj]);
@@ -491,7 +491,7 @@ void PairTlsph::PreCompute() {
 			    r0 = dx0.norm();
 			    volj = vfrac[j];
 			    
-			    Kundeg[i] -= volj * (wfd_list[i][jj] / r0) * dx0mirror * dx0mirror.transpose();
+			    Kundeg[i].noalias() -= volj * (wfd_list[i][jj] / r0) * dx0mirror * dx0mirror.transpose();
 			  }
 			  
 			} else {
@@ -800,14 +800,14 @@ void PairTlsph::ComputeForces(int eflag, int vflag) {
 			
 			// What is required is to build a basis with surfaceNormal as one of the vectors:
 
-			f_stress = -voli * volj * scale * (PK1[j] + PK1[i]) * Kundeg[i] * g;
+			f_stress = -(voli * volj * scale) * (PK1[j] + PK1[i]) * (Kundeg[i] * g);
 			if ((surfaceNormalNormi > 0.5) && (surfaceNormal[i].dot(dx0) <= -0.5*pow(volj, 1.0/3.0))) {
 			  Matrix3d P = CreateOrthonormalBasisFromOneVector(surfaceNormal[i]);
 			  Vector3d sU = P.col(0);
 			  Vector3d sV = P.col(1);
 			  Vector3d sW = P.col(2);
 			  
-			  f_stress += voli * volj * (2* sigmaBC_i) * Kundeg[i] * (g.dot(sU)*sU - (g.dot(sV)*sV + g.dot(sW)*sW));
+			  f_stress.noalias() += (2 * voli * volj) * sigmaBC_i * Kundeg[i] * (g.dot(sU)*sU - g.dot(sV)*sV - g.dot(sW)*sW);
 			}
 
 			energy_per_bond[i][jj] = f_stress.dot(dx); // THIS IS NOT THE ENERGY PER BOND, I AM USING THIS VARIABLE TO STORE THIS VALUE TEMPORARILY
