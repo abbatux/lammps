@@ -99,17 +99,10 @@ static Matrix3d CreateOrthonormalBasisFromOneVector(Vector3d sU) {
     sV[1] = 1.0;
     sV[2] = 0.0;
   }
-
-  if (sU.dot(sV) > 1.0e-15) {
-    printf("Error: sU.sV = %f != 0\n", sU.dot(sV));
-    cout << "Here is sU: " << endl << sU << endl;
-    cout << "Here is sV: " << endl << sV << endl;
-    cout << "Here is sW: " << endl << sW << endl;
-  }
   
   sV /= sV.norm();
   sW = sU.cross(sV);
-  sW /= sW.norm();
+  //sW /= sW.norm(); This can be skipped since sU and sV are orthogonal and both unitary.
 
   P.col(0) = sU;
   P.col(1) = sV;
@@ -674,6 +667,7 @@ void PairTlsph::ComputeForces(int eflag, int vflag) {
 	Vector3d **partnerx0 = ((FixSMD_TLSPH_ReferenceConfiguration *) modify->fix[ifix_tlsph])->partnerx0;
         double **partnervol = ((FixSMD_TLSPH_ReferenceConfiguration *) modify->fix[ifix_tlsph])->partnervol;
 	Matrix3d eye, sigmaBC_i;
+	Vector3d sU, sV, sW;
 	eye.setIdentity();
 	sigmaBC_i.setZero();
 
@@ -717,6 +711,14 @@ void PairTlsph::ComputeForces(int eflag, int vflag) {
 		surfaceNormalNormi = surfaceNormal[i].norm();
 		if (surfaceNormalNormi > 0.5) {
 		  AdjustStressForZeroForceBC(PK1[i], surfaceNormal[i], sigmaBC_i);
+		  Matrix3d P = CreateOrthonormalBasisFromOneVector(surfaceNormal[i]);
+		  sU = P.col(0);
+		  sV = P.col(1);
+		  sW = P.col(2);
+		} else {
+		  sU.setZero();
+		  sV.setZero();
+		  sW.setZero();
 		}
 
 		for (jj = 0; jj < jnum; jj++) {
@@ -777,11 +779,6 @@ void PairTlsph::ComputeForces(int eflag, int vflag) {
 
 			f_stress = -(voli * volj * scale) * (PK1[j] + PK1[i]) * (Kundeg[i] * g);
 			if ((surfaceNormalNormi > 0.5) && (surfaceNormal[i].dot(dx0) <= -0.5*pow(volj, 1.0/3.0))) {
-			  Matrix3d P = CreateOrthonormalBasisFromOneVector(surfaceNormal[i]);
-			  Vector3d sU = P.col(0);
-			  Vector3d sV = P.col(1);
-			  Vector3d sW = P.col(2);
-			  
 			  f_stress.noalias() += (2 * voli * volj) * sigmaBC_i * Kundeg[i] * (g.dot(sU)*sU - g.dot(sV)*sV - g.dot(sW)*sW);
 			}
 
