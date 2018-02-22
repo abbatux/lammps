@@ -351,7 +351,8 @@ void PairTlsph::PreCompute() {
 				// distance vectors in current and reference configuration, velocity difference
 				dv = vj - vi;
 				dvint = vintj - vinti;
-				vij_max[i] = MAX(vij_max[i], dv.norm());
+				double dv_norm = dv.norm();
+				if (dv_norm > vij_max[i]) vij_max[i] = dv_norm;
 
 		   
                                 
@@ -791,8 +792,7 @@ void PairTlsph::ComputeForces(int eflag, int vflag) {
 			LimitDoubleMagnitude(delVdotDelR, 0.01 * Lookup[SIGNAL_VELOCITY][itype]);
 			mu_ij = h * delVdotDelR / (r + 0.1 * h); // units: [m * m/s / m = m/s]
 			//if (delVdotDelR < 0) { // i.e. if (dx.dot(dv) < 0) // To be consistent with the viscosity proposed by Monaghan
-			visc_magnitude = (-Lookup[VISCOSITY_Q1][itype] * Lookup[SIGNAL_VELOCITY][itype] * mu_ij
-					  + Lookup[VISCOSITY_Q2][itype] * mu_ij * mu_ij) / Lookup[REFERENCE_DENSITY][itype]; // units: m^5/(s^2 kg))
+			visc_magnitude = ((-Lookup[VISCOSITY_Q1][itype] * Lookup[SIGNAL_VELOCITY][itype] + Lookup[VISCOSITY_Q2][itype] * mu_ij) * mu_ij) / Lookup[REFERENCE_DENSITY][itype]; // units: m^5/(s^2 kg))
 			f_visc = rmass[i] * rmass[j] * visc_magnitude * wfd * dx / (r + 1.0e-2 * h); // units: kg^2 * m^5/(s^2 kg) * m^-4 = kg m / s^2 = N
 			  //} else {
 			  //f_visc = Vector3d(0.0, 0.0, 0.0);
