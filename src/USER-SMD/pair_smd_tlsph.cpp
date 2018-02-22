@@ -220,7 +220,7 @@ void PairTlsph::PreCompute() {
 	float **degradation_ij = ((FixSMD_TLSPH_ReferenceConfiguration *) modify->fix[ifix_tlsph])->degradation_ij;
 	Vector3d **partnerx0 = ((FixSMD_TLSPH_ReferenceConfiguration *) modify->fix[ifix_tlsph])->partnerx0;
 	double **partnervol = ((FixSMD_TLSPH_ReferenceConfiguration *) modify->fix[ifix_tlsph])->partnervol;
-	double r, r0, r0Sq, wf, wfd, h, irad, voli, volj, scale, shepardWeight, strain1d;
+	double r, r0, r0Sq, wf, wfd, h, irad, voli, volj, scale, shepardWeight;
 	Vector3d dx, dx0, dx0mirror, dv, g;
 	Matrix3d Ktmp, Ftmp, Fdottmp, L, U, eye;
 	Vector3d vi, vj, vinti, vintj, xi, xj, x0i, x0j, dvint;
@@ -342,13 +342,6 @@ void PairTlsph::PreCompute() {
 					vintj(idim) = vint[j][idim];
 				}
 
-				//Check if partnerx0 is equal to x0j:
-				if((partnerx0[i][jj][0] != x0j[0]) || (partnerx0[i][jj][1] != x0j[1]) || (partnerx0[i][jj][2] != x0j[2]) ) {
-                                  printf("x0 does not correspond to partnerx0 for j=%d\n", tag[j]);
-                                  cout << "Here is x0" << endl << x0j << endl;
-                                  cout << "Here is partnerx0" << endl << partnerx0[i][jj] << endl;
-				}
-				
 				dx0 = x0j - x0i;
 				dx = xj - xi;
 				r = dx.norm(); // current distance
@@ -374,12 +367,12 @@ void PairTlsph::PreCompute() {
 				scale = CalculateScale(degradation_ij[i][jj]);
 				wf = wf_list[i][jj] * scale;
 				wfd = wfd_list[i][jj] * scale;
-				g = (wfd / r0) * dx0;
+				g = (wfd / r0) * dx0.transpose();
 
 				/* build matrices */
-				Ktmp = -g * dx0.transpose();
-				Fdottmp = -dv * g.transpose();
-				Ftmp = -(dx - dx0) * g.transpose();
+				Ktmp = -dx0 * g;
+				Fdottmp = -dv * g;
+				Ftmp = -(dx - dx0) * g;
 
 				K[i].noalias() += volj * Ktmp;
 				if (updateKundegFlag == 1) Kundeg[i].noalias() -= volj * (wfd_list[i][jj] / r0) * dx0 * dx0.transpose();
@@ -388,22 +381,9 @@ void PairTlsph::PreCompute() {
 				shepardWeight += volj * wf;
 				smoothVelDifference[i].noalias() += volj * wf * dvint;
 				
-				//Vector3d dx0sq;
-				//dx0sq[0] = dx0[0]*abs(dx0[0]);
-				//dx0sq[1] = dx0[1]*abs(dx0[1]);
-				//dx0sq[2] = dx0[2]*abs(dx0[2]);
 				if (updateSurfaceNormal == 1) surfaceNormal[i].noalias() += volj * wfd_list[i][jj] * dx0; 
 				
-				//gradAbsX += volj * (wfd_list[i][jj] / r0) * dx0 * dx0.transpose().cwiseAbs();
 				numNeighsRefConfig[i]++;
-				//if (tag[i] == 1) {
-				//  cout << "Here is dx0:" << endl << dx0 << endl;
-				//  Matrix3d Tmp;
-				//  Tmp = volj * Ktmp;
-				//  pseudo_inverse_SVD(Tmp);
-				//  cout << "Here is surfaceNormalij:" << endl << volj * wfd / r0 * dx0sq << endl;
-				//  cout << "Here is Kij-1:" << endl << Tmp << endl;
-				//}
 			} // end loop over j
 
 			// normalize average velocity field around an integration point
@@ -425,11 +405,7 @@ void PairTlsph::PreCompute() {
 			}
 			Fdot[i] *= K[i];
 			Fincr[i] *= K[i];
-			Fincr[i] += eye;
-			//gradAbsX = gradAbsX * KundegINV;
-			//surfaceNormal[i][0] = gradAbsX(0, 0);
-			//surfaceNormal[i][1] = gradAbsX(1, 1);
-			//surfaceNormal[i][2] = gradAbsX(2, 2);
+			Fincr[i].noalias() += eye;
 			
 			if (updateKundegFlag == 1) {
 			// Recalculate Kundeg to include mirror particles:
@@ -682,7 +658,7 @@ void PairTlsph::ComputeForces(int eflag, int vflag) {
 	int i, j, jj, jnum, itype, idim;
 	double r, hg_mag, wf, wfd, h, r0, r0Sq, voli, volj;
 	double delVdotDelR, visc_magnitude, deltaE, mu_ij, hg_err, gamma_dot_dx, delta, scale;
-	double strain1d, strain1d_max, softening_strain, shepardWeight;
+	double softening_strain, shepardWeight;
 	double surfaceNormalNormi;
 	char str[128];
 	Vector3d fi, fj, dx0, dx, dv, f_stress, f_hg, dxp_i, dxp_j, gamma, g, gamma_i, gamma_j, x0i, x0j;
@@ -787,8 +763,7 @@ void PairTlsph::ComputeForces(int eflag, int vflag) {
 			
 			// scale the interaction according to the damage variable
 			//scale = CalculateScale(degradation_ij[i][jj], r, r0);
-			scale =CalculateScale(degradation_ij[i][jj]);
-			strain1d = ( r - r0 ) / r0;
+			scale = CalculateScale(degradation_ij[i][jj]);
 			wf = wf_list[i][jj];// * scale;
 			wfd = wfd_list[i][jj];// * scale;
 
