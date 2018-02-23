@@ -213,7 +213,7 @@ void PairTlsph::PreCompute() {
 	float **degradation_ij = ((FixSMD_TLSPH_ReferenceConfiguration *) modify->fix[ifix_tlsph])->degradation_ij;
 	Vector3d **partnerx0 = ((FixSMD_TLSPH_ReferenceConfiguration *) modify->fix[ifix_tlsph])->partnerx0;
 	double **partnervol = ((FixSMD_TLSPH_ReferenceConfiguration *) modify->fix[ifix_tlsph])->partnervol;
-	double r, r0, r0Sq, wf, wfd, h, irad, voli, volj, scale, shepardWeight;
+	double r, r0, r0Sq, wf, wfd, h, irad, voli, volj, scale, shepardWeight, inverseShepardWeight;
 	Vector3d dx, dx0, dx0mirror, dv, g;
 	Matrix3d Ktmp, Ftmp, Fdottmp, L, U, eye;
 	Vector3d vi, vj, vinti, vintj, xi, xj, x0i, x0j, dvint;
@@ -382,7 +382,8 @@ void PairTlsph::PreCompute() {
 
 			// normalize average velocity field around an integration point
 			if (shepardWeight > 0.0) {
-				smoothVelDifference[i] /= shepardWeight;
+			  inverseShepardWeight = 1/shepardWeight;
+			  smoothVelDifference[i] *= inverseShepardWeight;
 			} else {
 				smoothVelDifference[i].setZero();
 			}
