@@ -220,7 +220,7 @@ void PairTlsph::PreCompute() {
 	int periodic = (domain->xperiodic || domain->yperiodic || domain->zperiodic);
 	bool status;
 	Matrix3d F0;
-	double surfaceNormalNormi;
+	double surfaceNormalNormi, dv_norm;
 
 	dtCFL = 1.0e22;
 	eye.setIdentity();
@@ -351,7 +351,7 @@ void PairTlsph::PreCompute() {
 				// distance vectors in current and reference configuration, velocity difference
 				dv = vj - vi;
 				dvint = vintj - vinti;
-				double dv_norm = dv.norm();
+				dv_norm = dv.norm();
 				if (dv_norm > vij_max[i]) vij_max[i] = dv_norm;
 
 		   
