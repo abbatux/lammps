@@ -668,10 +668,9 @@ void PairTlsph::ComputeForces(int eflag, int vflag) {
 	float **energy_per_bond = ((FixSMD_TLSPH_ReferenceConfiguration *) modify->fix[ifix_tlsph])->energy_per_bond;
 	Vector3d **partnerx0 = ((FixSMD_TLSPH_ReferenceConfiguration *) modify->fix[ifix_tlsph])->partnerx0;
         double **partnervol = ((FixSMD_TLSPH_ReferenceConfiguration *) modify->fix[ifix_tlsph])->partnervol;
-	Matrix3d eye, sigmaBC_i;
+	Matrix3d eye;
 	Vector3d sU, sV, sW;
 	eye.setIdentity();
-	sigmaBC_i.setZero();
 
 	if (eflag || vflag)
 		ev_setup(eflag, vflag);
@@ -708,20 +707,6 @@ void PairTlsph::ComputeForces(int eflag, int vflag) {
 			vi(idim) = v[i][idim];
 		}
 		
-		// Calculate sigmaBC_i if the particle is on the surface:
-		
-		surfaceNormalNormi = surfaceNormal[i].norm();
-		if (surfaceNormalNormi > 0.5) {
-		  AdjustStressForZeroForceBC(PK1[i], surfaceNormal[i], sigmaBC_i);
-		  Matrix3d P = CreateOrthonormalBasisFromOneVector(surfaceNormal[i]);
-		  sU = P.col(0);
-		  sV = P.col(1);
-		  sW = P.col(2);
-		} else {
-		  sU.setZero();
-		  sV.setZero();
-		  sW.setZero();
-		}
 
 		for (jj = 0; jj < jnum; jj++) {
 			j = atom->map(partner[i][jj]);
@@ -780,9 +765,6 @@ void PairTlsph::ComputeForces(int eflag, int vflag) {
 			// What is required is to build a basis with surfaceNormal as one of the vectors:
 
 			f_stress = -(voli * volj * scale) * (PK1[j] + PK1[i]) * (Kundeg[i] * g);
-			if ((surfaceNormalNormi > 0.5) && (surfaceNormal[i].dot(dx0) <= -0.5*pow(volj, 1.0/3.0))) {
-			  f_stress.noalias() += (2 * voli * volj) * sigmaBC_i * Kundeg[i] * (g.dot(sU)*sU - g.dot(sV)*sV - g.dot(sW)*sW);
-			}
 
 			energy_per_bond[i][jj] = f_stress.dot(dx); // THIS IS NOT THE ENERGY PER BOND, I AM USING THIS VARIABLE TO STORE THIS VALUE TEMPORARILY
 			
