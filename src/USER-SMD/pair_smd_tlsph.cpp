@@ -902,9 +902,9 @@ void PairTlsph::AssembleStress() {
 	int i, itype, idim;
 	int nlocal = atom->nlocal;
 	double dt = update->dt;
-	double M_eff, p_wave_speed, mass_specific_energy, vol_specific_energy;
+	double M_eff, K_eff, mu_eff, p_wave_speed, mass_specific_energy, vol_specific_energy;
 	Matrix3d sigma_rate, eye, sigmaInitial, sigmaFinal, T, T_damaged, Jaumann_rate, sigma_rate_check;
-	Matrix3d d_dev, sigmaInitial_dev, sigmaFinal_dev, sigma_dev_rate, strain;
+	Matrix3d d_dev, sigmaInitial_dev, sigmaFinal_dev, sigma_dev_rate, strain, deltaSigma;
 	Vector3d vi;
 
 	eye.setIdentity();
@@ -1033,14 +1033,18 @@ void PairTlsph::AssembleStress() {
 				 * compute stable time step according to Pronto 2d
 				 */
 
-				Matrix3d deltaSigma;
 				deltaSigma = sigmaFinal - sigmaInitial;
 				p_rate = deltaSigma.trace() / (3.0 * dt + 1.0e-16);
 				sigma_dev_rate = Deviator(deltaSigma) / (dt + 1.0e-16);
 
-				double K_eff, mu_eff;
 				effective_longitudinal_modulus(itype, dt, d_iso, p_rate, d_dev, sigma_dev_rate, damage[i], K_eff, mu_eff, M_eff);
-				p_wave_speed = sqrt(M_eff / rho[i]);
+
+				if ((damage[i] > 0.0) && (pFinal > 0.0)) {
+				  // If the particle is under tension, voids are open:
+				  p_wave_speed = sqrt(M_eff * (1.0 - damage[i]) / (rho[i]*(1.0 - damage[i]) + Lookup[REFERENCE_DENSITY][itype] * damage[i]));
+				} else {
+				  p_wave_speed = sqrt(M_eff / rho[i]);
+				}
 
 				if (mol[i] < 0) {
 					error->one(FLERR, "this should not happen");
