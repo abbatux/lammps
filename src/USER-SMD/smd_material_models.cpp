@@ -39,7 +39,7 @@ using namespace Eigen;
  input: initial pressure pInitial, isotropic part of the strain rate d, time-step dt
  output: final pressure pFinal, pressure rate p_rate
  ------------------------------------------------------------------------- */
-void LinearEOS(double lambda, double pInitial, double d, double dt, double &pFinal, double &p_rate) {
+void LinearEOS(double lambda, double pInitial, double d, double dt, double &pFinal, double &p_rate, double damage) {
 
 	/*
 	 * pressure rate
@@ -49,6 +49,39 @@ void LinearEOS(double lambda, double pInitial, double d, double dt, double &pFin
 	pFinal = pInitial + dt * p_rate; // increment pressure using pressure rate
 	//cout << "hurz" << endl;
 
+}
+
+/* ----------------------------------------------------------------------
+ Linear EOS when there is damage integration point wise
+ input:
+ current density rho
+ reference density rho0
+ reference bulk modulus K
+ initial pressure pInitial
+ time step dt
+ current damage
+
+ output:
+ pressure rate p_rate
+ final pressure pFinal
+
+ ------------------------------------------------------------------------- */
+void LinearEOSwithDamage(double rho, double rho0, double K, double pInitial, double dt, double &pFinal, double &p_rate, double damage) {
+
+  double mu = rho / rho0 - 1.0;
+
+  if ((damage > 0.0) && (mu < 0.0)) {
+    if (damage >= 1.0) {
+      pFinal = 0.0;
+    } else {
+      mu = (1 - damage) * mu;
+      pFinal = -(1 - damage) * K * mu;
+    }
+  } else {
+    pFinal = -K * mu;
+  }
+
+  p_rate = (pFinal - pInitial) / dt;
 }
 
 /* ----------------------------------------------------------------------
@@ -110,7 +143,7 @@ void ShockEOS(double rho, double rho0, double e, double e0, double c0, double S,
 
  ------------------------------------------------------------------------- */
 void polynomialEOS(double rho, double rho0, double e, double C0, double C1, double C2, double C3, double C4, double C5, double C6,
-		double pInitial, double dt, double &pFinal, double &p_rate) {
+		   double pInitial, double dt, double &pFinal, double &p_rate, double damage) {
 
 	double mu = rho / rho0 - 1.0;
 
@@ -121,6 +154,19 @@ void polynomialEOS(double rho, double rho0, double e, double C0, double C1, doub
 	}
 	pFinal = -pFinal; // we want the mean stress, not the pressure.
 
+	if ( damage > 0.0 ) {
+	  double mu_damaged = (1.0 - damage) * mu;
+	  double pFinal_damaged;
+	  if (mu_damaged > 0.0) {
+	    pFinal_damaged = C0 + C1 * mu_damaged + C2 * mu_damaged * mu_damaged + C3 * mu_damaged * mu_damaged * mu_damaged; // + (C4 + C5 * mu_damaged + C6 * mu_damaged * mu_damaged) * e;
+	  } else {
+	    pFinal_damaged = C0 + C1 * mu_damaged + C3 * mu_damaged * mu_damaged * mu_damaged; //  + (C4 + C5 * mu_damaged) * e;
+	  }
+	  pFinal_damaged = -pFinal_damaged;
+	  pFinal = MIN(pFinal, pFinal_damaged);
+	}
+
+	pFinal = -pFinal; // we want the mean stress, not the pressure.
 
 	//printf("pFinal = %f\n", pFinal);
 	p_rate = (pFinal - pInitial) / dt;

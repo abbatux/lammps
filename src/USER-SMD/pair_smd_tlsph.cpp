@@ -2220,8 +2220,12 @@ void PairTlsph::ComputePressure(const int i, const double rho, const double mass
 
 	switch (eos[itype]) {
 	case EOS_LINEAR:
-		LinearEOS(Lookup[BULK_MODULUS][itype], pInitial, d_iso, dt, pFinal, p_rate);
-		break;
+	  if ((failureModel[itype].integration_point_wise == true) && (damage[i] > 0.0)){
+	    LinearEOSwithDamage(rho, Lookup[REFERENCE_DENSITY][itype], Lookup[BULK_MODULUS][itype], pInitial, dt, pFinal, p_rate, damage[i]);
+	  } else {
+	    LinearEOS(Lookup[BULK_MODULUS][itype], pInitial, d_iso, dt, pFinal, p_rate);
+	  }
+	  break;
 	case EOS_NONE:
 		pFinal = 0.0;
 		p_rate = 0.0;
@@ -2235,7 +2239,7 @@ void PairTlsph::ComputePressure(const int i, const double rho, const double mass
 		polynomialEOS(rho, Lookup[REFERENCE_DENSITY][itype], vol_specific_energy, Lookup[EOS_POLYNOMIAL_C0][itype],
 				Lookup[EOS_POLYNOMIAL_C1][itype], Lookup[EOS_POLYNOMIAL_C2][itype], Lookup[EOS_POLYNOMIAL_C3][itype],
 				Lookup[EOS_POLYNOMIAL_C4][itype], Lookup[EOS_POLYNOMIAL_C5][itype], Lookup[EOS_POLYNOMIAL_C6][itype], pInitial, dt,
-				pFinal, p_rate);
+			      pFinal, p_rate, damage[i]);
 
 		break;
 	default:
