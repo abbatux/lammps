@@ -1467,6 +1467,97 @@ void PairTlsph::coeff(int narg, char **arg) {
 				printf("%60s : %g\n", "M : exponent for temperature dependency", Lookup[JC_M][itype]);
 			}
 
+		} else if (strcmp(arg[ioffset], "*LUDWICK_HOLLOMON") == 0) {
+
+			/*
+			 * LUDWICK - HOLLOMON
+			 */
+
+			strengthModel[itype] = STRENGTH_LUDWICK_HOLLOMON;
+			if (comm->me == 0) {
+				printf("reading *LUDWICK_HOLLOMON\n");
+			}
+
+			t = string("*");
+			iNextKwd = -1;
+			for (iarg = ioffset + 1; iarg < narg; iarg++) {
+				s = string(arg[iarg]);
+				if (s.compare(0, t.length(), t) == 0) {
+					iNextKwd = iarg;
+					break;
+				}
+			}
+
+			if (iNextKwd < 0) {
+				sprintf(str, "no *KEYWORD terminates *LUDWICK_HOLLOMON");
+				error->all(FLERR, str);
+			}
+
+			if (iNextKwd - ioffset != 3 + 1) {
+				sprintf(str, "expected 3 arguments following *LUDWICK_HOLLOMON but got %d\n", iNextKwd - ioffset - 1);
+				error->all(FLERR, str);
+			}
+
+			Lookup[LH_A][itype] = force->numeric(FLERR, arg[ioffset + 1]);
+			Lookup[LH_B][itype] = force->numeric(FLERR, arg[ioffset + 2]);
+			Lookup[LH_n][itype] = force->numeric(FLERR, arg[ioffset + 3]);
+
+			if (comm->me == 0) {
+				printf("%60s\n", "Ludwick-Hollomon material strength model");
+				printf("%60s : %g\n", "A: initial yield stress", Lookup[LH_A][itype]);
+				printf("%60s : %g\n", "B : proportionality factor for plastic strain dependency", Lookup[LH_B][itype]);
+				printf("%60s : %g\n", "n : exponent for plastic strain dependency", Lookup[LH_n][itype]);
+			}
+
+		} else if (strcmp(arg[ioffset], "*SWIFT") == 0) {
+
+			/*
+			 * SWIFT
+			 */
+
+			strengthModel[itype] = STRENGTH_SWIFT;
+			if (comm->me == 0) {
+				printf("reading *SWIFT\n");
+			}
+
+			t = string("*");
+			iNextKwd = -1;
+			for (iarg = ioffset + 1; iarg < narg; iarg++) {
+				s = string(arg[iarg]);
+				if (s.compare(0, t.length(), t) == 0) {
+					iNextKwd = iarg;
+					break;
+				}
+			}
+
+			if (iNextKwd < 0) {
+				sprintf(str, "no *KEYWORD terminates *SWIFT");
+				error->all(FLERR, str);
+			}
+
+			if (iNextKwd - ioffset != 4 + 1) {
+				sprintf(str, "expected 4 arguments following *SWIFT but got %d\n", iNextKwd - ioffset - 1);
+				error->all(FLERR, str);
+			}
+
+			Lookup[SWIFT_A][itype] = force->numeric(FLERR, arg[ioffset + 1]);
+			Lookup[SWIFT_B][itype] = force->numeric(FLERR, arg[ioffset + 2]);
+			Lookup[SWIFT_n][itype] = force->numeric(FLERR, arg[ioffset + 3]);
+			Lookup[SWIFT_eps0][itype] = force->numeric(FLERR, arg[ioffset + 4]);
+
+			if (Lookup[SWIFT_eps0][itype] < 0.0){
+			  sprintf(str, "the 4th argument following *SWIFT should be positive\n");
+			  error->all(FLERR, str);
+			}
+
+			if (comm->me == 0) {
+				printf("%60s\n", "Swift strength model");
+				printf("%60s : %g\n", "A: initial yield stress", Lookup[SWIFT_A][itype]);
+				printf("%60s : %g\n", "B : proportionality factor for plastic strain dependency", Lookup[SWIFT_B][itype]);
+				printf("%60s : %g\n", "n : exponent for plastic strain dependency", Lookup[SWIFT_n][itype]);
+				printf("%60s : %g\n", "eps0 : initial plastic strain", Lookup[SWIFT_eps0][itype]);
+			}
+
 		} else if (strcmp(arg[ioffset], "*EOS_NONE") == 0) {
 
 			/*
@@ -2286,6 +2377,16 @@ void PairTlsph::ComputeStressDeviator(const int i, const Matrix3d sigmaInitial_d
 	case STRENGTH_LINEAR_PLASTIC:
 
 		yieldStress = Lookup[YIELD_STRESS][itype] + Lookup[HARDENING_PARAMETER][itype] * eff_plastic_strain[i];
+		LinearPlasticStrength(Lookup[SHEAR_MODULUS][itype], yieldStress, sigmaInitial_dev, d_dev, dt, sigmaFinal_dev,
+				      sigma_dev_rate, plastic_strain_increment, damage[i]);
+		break;
+	case STRENGTH_LUDWICK_HOLLOMON:
+		yieldStress = Lookup[YIELD_STRESS][itype] + Lookup[HARDENING_PARAMETER][itype] * pow(eff_plastic_strain[i], Lookup[LH_n][itype]);
+		LinearPlasticStrength(Lookup[SHEAR_MODULUS][itype], yieldStress, sigmaInitial_dev, d_dev, dt, sigmaFinal_dev,
+				      sigma_dev_rate, plastic_strain_increment, damage[i]);
+		break;
+	case STRENGTH_SWIFT:
+		yieldStress = Lookup[YIELD_STRESS][itype] + Lookup[HARDENING_PARAMETER][itype] * pow(eff_plastic_strain[i] + Lookup[SWIFT_eps0][itype], Lookup[SWIFT_n][itype]);
 		LinearPlasticStrength(Lookup[SHEAR_MODULUS][itype], yieldStress, sigmaInitial_dev, d_dev, dt, sigmaFinal_dev,
 				      sigma_dev_rate, plastic_strain_increment, damage[i]);
 		break;
