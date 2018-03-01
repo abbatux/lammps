@@ -299,11 +299,12 @@ void LinearPlasticStrength(const double G, const double yieldStress, const Matri
 
 	Matrix3d sigmaTrial_dev, dev_rate;
 	double J2;
+	double Gd = (1 - damage) * G;
 
 	/*
 	 * deviatoric rate of unrotated stress
 	 */
-	dev_rate = 2.0 * G * d_dev;
+	dev_rate = 2.0 * Gd * d_dev;
 
 	/*
 	 * perform a trial elastic update to the deviatoric stress
@@ -316,7 +317,6 @@ void LinearPlasticStrength(const double G, const double yieldStress, const Matri
 	J2 = sqrt(3. / 2.) * sigmaTrial_dev.norm();
 
 	if (J2 < yieldStress) {
-	  //if (J2 < yieldStress * (1 - damage)) {
 		/*
 		 * no yielding has occured.
 		 * final deviatoric stress is trial deviatoric stress
@@ -332,8 +332,7 @@ void LinearPlasticStrength(const double G, const double yieldStress, const Matri
 		 * yielding has occured
 		 */
 
-	        //plastic_strain_increment = (J2 - yieldStress * (1 - damage)) / (3.0 * G);
-		plastic_strain_increment = (J2 - yieldStress) / (3.0 * G);
+		plastic_strain_increment = (J2 - yieldStress) / (3.0 * Gd);
 		/*
 		 * new deviatoric stress:
 		 * obtain by scaling the trial stress deviator
@@ -373,6 +372,7 @@ void JohnsonCookStrength(const double G, const double cp, const double espec, co
 
 	Matrix3d sigmaTrial_dev, dev_rate;
 	double J2, yieldStress;
+	double Gd = (1 - damage) * G;
 
 	double deltaT = espec / cp;
 	double TH = deltaT / (Tmelt - T0);
@@ -382,11 +382,12 @@ void JohnsonCookStrength(const double G, const double cp, const double espec, co
 	//printf("current temperature delta is %f, TH=%f\n", deltaT, TH);
 	
 	yieldStress = (A + B * pow(ep, a)) * (1.0 + C * log(epdot_ratio)); // * (1.0 - pow(TH, M));
+	// The yieldStress does not include damage because the experimental results it is fitted too already include damage by nature.
 
 	/*
 	 * deviatoric rate of unrotated stress
 	 */
-	dev_rate = 2.0 * G * (1 - damage) * d_dev;
+	dev_rate = 2.0 * Gd * d_dev;
 
 	/*
 	 * perform a trial elastic update to the deviatoric stress
@@ -413,7 +414,7 @@ void JohnsonCookStrength(const double G, const double cp, const double espec, co
 		/*
 		 * yielding has occured
 		 */
-		plastic_strain_increment = (J2 - yieldStress) / (3.0 * G * (1 - damage));
+		plastic_strain_increment = (J2 - yieldStress) / (3.0 * Gd);
 
 		/*
 		 * new deviatoric stress:
