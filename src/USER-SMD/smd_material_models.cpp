@@ -39,7 +39,7 @@ using namespace Eigen;
  input: initial pressure pInitial, isotropic part of the strain rate d, time-step dt
  output: final pressure pFinal, pressure rate p_rate
  ------------------------------------------------------------------------- */
-void LinearEOS(double lambda, double pInitial, double d, double dt, double &pFinal, double &p_rate, double damage) {
+void LinearEOS(const double lambda, const double pInitial, const double d, const double dt, double &pFinal, double &p_rate, const double damage) {
 
 	/*
 	 * pressure rate
@@ -66,7 +66,7 @@ void LinearEOS(double lambda, double pInitial, double d, double dt, double &pFin
  final pressure pFinal
 
  ------------------------------------------------------------------------- */
-void LinearEOSwithDamage(double rho, double rho0, double K, double pInitial, double dt, double &pFinal, double &p_rate, double damage) {
+void LinearEOSwithDamage(const double rho, const double rho0, const double K, const double pInitial, const double dt, double &pFinal, double &p_rate, const double damage) {
 
   double mu = rho / rho0 - 1.0;
 
@@ -102,8 +102,8 @@ void LinearEOSwithDamage(double rho, double rho0, double K, double pInitial, dou
  final pressure pFinal
 
  ------------------------------------------------------------------------- */
-void ShockEOS(double rho, double rho0, double e, double e0, double c0, double S, double Gamma, double pInitial, double dt,
-	      double &pFinal, double &p_rate, double damage) {
+void ShockEOS(const double rho, const double rho0, const double e, const double e0, const double c0, const double S, const double Gamma, const double pInitial, const double dt,
+	      double &pFinal, double &p_rate, const double damage) {
 
 	double mu = rho / rho0 - 1.0;
 	double pH = rho0 * square(c0) * mu * (1.0 + mu) / square(1.0 - (S - 1.0) * mu);
@@ -142,8 +142,8 @@ void ShockEOS(double rho, double rho0, double e, double e0, double c0, double S,
  final pressure pFinal
 
  ------------------------------------------------------------------------- */
-void polynomialEOS(double rho, double rho0, double e, double C0, double C1, double C2, double C3, double C4, double C5, double C6,
-		   double pInitial, double dt, double &pFinal, double &p_rate, double damage) {
+void polynomialEOS(const double rho, const double rho0, const double e, const double C0, const double C1, const double C2, const double C3, const double C4, const double C5, const double C6,
+		   const double pInitial, const double dt, double &pFinal, double &p_rate, const double damage) {
 
 	double mu = rho / rho0 - 1.0;
 
@@ -370,64 +370,16 @@ void JohnsonCookStrength(const double G, const double cp, const double espec, co
 		const double epdot, const Matrix3d sigmaInitial_dev, const Matrix3d d_dev, Matrix3d &sigmaFinal_dev__,
 			 Matrix3d &sigma_dev_rate__, double &plastic_strain_increment, const double damage) {
 
-	Matrix3d sigmaTrial_dev, dev_rate;
-	double J2, yieldStress;
-	double Gd = (1 - damage) * G;
+	double yieldStress;
 
-	double deltaT = espec / cp;
-	double TH = deltaT / (Tmelt - T0);
+	double TH = espec / (cp * (Tmelt - T0));
 	TH = MAX(TH, 0.0);
 	double epdot_ratio = epdot / epdot0;
 	epdot_ratio = MAX(epdot_ratio, 1.0);
 	//printf("current temperature delta is %f, TH=%f\n", deltaT, TH);
 	
 	yieldStress = (A + B * pow(ep, a)) * (1.0 + C * log(epdot_ratio)); // * (1.0 - pow(TH, M));
-	// The yieldStress does not include damage because the experimental results it is fitted too already include damage by nature.
-
-	/*
-	 * deviatoric rate of unrotated stress
-	 */
-	dev_rate = 2.0 * Gd * d_dev;
-
-	/*
-	 * perform a trial elastic update to the deviatoric stress
-	 */
-	sigmaTrial_dev = sigmaInitial_dev + dt * dev_rate; // increment stress deviator using deviatoric rate
-
-	/*
-	 * check yield condition
-	 */
-	J2 = sqrt(3. / 2.) * sigmaTrial_dev.norm();
-
-	if (J2 < yieldStress) {
-		/*
-		 * no yielding has occured.
-		 * final deviatoric stress is trial deviatoric stress
-		 */
-		sigma_dev_rate__ = dev_rate;
-		sigmaFinal_dev__ = sigmaTrial_dev;
-		plastic_strain_increment = 0.0;
-		//printf("no yield\n");
-
-	} else {
-		//printf("yiedl\n");
-		/*
-		 * yielding has occured
-		 */
-		plastic_strain_increment = (J2 - yieldStress) / (3.0 * Gd);
-
-		/*
-		 * new deviatoric stress:
-		 * obtain by scaling the trial stress deviator
-		 */
-		sigmaFinal_dev__ = (yieldStress / J2) * sigmaTrial_dev;
-
-		/*
-		 * new deviatoric stress rate
-		 */
-		sigma_dev_rate__ = sigmaFinal_dev__ - sigmaInitial_dev;
-		//printf("yielding has occured.\n");
-	}
+	LinearPlasticStrength(G, yieldStress, sigmaInitial_dev, d_dev, dt, sigmaFinal_dev__, sigma_dev_rate__, plastic_strain_increment, damage);
 }
 
 /* ----------------------------------------------------------------------

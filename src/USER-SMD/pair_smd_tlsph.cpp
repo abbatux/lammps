@@ -954,7 +954,7 @@ void PairTlsph::AssembleStress() {
 				 */
 
 				//cout << "this is the strain deviator rate" << endl << d_dev << endl;
-				ComputeStressDeviator(i, sigmaInitial_dev, d_dev, sigmaFinal_dev, sigma_dev_rate, plastic_strain_increment);
+				ComputeStressDeviator(i, mass_specific_energy, sigmaInitial_dev, d_dev, sigmaFinal_dev, sigma_dev_rate, plastic_strain_increment);
 				//cout << "this is the stress deviator rate" << endl << sigma_dev_rate << endl;
 
 				// keep a rolling average of the plastic strain rate over the last 100 or so timesteps
@@ -2342,8 +2342,8 @@ void PairTlsph::ComputePressure(const int i, const double rho, const double mass
 /* ----------------------------------------------------------------------
  Compute stress deviator. Called from AssembleStress().
  ------------------------------------------------------------------------- */
-void PairTlsph::ComputeStressDeviator(const int i, const Matrix3d sigmaInitial_dev, const Matrix3d d_dev, Matrix3d &sigmaFinal_dev,
-		Matrix3d &sigma_dev_rate, double &plastic_strain_increment) {
+void PairTlsph::ComputeStressDeviator(const int i, const double mass_specific_energy, const Matrix3d sigmaInitial_dev, const Matrix3d d_dev, Matrix3d &sigmaFinal_dev,
+               Matrix3d &sigma_dev_rate, double &plastic_strain_increment) {
 	double *eff_plastic_strain = atom->eff_plastic_strain;
 	double *eff_plastic_strain_rate = atom->eff_plastic_strain_rate;
 	int *type = atom->type;
@@ -2355,7 +2355,6 @@ void PairTlsph::ComputeStressDeviator(const int i, const Matrix3d sigmaInitial_d
 	int itype;
 	double *damage = atom->damage;
 
-	double mass_specific_energy = e[i] / rmass[i]; // energy per unit mass
 	plastic_strain_increment = 0.0;
 	itype = type[i];
 

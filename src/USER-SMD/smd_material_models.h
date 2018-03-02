@@ -30,12 +30,12 @@ using namespace Eigen;
 /*
  * EOS models
  */
-void LinearEOS(double lambda, double pInitial, double d, double dt, double &pFinal, double &p_rate);
-void LinearEOSwithDamage(double rho, double rho0, double K, double pInitial, double dt, double &pFinal, double &p_rate, double damage);
-void ShockEOS(double rho, double rho0, double e, double e0, double c0, double S, double Gamma, double pInitial, double dt,
-	      double &pFinal, double &p_rate, double damage);
-void polynomialEOS(double rho, double rho0, double e, double C0, double C1, double C2, double C3, double C4, double C5, double C6,
-		   double pInitial, double dt, double &pFinal, double &p_rate, double damage);
+void LinearEOS(const double lambda, const double pInitial, const double d, const double dt, double &pFinal, double &p_rate);
+void LinearEOSwithDamage(const double rho, const double rho0, const double K, const double pInitial, const double dt, double &pFinal, double &p_rate, const double damage);
+void ShockEOS(const double rho, const double rho0, const double e, const double e0, const double c0, const double S, const double Gamma, const double pInitial, const double dt,
+	      double &pFinal, double &p_rate, const double damage);
+void polynomialEOS(const double rho, const double rho0, const double e, const double C0, const double C1, const double C2, const double C3, const double C4, const double C5, const double C6,
+		   const double pInitial, const double dt, double &pFinal, double &p_rate, const double damage);
 void TaitEOS_density(const double exponent, const double c0_reference, const double rho_reference, const double rho_current,
 		double &pressure, double &sound_speed);
 void PerfectGasEOS(const double gamma, const double vol, const double mass, const double energy, double &pFinal__, double &c0);
