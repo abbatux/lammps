@@ -67,7 +67,7 @@ public:
 	void ComputePressure(const int i, const double rho, const double mass_specific_energy, const double vol_specific_energy,
 			const double pInitial, const double d_iso, double &pFinal, double &p_rate);
 	void ComputeStressDeviator(const int i, const double mass_specific_energy, const Eigen::Matrix3d sigmaInitial_dev, const Eigen::Matrix3d d_dev, Eigen::Matrix3d &sigmaFinal_dev,
-			Eigen::Matrix3d &sigma_dev_rate, double &plastic_strain_increment);
+				   Eigen::Matrix3d &sigma_dev_rate, double &plastic_strain_increment, const double pFinal);
         void ComputeDamage(const int i, const Eigen::Matrix3d strain, const Eigen::Matrix3d sigmaFinal, Eigen::Matrix3d &sigma_damaged, double plastic_strain_increment);
 	void UpdateDegradation();
   void AdjustStressForZeroForceBC(const Eigen::Matrix3d sigma, const Eigen::Vector3d sU, Eigen::Matrix3d &sigmaBC);
@@ -172,8 +172,12 @@ protected:
 		SWIFT_B = 55,
 		SWIFT_n = 56,
 		SWIFT_eps0 = 57,
+
+		GTN_Q1 = 58,
+		GTN_Q2 = 59,
+		GTN_AN = 60,
 		
-		MAX_KEY_VALUE = 58
+		MAX_KEY_VALUE = 61
 	};
 
 	struct failure_types { // this is defined per type and determines which failure/damage model is active
@@ -182,6 +186,7 @@ protected:
 		bool failure_max_principal_stress;
 		bool failure_max_plastic_strain;
 		bool failure_johnson_cook;
+		bool failure_gtn;
 		bool failure_max_pairwise_strain;
 		bool integration_point_wise; // true if failure model applies to stress/strain state of integration point
 		bool failure_energy_release_rate;
@@ -192,6 +197,7 @@ protected:
 			failure_max_principal_stress = false;
 			failure_max_plastic_strain = false;
 			failure_johnson_cook = false;
+			failure_gtn = false;
 			failure_max_pairwise_strain = false;
 			integration_point_wise = false;
 			failure_energy_release_rate = false;

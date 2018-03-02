@@ -954,7 +954,7 @@ void PairTlsph::AssembleStress() {
 				 */
 
 				//cout << "this is the strain deviator rate" << endl << d_dev << endl;
-				ComputeStressDeviator(i, mass_specific_energy, sigmaInitial_dev, d_dev, sigmaFinal_dev, sigma_dev_rate, plastic_strain_increment);
+				ComputeStressDeviator(i, mass_specific_energy, sigmaInitial_dev, d_dev, sigmaFinal_dev, sigma_dev_rate, plastic_strain_increment, pFinal);
 				//cout << "this is the stress deviator rate" << endl << sigma_dev_rate << endl;
 
 				// keep a rolling average of the plastic strain rate over the last 100 or so timesteps
@@ -1971,6 +1971,53 @@ void PairTlsph::coeff(int narg, char **arg) {
 			}
 		} // end energy release rate failure criterion
 
+		else if (strcmp(arg[ioffset], "*GURSON_TVERGAARD_NEEDLEMAN") == 0) {
+
+			/*
+			 * GURSON - TVERGAARD - NEEDLEMAN Model
+			 */
+		  
+			if (comm->me == 0) {
+				printf("reading *GURSON_TVERGAARD_NEEDLEMAN\n");
+			}
+
+			t = string("*");
+			iNextKwd = -1;
+			for (iarg = ioffset + 1; iarg < narg; iarg++) {
+				s = string(arg[iarg]);
+				if (s.compare(0, t.length(), t) == 0) {
+					iNextKwd = iarg;
+					break;
+				}
+			}
+
+			if (iNextKwd < 0) {
+				sprintf(str, "no *KEYWORD terminates *GURSON_TVERGAARD_NEEDLEMAN");
+				error->all(FLERR, str);
+			}
+
+			if (iNextKwd - ioffset != 3 + 1) {
+				sprintf(str, "expected 3 arguments following *GURSON_TVERGAARD_NEEDLEMAN but got %d\n", iNextKwd - ioffset - 1);
+				error->all(FLERR, str);
+			}
+
+			failureModel[itype].failure_gtn = true;
+			failureModel[itype].integration_point_wise = true;
+			failureModel[itype].failure_none = false;
+			
+			Lookup[GTN_Q1][itype] = force->numeric(FLERR, arg[ioffset + 1]);
+			Lookup[GTN_Q2][itype] = force->numeric(FLERR, arg[ioffset + 2]);
+			Lookup[GTN_AN][itype] = force->numeric(FLERR, arg[ioffset + 3]);
+
+			if (comm->me == 0) {
+				printf("%60s\n", " Gurson - Tvergaard - Needleman failure model");
+				printf("%60s : %g\n", "Q1: ", Lookup[GTN_Q1][itype]);
+				printf("%60s : %g\n", "Q2: ", Lookup[GTN_Q2][itype]);
+				printf("%60s : %g\n", "An: ", Lookup[GTN_AN][itype]);
+			}
+
+		} 
+
 		else {
 			sprintf(str, "unknown *KEYWORD: %s", arg[ioffset]);
 			error->all(FLERR, str);
@@ -2343,7 +2390,7 @@ void PairTlsph::ComputePressure(const int i, const double rho, const double mass
  Compute stress deviator. Called from AssembleStress().
  ------------------------------------------------------------------------- */
 void PairTlsph::ComputeStressDeviator(const int i, const double mass_specific_energy, const Matrix3d sigmaInitial_dev, const Matrix3d d_dev, Matrix3d &sigmaFinal_dev,
-               Matrix3d &sigma_dev_rate, double &plastic_strain_increment) {
+				      Matrix3d &sigma_dev_rate, double &plastic_strain_increment, const double pFinal) {
 	double *eff_plastic_strain = atom->eff_plastic_strain;
 	double *eff_plastic_strain_rate = atom->eff_plastic_strain_rate;
 	int *type = atom->type;
@@ -2376,18 +2423,30 @@ void PairTlsph::ComputeStressDeviator(const int i, const double mass_specific_en
 	case STRENGTH_LINEAR_PLASTIC:
 
 		yieldStress = Lookup[YIELD_STRESS][itype] + Lookup[HARDENING_PARAMETER][itype] * eff_plastic_strain[i];
-		LinearPlasticStrength(Lookup[SHEAR_MODULUS][itype], yieldStress, sigmaInitial_dev, d_dev, dt, sigmaFinal_dev,
-				      sigma_dev_rate, plastic_strain_increment, damage[i]);
+		if (failureModel[itype].failure_gtn) GTNStrength(Lookup[SHEAR_MODULUS][itype], Lookup[GTN_Q1][itype], Lookup[GTN_Q2][itype],
+								 dt, damage[i], sigmaInitial_dev, d_dev, pFinal, yieldStress,
+								 sigmaFinal_dev__, sigma_dev_rate__, plastic_strain_increment);
+		else 
+		  LinearPlasticStrength(Lookup[SHEAR_MODULUS][itype], yieldStress, sigmaInitial_dev, d_dev, dt, sigmaFinal_dev,
+					sigma_dev_rate, plastic_strain_increment, damage[i]);
 		break;
 	case STRENGTH_LUDWICK_HOLLOMON:
 		yieldStress = Lookup[YIELD_STRESS][itype] + Lookup[HARDENING_PARAMETER][itype] * pow(eff_plastic_strain[i], Lookup[LH_n][itype]);
-		LinearPlasticStrength(Lookup[SHEAR_MODULUS][itype], yieldStress, sigmaInitial_dev, d_dev, dt, sigmaFinal_dev,
-				      sigma_dev_rate, plastic_strain_increment, damage[i]);
+		if (failureModel[itype].failure_gtn) GTNStrength(Lookup[SHEAR_MODULUS][itype], Lookup[GTN_Q1][itype], Lookup[GTN_Q2][itype],
+								 dt, damage[i], sigmaInitial_dev, d_dev, pFinal, yieldStress,
+								 sigmaFinal_dev__, sigma_dev_rate__, plastic_strain_increment);
+		else
+		  LinearPlasticStrength(Lookup[SHEAR_MODULUS][itype], yieldStress, sigmaInitial_dev, d_dev, dt, sigmaFinal_dev,
+					sigma_dev_rate, plastic_strain_increment, damage[i]);
 		break;
 	case STRENGTH_SWIFT:
 		yieldStress = Lookup[YIELD_STRESS][itype] + Lookup[HARDENING_PARAMETER][itype] * pow(eff_plastic_strain[i] + Lookup[SWIFT_eps0][itype], Lookup[SWIFT_n][itype]);
-		LinearPlasticStrength(Lookup[SHEAR_MODULUS][itype], yieldStress, sigmaInitial_dev, d_dev, dt, sigmaFinal_dev,
-				      sigma_dev_rate, plastic_strain_increment, damage[i]);
+		if (failureModel[itype].failure_gtn) GTNStrength(Lookup[SHEAR_MODULUS][itype], Lookup[GTN_Q1][itype], Lookup[GTN_Q2][itype],
+								 dt, damage[i], sigmaInitial_dev, d_dev, pFinal, yieldStress,
+								 sigmaFinal_dev__, sigma_dev_rate__, plastic_strain_increment);
+		else 
+		  LinearPlasticStrength(Lookup[SHEAR_MODULUS][itype], yieldStress, sigmaInitial_dev, d_dev, dt, sigmaFinal_dev,
+					sigma_dev_rate, plastic_strain_increment, damage[i]);
 		break;
 	case STRENGTH_JOHNSON_COOK:
 		JohnsonCookStrength(Lookup[SHEAR_MODULUS][itype], Lookup[HEAT_CAPACITY][itype], mass_specific_energy, Lookup[JC_A][itype],
@@ -2456,6 +2515,12 @@ void PairTlsph::ComputeDamage(const int i, const Matrix3d strain, const Matrix3d
 	  damage[i] += JohnsonCookDamageIncrement(pressure, stress_deviator, Lookup[FAILURE_JC_D1][itype],
 						  Lookup[FAILURE_JC_D2][itype], Lookup[FAILURE_JC_D3][itype], Lookup[FAILURE_JC_D4][itype],
 						  Lookup[FAILURE_JC_EPDOT0][itype], eff_plastic_strain_rate[i], plastic_strain_increment);
+	} else if (failureModel[itype].failure_gtn) {
+	  /*
+	   * Gurson - Tvergaard - Needleman damage evolution model:
+	   */
+	  double vol_change_rate = Fdot[i].determinant();
+	  damage[i] += Lookup[GTN_AN][itype] * plastic_strain_increment + (1.0 - damage[i]) * vol_change_rate;
 	}
 
 	damage[i] = MIN(damage[i], 1.0);

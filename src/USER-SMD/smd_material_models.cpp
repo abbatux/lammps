@@ -379,9 +379,61 @@ void JohnsonCookStrength(const double G, const double cp, const double espec, co
 	//printf("current temperature delta is %f, TH=%f\n", deltaT, TH);
 	
 	yieldStress = (A + B * pow(ep, a)) * (1.0 + C * log(epdot_ratio)); // * (1.0 - pow(TH, M));
+	
 	LinearPlasticStrength(G, yieldStress, sigmaInitial_dev, d_dev, dt, sigmaFinal_dev__, sigma_dev_rate__, plastic_strain_increment, damage);
 }
 
+/* ----------------------------------------------------------------------
+ Gurson - Tvergaard - Needleman (GTN) Material Strength model
+ input:
+ G : shear modulus
+ Q1 and Q2: two model parameters
+ damage
+ 
+ input: sigmaInitial_dev, d_dev: initial stress deviator, deviatoric part of the strain rate tensor
+ input: dt: time-step
+ output:  sigmaFinal_dev, sigmaFinal_dev_rate__: final stress deviator and its rate.
+ ------------------------------------------------------------------------- */
+void GTNStrength(const double G, const double Q1, const double Q2, const double dt, const double damage,
+		 const Matrix3d sigmaInitial_dev, const Matrix3d d_dev, const double pFinal, const double yieldStress_undamaged,
+		 Matrix3d &sigmaFinal_dev__, Matrix3d &sigma_dev_rate__, double &plastic_strain_increment) {
+  
+  if ((damage == 0.0 ) || (Q1 == 0.0)) {
+    LinearPlasticStrength(G, yieldStress_undamaged, sigmaInitial_dev, d_dev, dt, sigmaFinal_dev__, sigma_dev_rate__, plastic_strain_increment, damage);
+  } else {
+
+    Matrix3d sigmaTrial_dev, dev_rate, yieldStress;
+    double J2, Phi;
+    double Gd = (1 - damage) * G;
+    
+    /*
+     * deviatoric rate of unrotated stress
+     */
+    dev_rate = 2.0 * Gd * d_dev;
+    
+    /*
+     * perform a trial elastic update to the deviatoric stress
+     */
+    sigmaTrial_dev = sigmaInitial_dev + dt * dev_rate; // increment stress deviator using deviatoric rate
+    
+    /*
+     * check yield condition
+     */
+    J2 = sqrt(3. / 2.) * sigmaTrial_dev.norm();
+
+    double t1 = 2 * Q1f * cos(1.5 * Q2 * pFinal * inverse_yieldStress_undamaged) - (1 + Q1f * Q1f);
+    if (t1 >= 0.0) {
+      // In this case Phi can never be equal to zero! Error.
+      error->all(FLERR, "2 * Q1f * cos(1.5 * Q2 * p * inverse_yieldStress_undamaged) - (1 + Q1f * Q1f) >= 0, no yield stress can be computed.\n");
+      continue;
+    } else {
+    
+      Q1f = Q1 * damage;
+      yieldStress = sqrt(-t1) / yieldStress_undamaged;
+      LinearPlasticStrength(G, yieldStress, sigmaInitial_dev, d_dev, dt, sigmaFinal_dev__, sigma_dev_rate__, plastic_strain_increment, damage);
+    }
+  }
+}
 /* ----------------------------------------------------------------------
  isotropic maximum strain damage model
  input:
@@ -488,3 +540,22 @@ double JohnsonCookDamageIncrement(const double p, const Matrix3d Sdev, const dou
 	}
 
 }
+
+/* ----------------------------------------------------------------------
+ Gurson-Tvergaard-Needleman damage evolution model
+ input:
+ An: parameter
+ equivalent plastic strain increment
+ Finc
+ dt
+ damage
+
+ output:
+ damage increment
+
+ ------------------------------------------------------------------------- */
+
+//double GTNDamageIncrement(const double An, const double plastic_strain_increment, const double damage, const Matrix3d Fdot) {
+//  double vol_change_rate = Fdot.determinant();
+//  return An * plastic_strain_increment + (1.0 - damage) * vol_change_rate;
+//}
