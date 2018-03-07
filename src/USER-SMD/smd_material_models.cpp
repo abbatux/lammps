@@ -39,7 +39,7 @@ using namespace Eigen;
  input: initial pressure pInitial, isotropic part of the strain rate d, time-step dt
  output: final pressure pFinal, pressure rate p_rate
  ------------------------------------------------------------------------- */
-void LinearEOS(const double lambda, const double pInitial, const double d, const double dt, double &pFinal, double &p_rate, const double damage) {
+void LinearEOS(const double lambda, const double pInitial, const double d, const double dt, double &pFinal, double &p_rate) {
 
 	/*
 	 * pressure rate
@@ -402,10 +402,11 @@ void GTNStrength(const double G, const double Q1, const double Q2, const double 
     LinearPlasticStrength(G, yieldStress_undamaged, sigmaInitial_dev, d_dev, dt, sigmaFinal_dev__, sigma_dev_rate__, plastic_strain_increment, damage);
   } else {
 
-    Matrix3d sigmaTrial_dev, dev_rate, yieldStress;
+    Matrix3d sigmaTrial_dev, dev_rate;
+    double yieldStress;
     double J2, Phi;
     double Gd = (1 - damage) * G;
-    
+    double Q1f = Q1 * damage;
     /*
      * deviatoric rate of unrotated stress
      */
@@ -420,15 +421,12 @@ void GTNStrength(const double G, const double Q1, const double Q2, const double 
      * check yield condition
      */
     J2 = sqrt(3. / 2.) * sigmaTrial_dev.norm();
-
-    double t1 = 2 * Q1f * cos(1.5 * Q2 * pFinal * inverse_yieldStress_undamaged) - (1 + Q1f * Q1f);
+    
+    double t1 = 2 * Q1f * cos(1.5 * Q2 * pFinal / yieldStress_undamaged) - (1 + Q1f * Q1f);
     if (t1 >= 0.0) {
       // In this case Phi can never be equal to zero! Error.
-      error->all(FLERR, "2 * Q1f * cos(1.5 * Q2 * p * inverse_yieldStress_undamaged) - (1 + Q1f * Q1f) >= 0, no yield stress can be computed.\n");
-      continue;
+      printf(">>> Error: 2 * Q1f * cos(1.5 * Q2 * p / yieldStress_undamaged) - (1 + Q1f * Q1f) >= 0, no yield stress can be computed.\n");
     } else {
-    
-      Q1f = Q1 * damage;
       yieldStress = sqrt(-t1) / yieldStress_undamaged;
       LinearPlasticStrength(G, yieldStress, sigmaInitial_dev, d_dev, dt, sigmaFinal_dev__, sigma_dev_rate__, plastic_strain_increment, damage);
     }

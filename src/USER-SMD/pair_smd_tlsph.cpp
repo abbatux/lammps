@@ -432,7 +432,7 @@ void PairTlsph::PreCompute() {
 				continue;
 			      }
 			    j = atom->map(partner[i][jj]);
-			    if (j < 0) { //			// check if lost a partner without first breaking bond
+			    if (j < 0) { //			// check if lost a partner without first breaking bond 
 			      error->all(FLERR, "Bond broken not detected during PreCompute - 1!");
 			      continue;
 			    }
@@ -2425,7 +2425,7 @@ void PairTlsph::ComputeStressDeviator(const int i, const double mass_specific_en
 		yieldStress = Lookup[YIELD_STRESS][itype] + Lookup[HARDENING_PARAMETER][itype] * eff_plastic_strain[i];
 		if (failureModel[itype].failure_gtn) GTNStrength(Lookup[SHEAR_MODULUS][itype], Lookup[GTN_Q1][itype], Lookup[GTN_Q2][itype],
 								 dt, damage[i], sigmaInitial_dev, d_dev, pFinal, yieldStress,
-								 sigmaFinal_dev__, sigma_dev_rate__, plastic_strain_increment);
+								 sigmaFinal_dev, sigma_dev_rate, plastic_strain_increment);
 		else 
 		  LinearPlasticStrength(Lookup[SHEAR_MODULUS][itype], yieldStress, sigmaInitial_dev, d_dev, dt, sigmaFinal_dev,
 					sigma_dev_rate, plastic_strain_increment, damage[i]);
@@ -2434,7 +2434,7 @@ void PairTlsph::ComputeStressDeviator(const int i, const double mass_specific_en
 		yieldStress = Lookup[YIELD_STRESS][itype] + Lookup[HARDENING_PARAMETER][itype] * pow(eff_plastic_strain[i], Lookup[LH_n][itype]);
 		if (failureModel[itype].failure_gtn) GTNStrength(Lookup[SHEAR_MODULUS][itype], Lookup[GTN_Q1][itype], Lookup[GTN_Q2][itype],
 								 dt, damage[i], sigmaInitial_dev, d_dev, pFinal, yieldStress,
-								 sigmaFinal_dev__, sigma_dev_rate__, plastic_strain_increment);
+								 sigmaFinal_dev, sigma_dev_rate, plastic_strain_increment);
 		else
 		  LinearPlasticStrength(Lookup[SHEAR_MODULUS][itype], yieldStress, sigmaInitial_dev, d_dev, dt, sigmaFinal_dev,
 					sigma_dev_rate, plastic_strain_increment, damage[i]);
@@ -2443,7 +2443,7 @@ void PairTlsph::ComputeStressDeviator(const int i, const double mass_specific_en
 		yieldStress = Lookup[YIELD_STRESS][itype] + Lookup[HARDENING_PARAMETER][itype] * pow(eff_plastic_strain[i] + Lookup[SWIFT_eps0][itype], Lookup[SWIFT_n][itype]);
 		if (failureModel[itype].failure_gtn) GTNStrength(Lookup[SHEAR_MODULUS][itype], Lookup[GTN_Q1][itype], Lookup[GTN_Q2][itype],
 								 dt, damage[i], sigmaInitial_dev, d_dev, pFinal, yieldStress,
-								 sigmaFinal_dev__, sigma_dev_rate__, plastic_strain_increment);
+								 sigmaFinal_dev, sigma_dev_rate, plastic_strain_increment);
 		else 
 		  LinearPlasticStrength(Lookup[SHEAR_MODULUS][itype], yieldStress, sigmaInitial_dev, d_dev, dt, sigmaFinal_dev,
 					sigma_dev_rate, plastic_strain_increment, damage[i]);

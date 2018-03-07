@@ -165,19 +165,22 @@ protected:
 
 		CRITICAL_ENERGY_RELEASE_RATE = 50,
 
-		LH_A = 51,
-		LH_B = 52,
-		LH_n = 53,
-		SWIFT_A = 54,
-		SWIFT_B = 55,
-		SWIFT_n = 56,
-		SWIFT_eps0 = 57,
-
-		GTN_Q1 = 58,
-		GTN_Q2 = 59,
-		GTN_AN = 60,
+		STRENGTH_LUDWICK_HOLLOMON = 51,
+		STRENGTH_SWIFT = 52,
 		
-		MAX_KEY_VALUE = 61
+		LH_A = 53,
+		LH_B = 54,
+		LH_n = 55,
+		SWIFT_A = 56,
+		SWIFT_B = 57,
+		SWIFT_n = 58,
+		SWIFT_eps0 = 59,
+
+		GTN_Q1 = 60,
+		GTN_Q2 = 61,
+		GTN_AN = 62,
+		
+		MAX_KEY_VALUE = 63
 	};
 
 	struct failure_types { // this is defined per type and determines which failure/damage model is active
