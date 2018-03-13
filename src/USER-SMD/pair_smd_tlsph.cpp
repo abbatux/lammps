@@ -1782,8 +1782,12 @@ void PairTlsph::coeff(int narg, char **arg) {
 			}
 
 			if (iNextKwd - ioffset != 5 + 1) {
-				sprintf(str, "expected 5 arguments following *FAILURE_JOHNSON_COOK but got %d\n", iNextKwd - ioffset - 1);
-				error->all(FLERR, str);
+			  if ((iNextKwd - ioffset == 6 + 1) && (strcmp(arg[ioffset + 6], "NO_COUPLING") == 0)) {
+			    failureModel[itype].failure_coupling = false;
+			  } else {
+			    sprintf(str, "expected 5 arguments following *FAILURE_JOHNSON_COOK but got %d\n", iNextKwd - ioffset - 1);
+			    error->all(FLERR, str);
+			  }
 			}
 
 			failureModel[itype].failure_johnson_cook = true;
@@ -1803,6 +1807,7 @@ void PairTlsph::coeff(int narg, char **arg) {
 				printf("%60s : %g\n", "parameter d3", Lookup[FAILURE_JC_D3][itype]);
 				printf("%60s : %g\n", "parameter d4", Lookup[FAILURE_JC_D4][itype]);
 				printf("%60s : %g\n", "reference plastic strain rate", Lookup[FAILURE_JC_EPDOT0][itype]);
+				if (failureModel[itype].failure_coupling == false) printf("%60s\n", "NO COUPLING WITH CONSTITUTIVE LAWS");
 			}
 
 		} else if (strcmp(arg[ioffset], "*FAILURE_MAX_PRINCIPAL_STRESS") == 0) {
@@ -2315,6 +2320,7 @@ void PairTlsph::ComputeDamage(const int i, const Matrix3d strain, const Matrix3d
 	double *radius = atom->radius;
 	double *damage = atom->damage;
 	double *damage_init = atom->damage_init;
+	double damage_increment;
 	int *type = atom->type;
 	int itype = type[i];
 	double jc_failure_strain;
@@ -2354,10 +2360,15 @@ void PairTlsph::ComputeDamage(const int i, const Matrix3d strain, const Matrix3d
 			//damage[i] = (eff_plastic_strain[i] - Lookup[FAILURE_MAX_PLASTIC_STRAIN_THRESHOLD][itype]) / damage_gap;
 		}
 	} else if (failureModel[itype].failure_johnson_cook) {
-	  damage_init[i] += JohnsonCookDamageIncrement(pressure, stress_deviator, Lookup[FAILURE_JC_D1][itype],
-						  Lookup[FAILURE_JC_D2][itype], Lookup[FAILURE_JC_D3][itype], Lookup[FAILURE_JC_D4][itype],
-						  Lookup[FAILURE_JC_EPDOT0][itype], eff_plastic_strain_rate[i], plastic_strain_increment);
-	  if (damage_init[i] >= 1.0) damage[i] = 1.0;
+	  damage_increment = JohnsonCookDamageIncrement(pressure, stress_deviator, Lookup[FAILURE_JC_D1][itype],
+						   Lookup[FAILURE_JC_D2][itype], Lookup[FAILURE_JC_D3][itype], Lookup[FAILURE_JC_D4][itype],
+						   Lookup[FAILURE_JC_EPDOT0][itype], eff_plastic_strain_rate[i], plastic_strain_increment);
+	  if (failureModel[itype].failure_coupling == true) {
+	    damage[i] += damage_increment;
+	  } else {
+	    damage_init[i] += damage_increment;
+	    if (damage_init[i] >= 1.0) damage[i] = 1.0;
+	  }
 	}
 
 	damage[i] = MIN(damage[i], 1.0);

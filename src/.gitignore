@@ -946,6 +946,8 @@
 /compute_smd_contact_radius.h
 /compute_smd_damage.cpp
 /compute_smd_damage.h
+/compute_smd_damage_init.cpp
+/compute_smd_damage_init.h
 /compute_smd_hourglass_error.cpp
 /compute_smd_hourglass_error.h
 /compute_smd_internal_energy.cpp

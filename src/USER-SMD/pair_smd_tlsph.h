@@ -174,6 +174,7 @@ protected:
 		bool failure_max_principal_stress;
 		bool failure_max_plastic_strain;
 		bool failure_johnson_cook;
+	  bool failure_coupling; // true when the JC failure model couples damage with the constitutive laws.
 		bool failure_max_pairwise_strain;
 		bool integration_point_wise; // true if failure model applies to stress/strain state of integration point
 		bool failure_energy_release_rate;
@@ -184,6 +185,7 @@ protected:
 			failure_max_principal_stress = false;
 			failure_max_plastic_strain = false;
 			failure_johnson_cook = false;
+			failure_coupling = true;
 			failure_max_pairwise_strain = false;
 			integration_point_wise = false;
 			failure_energy_release_rate = false;
