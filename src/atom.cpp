@@ -113,6 +113,7 @@ Atom::Atom(LAMMPS *lmp) : Pointers(lmp)
   eff_plastic_strain = NULL;
   eff_plastic_strain_rate = NULL;
   damage = NULL;
+  damage_init = NULL;
 
   // molecular info
 
@@ -181,6 +182,7 @@ Atom::Atom(LAMMPS *lmp) : Pointers(lmp)
   eff_plastic_strain_flag = 0;
   eff_plastic_strain_rate_flag = 0;
   damage_flag = 0;
+  damage_init_flag = 0;
 
   // Peridynamic scale factor
 
@@ -292,6 +294,7 @@ Atom::~Atom()
   memory->destroy(eff_plastic_strain);
   memory->destroy(eff_plastic_strain_rate);
   memory->destroy(damage);
+  memory->destroy(damage_init);
 
   memory->destroy(dpdTheta);
   memory->destroy(uCond);
@@ -2192,6 +2195,7 @@ void *Atom::extract(char *name)
   if (strcmp(name, "eff_plastic_strain_rate") == 0)
     return (void *) eff_plastic_strain_rate;
   if (strcmp(name, "damage") == 0) return (void *) damage;
+  if (strcmp(name, "damage_init") == 0) return (void *) damage_init;
 
   if (strcmp(name,"dpdTheta") == 0) return (void *) dpdTheta;
 

@@ -85,7 +85,7 @@ class Atom : protected Pointers {
   double **smd_stress;
   double *eff_plastic_strain;
   double *eff_plastic_strain_rate;
-  double *damage;
+  double *damage, *damage_init;
 
   // USER-DPD package
 
@@ -149,7 +149,7 @@ class Atom : protected Pointers {
   int x0_flag;
   int eff_plastic_strain_flag;
   int eff_plastic_strain_rate_flag;
-  int damage_flag;
+  int damage_flag, damage_init_flag;
 
   // Peridynamics scale factor, used by dump cfg
 

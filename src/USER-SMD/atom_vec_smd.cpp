@@ -70,6 +70,7 @@ AtomVecSMD::AtomVecSMD(LAMMPS *lmp) :
 	atom->eff_plastic_strain_flag = 1;
 	atom->x0_flag = 1;
 	atom->damage_flag = 1;
+	atom->damage_init_flag = 1;
 	atom->eff_plastic_strain_rate_flag = 1;
 	atom->rho_flag = 1;
 
@@ -126,6 +127,7 @@ void AtomVecSMD::grow(int n) {
 	eff_plastic_strain = memory->grow(atom->eff_plastic_strain, nmax, "atom:eff_plastic_strain");
 	eff_plastic_strain_rate = memory->grow(atom->eff_plastic_strain_rate, nmax, "atom:eff_plastic_strain_rate");
 	damage = memory->grow(atom->damage, nmax, "atom:damage");
+	damage_init = memory->grow(atom->damage_init, nmax, "atom:damage_init");
 	rho = memory->grow(atom->rho, nmax, "atom:rho");
 
 	if (atom->nextra_grow)
@@ -159,6 +161,7 @@ void AtomVecSMD::grow_reset() {
 	eff_plastic_strain = atom->eff_plastic_strain;
 	eff_plastic_strain_rate = atom->eff_plastic_strain_rate;
 	damage = atom->damage;
+	damage_init = atom->damage_init;
 	vest = atom->vest;
 	rho = atom->rho;
 }
@@ -203,6 +206,7 @@ void AtomVecSMD::copy(int i, int j, int delflag) {
 	}
 
 	damage[j] = damage[i];
+	damage_init[j] = damage_init[i];
 	rho[j] = rho[i];
 
 	if (atom->nextra_grow)
@@ -777,7 +781,8 @@ int AtomVecSMD::pack_exchange(int i, double *buf) {
 	buf[m++] = vest[i][2]; // 39
 
 	buf[m++] = damage[i];
-	buf[m++] = rho[i]; // 41
+	buf[m++] = damage_init[i];
+	buf[m++] = rho[i]; // 42
 
 	if (atom->nextra_grow)
 		for (int iextra = 0; iextra < atom->nextra_grow; iextra++)
@@ -832,7 +837,8 @@ int AtomVecSMD::unpack_exchange(double *buf) {
 	vest[nlocal][2] = buf[m++]; // 39
 
 	damage[nlocal] = buf[m++]; //40
-	rho[nlocal] = buf[m++]; //41
+	damage_init[nlocal] = buf[m++]; //41
+	rho[nlocal] = buf[m++]; //42
 
 	if (atom->nextra_grow)
 		for (int iextra = 0; iextra < atom->nextra_grow; iextra++)
@@ -851,7 +857,7 @@ int AtomVecSMD::size_restart() {
 	int i;
 
 	int nlocal = atom->nlocal;
-	int n = 44 * nlocal; // count pack_restart + 1 (size of buffer)
+	int n = 45 * nlocal; // count pack_restart + 1 (size of buffer)
 
 	if (atom->nextra_restart)
 		for (int iextra = 0; iextra < atom->nextra_restart; iextra++)
@@ -904,7 +910,8 @@ int AtomVecSMD::pack_restart(int i, double *buf) {
 	buf[m++] = vest[i][2]; // 40
 
 	buf[m++] = damage[i]; // 41
-	buf[m++] = rho[i]; // 42
+	buf[m++] = damage_init[i]; // 42
+	buf[m++] = rho[i]; // 43
 
 	if (atom->nextra_restart)
 		for (int iextra = 0; iextra < atom->nextra_restart; iextra++)
@@ -964,7 +971,8 @@ int AtomVecSMD::unpack_restart(double *buf) {
 	vest[nlocal][2] = buf[m++]; // 40
 
 	damage[nlocal] = buf[m++]; //41
-	rho[nlocal] = buf[m++]; //42
+	damage_init[nlocal] = buf[m++]; //42
+	rho[nlocal] = buf[m++]; //43
 
 	//printf("nlocal in restart is %d\n", nlocal);
 
@@ -1033,6 +1041,7 @@ void AtomVecSMD::create_atom(int itype, double *coord) {
 	}
 
 	damage[nlocal] = 0.0;
+	damage_init[nlocal] = 0.0;
 	rho[nlocal] = 1.0;
 
 	atom->nlocal++;
@@ -1095,6 +1104,7 @@ void AtomVecSMD::data_atom(double *coord, imageint imagetmp, char **values) {
 	vest[nlocal][2] = 0.0;
 
 	damage[nlocal] = 0.0;
+	damage_init[nlocal] = 0.0;
 	rho[nlocal] = rmass[nlocal] / vfrac[nlocal];
 
 	eff_plastic_strain[nlocal] = 0.0;
@@ -1300,6 +1310,8 @@ bigint AtomVecSMD::memory_usage() {
 
 	if (atom->memcheck("damage"))
 		bytes += memory->usage(damage, nmax);
+	if (atom->memcheck("damage_init"))
+	  bytes += memory->usage(damage_init, nmax);
 	if (atom->memcheck("rho"))
 	  bytes += memory->usage(rho, nmax);
 

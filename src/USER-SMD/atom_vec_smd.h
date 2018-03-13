@@ -92,7 +92,7 @@ class AtomVecSMD : public AtomVec {
   double *vfrac,**x0,*contact_radius, **smd_data_9, *e, *de, **vest;
   double **tlsph_stress;
   double *eff_plastic_strain;
-  double *damage;
+  double *damage, *damage_init;
   double *eff_plastic_strain_rate;
   double *rho;
 
