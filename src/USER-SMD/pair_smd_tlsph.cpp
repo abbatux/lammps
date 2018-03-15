@@ -62,19 +62,6 @@ using namespace SMD_Math;
 #define TLSPH_DEBUG 0
 #define PLASTIC_STRAIN_AVERAGE_WINDOW 100.0
 
-
-static double CalculateScale(const float degradation) {
-  double start = 0.9;
-  if (degradation <= start) {
-    return 1.0;
-  }
-  if (degradation >= 1.0) {
-    return 0.0;
-  }
-  
-  return 0.5 + 0.5 * cos( M_PI * (degradation - start) / (1.0 - start) );
-}
-
 static Matrix3d CreateOrthonormalBasisFromOneVector(Vector3d sU) {
   Matrix3d P;
   Vector3d sV, sW;
@@ -358,7 +345,11 @@ void PairTlsph::PreCompute() {
                                 
 
 				// scale the interaction according to the damage variable
-				scale = CalculateScale(degradation_ij[i][jj]);
+				if (failureModel[itype].failure_none == true) {
+				  scale = 1.0;
+				} else {
+				  scale = CalculateScale(degradation_ij[i][jj], itype);
+				}
 				wf = wf_list[i][jj] * scale;
 				wfd = wfd_list[i][jj] * scale;
 				g = (wfd / r0) * dx0;
@@ -752,9 +743,19 @@ void PairTlsph::ComputeForces(int eflag, int vflag) {
 			
 			// scale the interaction according to the damage variable
 			//scale = CalculateScale(degradation_ij[i][jj], r, r0);
-			scale = CalculateScale(degradation_ij[i][jj]);
-			wf = wf_list[i][jj];// * scale;
-			wfd = wfd_list[i][jj];// * scale;
+			if (failureModel[itype].failure_none == true) {
+			  scale = 1.0;
+			} else {
+			  scale = CalculateScale(degradation_ij[i][jj], itype);
+			}
+
+			wf = wf_list[i][jj];
+			wfd = wfd_list[i][jj];
+
+			if ((failureModel[itype].failure_none == false) && (failureModel[itype].integration_point_wise == false)) {
+			  wf *= scale;
+			  wfd *= scale;
+			}
 
 			g = (wfd_list[i][jj] / r0) * dx0; // uncorrected kernel gradient
 
@@ -867,9 +868,6 @@ void PairTlsph::ComputeForces(int eflag, int vflag) {
 			hourglass_error[i] /= shepardWeight;
 		}
 		double deltat_1 = sqrt(2 * radius[i] * rmass[i]/ sqrt( f[i][0]*f[i][0] + f[i][1]*f[i][1] + f[i][2]*f[i][2] ));
-		if (particle_dt[i] > deltat_1) {
-		  printf("particle_dt[%d] > deltat_1 with f = [%f %f %f]\n", tag[i], f[i][0], f[i][1], f[i][2]);
-		}
 		particle_dt[i] = MIN(particle_dt[i], deltat_1); // Monaghan deltat_1 
 		dtCFL = MIN(dtCFL, particle_dt[i]);
 
@@ -2505,7 +2503,7 @@ void PairTlsph::UpdateDegradation() {
 			if (failureModel[itype].integration_point_wise) {
 			  degradation_ij[i][jj] = 1 - (1 - damage[i]) * (1 - damage[j]);
 			  if (degradation_ij[i][jj] >= 1.0) { // delete interaction if fully damaged
-			    printf("Link between %d and %d destroyed due to complete degradation.\n", tag[i], partner[i][jj]);
+			    //printf("Link between %d and %d destroyed due to complete degradation.\n", tag[i], partner[i][jj]);
 			    degradation_ij[i][jj] = 1.0;
 			  }
 			  /*
@@ -2576,6 +2574,22 @@ void PairTlsph:: AdjustStressForZeroForceBC(const Matrix3d sigma, const Vector3d
     cout << "Here is P.transpose() * sigmaBC * P :" << endl << P.transpose() * sigmaBC * P << endl;
     cout << "Here is P.transpose() * sU :" << endl << P.transpose() * sU << endl;
     cout << "Here is P :" << endl << P << endl;
+  }
+}
+
+double PairTlsph::CalculateScale(const float degradation, const int itype) {
+  if (failureModel[itype].integration_point_wise == true) {
+    double start = 0.9;
+    if (degradation <= start) {
+      return 1.0;
+    }
+    if (degradation >= 1.0) {
+      return 0.0;
+    }
+
+    return 0.5 + 0.5 * cos( M_PI * (degradation - start) / (1.0 - start) );
+  } else {
+    return 1.0 - degradation;
   }
 }
 

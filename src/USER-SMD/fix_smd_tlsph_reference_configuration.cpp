@@ -122,7 +122,6 @@ void FixSMD_TLSPH_ReferenceConfiguration::init() {
 void FixSMD_TLSPH_ReferenceConfiguration::pre_exchange() {
 	//return;
 
-	printf("in FixSMD_TLSPH_ReferenceConfiguration::pre_exchange()\n");
 	double **defgrad = atom->smd_data_9;
 	double *radius = atom->radius;
 	double *rho = atom->rho;
