@@ -2421,7 +2421,6 @@ void PairTlsph::ComputeStressDeviator(const int i, const double mass_specific_en
 		R[i].setIdentity();
 		break;
 	case STRENGTH_LINEAR_PLASTIC:
-
 		yieldStress = Lookup[YIELD_STRESS][itype] + Lookup[HARDENING_PARAMETER][itype] * eff_plastic_strain[i];
 		if (failureModel[itype].failure_gtn) GTNStrength(Lookup[SHEAR_MODULUS][itype], Lookup[GTN_Q1][itype], Lookup[GTN_Q2][itype],
 								 dt, damage[i], sigmaInitial_dev, d_dev, pFinal, yieldStress,
@@ -2431,7 +2430,7 @@ void PairTlsph::ComputeStressDeviator(const int i, const double mass_specific_en
 					sigma_dev_rate, plastic_strain_increment, damage[i]);
 		break;
 	case STRENGTH_LUDWICK_HOLLOMON:
-		yieldStress = Lookup[YIELD_STRESS][itype] + Lookup[HARDENING_PARAMETER][itype] * pow(eff_plastic_strain[i], Lookup[LH_n][itype]);
+		yieldStress = Lookup[LH_A][itype] + Lookup[LH_B][itype] * pow(eff_plastic_strain[i], Lookup[LH_n][itype]);
 		if (failureModel[itype].failure_gtn) GTNStrength(Lookup[SHEAR_MODULUS][itype], Lookup[GTN_Q1][itype], Lookup[GTN_Q2][itype],
 								 dt, damage[i], sigmaInitial_dev, d_dev, pFinal, yieldStress,
 								 sigmaFinal_dev, sigma_dev_rate, plastic_strain_increment);
@@ -2440,7 +2439,7 @@ void PairTlsph::ComputeStressDeviator(const int i, const double mass_specific_en
 					sigma_dev_rate, plastic_strain_increment, damage[i]);
 		break;
 	case STRENGTH_SWIFT:
-		yieldStress = Lookup[YIELD_STRESS][itype] + Lookup[HARDENING_PARAMETER][itype] * pow(eff_plastic_strain[i] + Lookup[SWIFT_eps0][itype], Lookup[SWIFT_n][itype]);
+		yieldStress = Lookup[SWIFT_A][itype] + Lookup[SWIFT_B][itype] * pow(eff_plastic_strain[i] + Lookup[SWIFT_eps0][itype], Lookup[SWIFT_n][itype]);
 		if (failureModel[itype].failure_gtn) GTNStrength(Lookup[SHEAR_MODULUS][itype], Lookup[GTN_Q1][itype], Lookup[GTN_Q2][itype],
 								 dt, damage[i], sigmaInitial_dev, d_dev, pFinal, yieldStress,
 								 sigmaFinal_dev, sigma_dev_rate, plastic_strain_increment);
