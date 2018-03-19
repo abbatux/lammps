@@ -67,6 +67,9 @@ public:
 	bool crack_exclude(int i, int j);
 	bool get_line_intersection(int i, int j);
 
+  Eigen::Matrix3d *K0; // correction matrix in the original configuration
+  Eigen::Vector3d *normal; // Vector normal to the boundary pointing outwards
+  
 protected:
 	int updateFlag; // flag to update reference configuration
 	int nmax;
@@ -77,7 +80,6 @@ protected:
 	float **degradation_ij; // per-pair interaction degradation status
   Eigen::Vector3d **partnerx0; // x0 vector of all partners
   double **partnervol;         // volume of all partners
-
 	class Pair *pair;
 
 };
