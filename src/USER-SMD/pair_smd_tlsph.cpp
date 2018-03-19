@@ -368,10 +368,6 @@ void PairTlsph::PreCompute() {
 				smoothVelDifference[i].noalias() += volj * wf * dvint;
 				
 				if (updateSurfaceNormal == 1) surfaceNormal[i].noalias() += volj * wfd_list[i][jj] * dx0; 
-				if ((tag[i] == 3242) && (updateSurfaceNormal == 1) ){
-				    Vector3d tmp = volj * wfd_list[i][jj] * dx0; 
-				    printf("2. sNij = [%f %f %f]\n", tmp[0], tmp[1], tmp[2]);
-				  }
 				
 				numNeighsRefConfig[i]++;
 			} // end loop over j
@@ -389,7 +385,6 @@ void PairTlsph::PreCompute() {
 			if (updateKundegFlag == 1) {
 			  Matrix3d KundegINV;
 			  KundegINV = Kundeg[i];
-			  if (tag[i] == 4032) cout << "00. Kundeg[" << tag[i] << "]:" << endl << Kundeg[i] << endl;
 			  pseudo_inverse_SVD(KundegINV);
 			  surfaceNormal[i] = KundegINV * surfaceNormal[i];
 			} else {
@@ -398,7 +393,8 @@ void PairTlsph::PreCompute() {
 			Fdot[i] *= K[i];
 			Fincr[i] *= K[i];
 			Fincr[i].noalias() += eye;
-			
+
+			// START
 			if (updateKundegFlag == 1) {
 			// Recalculate Kundeg to include mirror particles:
 			
@@ -460,15 +456,6 @@ void PairTlsph::PreCompute() {
 			    volj = vfrac[j];
 			    
 			    Kundeg[i].noalias() -= volj * (wfd_list[i][jj] / r0) * dx0mirror * dx0mirror.transpose();
-			    if ((tag[i] == 4032) && (tag[j] == 3300)) {
-			      cout << "Here is dx0:" << endl << dx0 << endl;
-			      cout << "Here is dx0mirror:" << endl << dx0mirror << endl;
-			      cout << "Here is surfaceNormal[" << tag[i] << "]:" << endl << surfaceNormal[i] << endl;
-			      cout << "Here is surfaceNormal.dx = " << surfaceNormal[i].dot(dx0) << endl;
-			      cout << "-0.5*pow(volj, 1.0/3.0) = " << -0.5*pow(volj, 1.0/3.0) << endl;
-			    }
-			    if (tag[i] == 4032) cout << "1. Kundeg[" << tag[i] << "][" << tag[j] << "] mirror :" << endl << -volj * (wfd_list[i][jj] / r0) * dx0mirror * dx0mirror.transpose() << endl;
-			    if (tag[i] == 4032) cout << "11. Kundeg[" << tag[i] << "]:" << endl << Kundeg[i] << endl;
 			  }
 			  
 			} else {

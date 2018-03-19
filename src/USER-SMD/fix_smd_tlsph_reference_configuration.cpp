@@ -236,7 +236,8 @@ void FixSMD_TLSPH_ReferenceConfiguration::setup(int vflag) {
 	firstneigh = list->firstneigh;
 
 	Matrix3d K0inv;
-	//memory->grow(K0inv, nmax, "tlsph_refconfig_neigh:K0inv");
+	Vector3d x0i, x0j, dxmirror;
+	double normalNormi;
 	
 	// zero npartner for all current atoms
 	for (i = 0; i < nlocal; i++)
@@ -304,60 +305,51 @@ void FixSMD_TLSPH_ReferenceConfiguration::setup(int vflag) {
 			j = jlist[jj];
 			j &= NEIGHMASK;
 
-			dx(0) = x0[i][0] - x0[j][0];
-			dx(1) = x0[i][1] - x0[j][1];
-			dx(2) = x0[i][2] - x0[j][2];
+			x0i[0] = x0[i][0];
+			x0i[1] = x0[i][1];
+			x0i[2] = x0[i][2];
+
+			x0j[0] = x0[j][0];
+			x0j[1] = x0[j][1];
+			x0j[2] = x0[j][2];
+
+			dx = x0i - x0j;
 			r = dx.norm();
 			h = radius[i] + radius[j];
 
-			if (INSERT_PREDEFINED_CRACKS) {
-				if (!crack_exclude(i, j))
-					continue;
-			}
-
 			if (r < h) {
 				spiky_kernel_and_derivative(h, r, domain->dimension, wf, wfd);
+				if (mol[i] == mol[j]) {
+				  K0[i].noalias() -=  vfrac[j] * (wfd / r) * dx * dx.transpose();
+				  normal[i].noalias() -= vfrac[j] * wfd * dx;
+				
+				  if (j < nlocal) {
+				    K0[j].noalias() -=  vfrac[i] * (wfd / r) * dx * dx.transpose();
+				    normal[j].noalias() += vfrac[i] * wfd * dx;
+				  }
+				}
+
+				if (INSERT_PREDEFINED_CRACKS) {
+				  if (!crack_exclude(i, j))
+				    continue;
+				}
 
 				partner[i][npartner[i]] = tag[j];
 				wfd_list[i][npartner[i]] = wfd;
 				wf_list[i][npartner[i]] = wf;
-				Vector3d x0j;
-				x0j[0] = x0[j][0];
-				x0j[1] = x0[j][1];
-				x0j[2] = x0[j][2];
+
 				partnerx0[i][npartner[i]] = x0j;
 				partnervol[i][npartner[i]] = vfrac[j];
 				npartner[i]++;
 
-				if (mol[i] == mol[j]) {
-				  K0[i].noalias() -=  vfrac[j] * (wfd / r) * dx * dx.transpose();
-				  normal[i].noalias() -= vfrac[j] * wfd * dx;
-				  if (tag[i] == 3242){
-				    Vector3d tmp = vfrac[j] * wfd * dx;
-				    printf("1. sNij = [%f %f %f]\n", tmp[0], tmp[1], tmp[2]);
-				  }
-				}
-				
 				if (j < nlocal) {
 					partner[j][npartner[j]] = tag[i];
 					wfd_list[j][npartner[j]] = wfd;
 					wf_list[j][npartner[j]] = wf;
-					Vector3d x0i;
-					x0i[0] = x0[i][0];
-					x0i[1] = x0[i][1];
-					x0i[2] = x0[i][2];
+					
 					partnerx0[j][npartner[j]] = x0i;
 					partnervol[j][npartner[j]] = vfrac[i];
 					npartner[j]++;
-					
-					if (mol[i] == mol[j]) {
-					  K0[j].noalias() -=  vfrac[i] * (wfd / r) * dx * dx.transpose();
-					  normal[j].noalias() += vfrac[i] * wfd * dx;
-					  if (tag[j] == 3242){
-					    Vector3d tmp = -vfrac[i] * wfd * dx;
-					    printf("1. sNji = [%f %f %f]\n", tmp[0], tmp[1], tmp[2]);
-					  }
-					}
 				}
 			}
 		}
@@ -370,72 +362,54 @@ void FixSMD_TLSPH_ReferenceConfiguration::setup(int vflag) {
 
 	  normal[i] = K0inv * normal[i];
 	  
-	  double normalNormi = normal[i].norm();
+	  normalNormi = normal[i].norm();
 	  if (normalNormi > 0.75) normal[i] /= normalNormi;
 	  else normal[i].setZero();
-	  if (tag[i] == 4032) cout << "00. K0[" << tag[i] << "]:" << endl << K0[i] << endl;
 	}
 
 	for (ii = 0; ii < inum; ii++) {
-		i = ilist[ii];
-		jlist = firstneigh[i];
-		jnum = numneigh[i];
-		
-		for (jj = 0; jj < jnum; jj++) {
-		  j = jlist[jj];
-		  j &= NEIGHMASK;
-		  
-		  if (mol[i] != mol[j]) continue;
-		  
-		  dx(0) = x0[j][0] - x0[i][0];
-		  dx(1) = x0[j][1] - x0[i][1];
-		  dx(2) = x0[j][2] - x0[i][2];
-		  r = dx.norm();
-		  h = radius[i] + radius[j];
-		  
-		  if (INSERT_PREDEFINED_CRACKS) {
-		    if (!crack_exclude(i, j))
-		      continue;
-		  }
-		  
-		  if (((tag[j] == 4032) && (tag[i] == 3300)) || ((tag[j] == 4032) && (tag[i] == 3300))) {
-		    cout << "i=" << tag[i] << " j=" << tag[j] << endl;
-		    cout << "Here is dx:" << endl << dx << endl;
-		    cout << "Here is r:" << endl << r << endl;
-		    cout << "Here is h:" << endl << h << endl;
-		    cout << "Here is normal[" << tag[j] << "]:" << endl << normal[j] << endl;
-		    cout << "Here is normal.-dx = " << normal[j].dot(-dx) << endl;
-		    cout << "-0.5*pow(vfrac[i], 1.0/3.0) = " << -0.5*pow(vfrac[i], 1.0/3.0) << endl;
-		    printf("j=%d and nlocal=%d\n", j, nlocal);
-		  }
-		  if (r < h) {
-		    
-		    if (normal[i].norm() > 0.75) {
-		      if (normal[i].dot(dx) <= -0.5*pow(vfrac[j], 1.0/3.0)) {
-			spiky_kernel_and_derivative(h, r, domain->dimension, wf, wfd);
-			Vector3d dxmirror = dx - 2 * dx.dot(normal[i]) * normal[i];
-			K0[i].noalias() -= vfrac[j] * (wfd / r) * dxmirror * dxmirror.transpose();
-			if (tag[i] == 4032) cout << "1. K0[" << tag[i] << "][" << tag[j] << "] mirror :" << endl << -vfrac[j] * (wfd / r) * dxmirror * dxmirror.transpose() << endl;
-			if (tag[i] == 4032) cout << "11. K0[" << tag[i] << "]:" << endl << K0[i] << endl;
-		      }
-		    }
-		    if (j < nlocal) {
-		      if (normal[j].norm() > 0.75) {
-		    	if (normal[j].dot(-dx) <= -0.5*pow(vfrac[i], 1.0/3.0)) {
-			  spiky_kernel_and_derivative(h, r, domain->dimension, wf, wfd);
-			  Vector3d dxmirror = -dx + 2 * dx.dot(normal[j]) * normal[j];
-			  K0[j].noalias() -= vfrac[i] * (wfd / r) * dxmirror * dxmirror.transpose();
-			  if ((tag[j] == 4032) && (tag[i] == 2567)) {
-			    cout << "Here is dx:" << endl << dx << endl;
-			    cout << "Here is dxmirror:" << endl << dxmirror << endl;
-			  }
-			  if (tag[j] == 4032) cout << "2. K0[" << tag[j] << "][" << tag[i] << "] mirror :" << endl << -vfrac[i] * (wfd / r) * dxmirror * dxmirror.transpose() << endl;
-			  if (tag[j] == 4032) cout << "11. K0[" << tag[j] << "]:" << endl << K0[j] << endl;
-			}
-		      }
-		    }
+	  i = ilist[ii];
+	  jlist = firstneigh[i];
+	  jnum = numneigh[i];
+	  
+	  for (jj = 0; jj < jnum; jj++) {
+	    j = jlist[jj];
+	    j &= NEIGHMASK;
+	    
+	    if (mol[i] != mol[j]) continue;
+	    
+	    dx(0) = x0[j][0] - x0[i][0];
+	    dx(1) = x0[j][1] - x0[i][1];
+	    dx(2) = x0[j][2] - x0[i][2];
+	    r = dx.norm();
+	    h = radius[i] + radius[j];
+	    
+	    if (INSERT_PREDEFINED_CRACKS) {
+	      if (!crack_exclude(i, j))
+		continue;
+	    }
+	    
+	    if (r < h) {
+	      
+	      if (normal[i].norm() > 0.75) {
+		if (normal[i].dot(dx) <= -0.5*pow(vfrac[j], 1.0/3.0)) {
+		  spiky_kernel_and_derivative(h, r, domain->dimension, wf, wfd);
+		  dxmirror = dx - 2 * dx.dot(normal[i]) * normal[i];
+		  K0[i].noalias() -= vfrac[j] * (wfd / r) * dxmirror * dxmirror.transpose();
+		}
+	      }
+	      
+	      if (j < nlocal) {
+		if (normal[j].norm() > 0.75) {
+		  if (normal[j].dot(-dx) <= -0.5*pow(vfrac[i], 1.0/3.0)) {
+		    spiky_kernel_and_derivative(h, r, domain->dimension, wf, wfd);
+		    dxmirror = -dx + 2 * dx.dot(normal[j]) * normal[j];
+		    K0[j].noalias() -= vfrac[i] * (wfd / r) * dxmirror * dxmirror.transpose();
 		  }
 		}
+	      }
+	    }
+	  }
 	}
 
 	for (ii = 0; ii < inum; ii++) {
