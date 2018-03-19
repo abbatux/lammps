@@ -25,7 +25,7 @@
 
 #ifdef COMPUTE_CLASS
 
-ComputeStyle(smd/tlsph/surfacenormal,ComputeSMDTLSPHSurfaceNormal)
+ComputeStyle(smd/tlsph/surface/normal, ComputeSMDTLSPHSurfaceNormal)
 
 #else
 
@@ -46,7 +46,7 @@ class ComputeSMDTLSPHSurfaceNormal : public Compute {
 
  private:
   int nmax;
-  double **surface_normal_vector;
+  double **n_array;
 };
 
 }

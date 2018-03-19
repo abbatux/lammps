@@ -70,9 +70,8 @@ public:
 			Eigen::Matrix3d &sigma_dev_rate, double &plastic_strain_increment);
         void ComputeDamage(const int i, const Eigen::Matrix3d strain, const Eigen::Matrix3d sigmaFinal, Eigen::Matrix3d &sigma_damaged, double plastic_strain_increment);
 	void UpdateDegradation();
-  void AdjustStressForZeroForceBC(const Eigen::Matrix3d sigma, const Eigen::Vector3d sU, Eigen::Matrix3d &sigmaBC);
-  Eigen::Vector3d ComputeFstress(const int i, const int j, const int jj, const double surfaceNormalNormi, const Eigen::Vector3d dx0, const double r0, const Eigen::Vector3d g, const Eigen::Matrix3d sigmaBC_i, const double scale, const double strain1d = 1.0);
-  double CalculateScale(const float degradation, const int itype);
+ 	void AdjustStressForZeroForceBC(const Eigen::Matrix3d sigma, const Eigen::Vector3d sU, Eigen::Matrix3d &sigmaBC);
+	double CalculateScale(const float degradation, const int itype);
 
 protected:
 	void allocate();
@@ -87,12 +86,11 @@ protected:
 	/*
 	 * per atom arrays
 	 */
-  Eigen::Matrix3d *K,  *Kundeg, *PK1, *Fdot, *Fincr; 
+	Eigen::Matrix3d *K,  *PK1, *Fdot, *Fincr; 
 	Eigen::Matrix3d *R; // rotation matrix
 	Eigen::Matrix3d *FincrInv;
 	Eigen::Matrix3d *D, *W; // strain rate and spin tensor
 	Eigen::Vector3d *smoothVelDifference;
-  Eigen::Vector3d *surfaceNormal; // Vector normal to the boundary pointing outwards
 	Eigen::Matrix3d *CauchyStress;
 	double *detF, *particle_dt;
 	double *vij_max;
@@ -103,7 +101,7 @@ protected:
 	double hMin; // minimum kernel radius for two particles
 	double dtCFL;
 	double dtRelative; // relative velocity of two particles, divided by sound speed
-  int updateFlag, updateKundegFlag, updateSurfaceNormal;
+	int updateFlag;
 	double update_threshold; // updateFlage is set to one if the relative displacement of a pair exceeds update_threshold
 	double cut_comm;
 

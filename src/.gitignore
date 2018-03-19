@@ -962,8 +962,8 @@
 /compute_smd_tlsph_defgrad.h
 /compute_smd_tlsph_dt.cpp
 /compute_smd_tlsph_dt.h
-/compute_smd_tlsph_kundeg.cpp
-/compute_smd_tlsph_kundeg.h
+/compute_smd_tlsph_k0.cpp
+/compute_smd_tlsph_k0.h
 /compute_smd_tlsph_num_neighs.cpp
 /compute_smd_tlsph_num_neighs.h
 /compute_smd_tlsph_shape.cpp

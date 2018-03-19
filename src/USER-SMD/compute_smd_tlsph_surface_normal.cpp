@@ -9,7 +9,6 @@
  *
  * ----------------------------------------------------------------------- */
 
-
 /* ----------------------------------------------------------------------
  LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
  http://lammps.sandia.gov, Sandia National Laboratories
@@ -25,6 +24,7 @@
 
 #include <string.h>
 #include "compute_smd_tlsph_surface_normal.h"
+#include "fix_smd_tlsph_reference_configuration.h"
 #include "atom.h"
 #include "update.h"
 #include "modify.h"
@@ -49,13 +49,13 @@ ComputeSMDTLSPHSurfaceNormal::ComputeSMDTLSPHSurfaceNormal(LAMMPS *lmp, int narg
 	size_peratom_cols = 3;
 
 	nmax = 0;
-	surface_normal_vector = NULL;
+	n_array = NULL;
 }
 
 /* ---------------------------------------------------------------------- */
 
 ComputeSMDTLSPHSurfaceNormal::~ComputeSMDTLSPHSurfaceNormal() {
-	memory->sfree(surface_normal_vector);
+	memory->sfree(n_array);
 }
 
 /* ---------------------------------------------------------------------- */
@@ -78,26 +78,34 @@ void ComputeSMDTLSPHSurfaceNormal::compute_peratom() {
 	// grow vector array if necessary
 
 	if (atom->nmax > nmax) {
-		memory->destroy(surface_normal_vector);
+		memory->destroy(n_array);
 		nmax = atom->nmax;
-		memory->create(surface_normal_vector, nmax, size_peratom_cols, "surfaceNormalVector");
-		array_atom = surface_normal_vector;
+		memory->create(n_array, nmax, size_peratom_cols, "surfacenormaltensorVector");
+		array_atom = n_array;
 	}
 
 	int itmp = 0;
-	Vector3d *N = (Vector3d *) force->pair->extract("smd/tlsph/surfaceNormal_ptr", itmp);
-	if (N == NULL) {
-		error->all(FLERR,
-				"compute smd/tlsph_surface_normal could not access surface normal. Are the matching pair styles present?");
+	int ifix_tlsph;
+	for (int i = 0; i < modify->nfix; i++)
+		if (strcmp(modify->fix[i]->style, "SMD_TLSPH_NEIGHBORS") == 0)
+			ifix_tlsph = i;
+	Vector3d *T = ((FixSMD_TLSPH_ReferenceConfiguration *) modify->fix[ifix_tlsph])->sNormal;
+	if (T == NULL) {
+		error->all(FLERR, "compute smd/tlsph_surface_normal could not access surface_normal tensor. Are the matching pair styles present?");
 	}
-
 	int nlocal = atom->nlocal;
+	int *mask = atom->mask;
 
 	for (int i = 0; i < nlocal; i++) {
-
-		surface_normal_vector[i][0] = N[i](0); // x
-		surface_normal_vector[i][1] = N[i](1); // y
-		surface_normal_vector[i][2] = N[i](2); // z
+		if (mask[i] & groupbit) {
+			n_array[i][0] = T[i](0); // xx
+			n_array[i][1] = T[i](1); // yy
+			n_array[i][2] = T[i](2); // zz
+		} else {
+			for (int j = 0; j < size_peratom_cols; j++) {
+				n_array[i][j] = 0.0;
+			}
+		}
 	}
 }
 
