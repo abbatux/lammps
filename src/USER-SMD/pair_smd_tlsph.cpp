@@ -1558,6 +1558,56 @@ void PairTlsph::coeff(int narg, char **arg) {
 				printf("%60s : %g\n", "eps0 : initial plastic strain", Lookup[SWIFT_eps0][itype]);
 			}
 
+		}  else if (strcmp(arg[ioffset], "*VOCE") == 0) {
+
+			/*
+			 * VOCE
+			 */
+
+			strengthModel[itype] = STRENGTH_VOCE;
+			if (comm->me == 0) {
+				printf("reading *VOCE\n");
+			}
+
+			t = string("*");
+			iNextKwd = -1;
+			for (iarg = ioffset + 1; iarg < narg; iarg++) {
+				s = string(arg[iarg]);
+				if (s.compare(0, t.length(), t) == 0) {
+					iNextKwd = iarg;
+					break;
+				}
+			}
+
+			if (iNextKwd < 0) {
+				sprintf(str, "no *KEYWORD terminates *VOCE");
+				error->all(FLERR, str);
+			}
+
+			if (iNextKwd - ioffset != 7 + 1) {
+				sprintf(str, "expected 7 arguments following *VOCE but got %d\n", iNextKwd - ioffset - 1);
+				error->all(FLERR, str);
+			}
+
+			Lookup[VOCE_A][itype] = force->numeric(FLERR, arg[ioffset + 1]);
+			Lookup[VOCE_Q1][itype] = force->numeric(FLERR, arg[ioffset + 2]);
+			Lookup[VOCE_n1][itype] = force->numeric(FLERR, arg[ioffset + 3]);
+			Lookup[VOCE_Q2][itype] = force->numeric(FLERR, arg[ioffset + 4]);
+			Lookup[VOCE_n2][itype] = force->numeric(FLERR, arg[ioffset + 5]);
+			Lookup[VOCE_C][itype] = force->numeric(FLERR, arg[ioffset + 6]);
+			Lookup[VOCE_epsdot0][itype] = force->numeric(FLERR, arg[ioffset + 7]);
+
+			if (comm->me == 0) {
+				printf("%60s\n", "Swift strength model");
+				printf("%60s : %g\n", "A: initial yield stress", Lookup[VOCE_A][itype]);
+				printf("%60s : %g\n", "Q1", Lookup[VOCE_Q1][itype]);
+				printf("%60s : %g\n", "n1", Lookup[VOCE_n1][itype]);
+				printf("%60s : %g\n", "Q2", Lookup[VOCE_Q2][itype]);
+				printf("%60s : %g\n", "n2", Lookup[VOCE_n2][itype]);
+				printf("%60s : %g\n", "C : proportionality factor for logarithmic plastic strain rate dependency", Lookup[VOCE_C][itype]);
+				printf("%60s : %g\n", "epsdot0 : dimensionality factor for plastic strain rate dependency", Lookup[VOCE_epsdot0][itype]);
+			}
+
 		} else if (strcmp(arg[ioffset], "*EOS_NONE") == 0) {
 
 			/*
@@ -2444,6 +2494,22 @@ void PairTlsph::ComputeStressDeviator(const int i, const double mass_specific_en
 								 dt, damage[i], sigmaInitial_dev, d_dev, pFinal, yieldStress,
 								 sigmaFinal_dev, sigma_dev_rate, plastic_strain_increment);
 		else 
+		  LinearPlasticStrength(Lookup[SHEAR_MODULUS][itype], yieldStress, sigmaInitial_dev, d_dev, dt, sigmaFinal_dev,
+					sigma_dev_rate, plastic_strain_increment, damage[i]);
+		break;
+	case STRENGTH_VOCE:
+		yieldStress = Lookup[VOCE_A][itype] - Lookup[VOCE_Q1][itype] * exp(-Lookup[VOCE_n1][itype] * eff_plastic_strain[i])
+		  - Lookup[VOCE_Q2][itype] * exp(Lookup[VOCE_n2][itype] * eff_plastic_strain[i]);
+
+		if ( Lookup[VOCE_C][itype] != 0.0 ) {
+		  double epdot_ratio = eff_plastic_strain_rate[i] / Lookup[VOCE_epsdot0][itype];
+		  epdot_ratio = MAX(epdot_ratio, 1.0);
+		  yieldStress *= 1.0 + Lookup[VOCE_C][itype] * log(epdot_ratio);
+		}
+		if (failureModel[itype].failure_gtn) GTNStrength(Lookup[SHEAR_MODULUS][itype], Lookup[GTN_Q1][itype], Lookup[GTN_Q2][itype],
+								 dt, damage[i], sigmaInitial_dev, d_dev, pFinal, yieldStress,
+								 sigmaFinal_dev, sigma_dev_rate, plastic_strain_increment);
+		else
 		  LinearPlasticStrength(Lookup[SHEAR_MODULUS][itype], yieldStress, sigmaInitial_dev, d_dev, dt, sigmaFinal_dev,
 					sigma_dev_rate, plastic_strain_increment, damage[i]);
 		break;
