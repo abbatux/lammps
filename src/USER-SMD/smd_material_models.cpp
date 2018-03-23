@@ -397,7 +397,7 @@ void JohnsonCookStrength(const double G, const double cp, const double espec, co
  output:  sigmaFinal_dev, sigmaFinal_dev_rate__: final stress deviator and its rate.
  ------------------------------------------------------------------------- */
 double GTNStrength(const double G, const double Q1, const double Q2, const double dt, const double damage,
-		 const Matrix3d sigmaInitial_dev, const Matrix3d d_dev, const double pFinal, const double yieldStress_undamaged,
+		 const Matrix3d sigmaInitial_dev, const Matrix3d d_dev, const double p, const double yieldStress_undamaged,
 		 Matrix3d &sigmaFinal_dev__, Matrix3d &sigma_dev_rate__, double &plastic_strain_increment) {
   
   if ((damage == 0.0 ) || (Q1 == 0.0)) {
@@ -410,6 +410,7 @@ double GTNStrength(const double G, const double Q1, const double Q2, const doubl
     double J2, Phi;
     double Gd = (1 - damage) * G;
     double Q1f = Q1 * damage;
+    double Q1fSq = Q1f * Q1f;
     /*
      * deviatoric rate of unrotated stress
      */
@@ -419,20 +420,43 @@ double GTNStrength(const double G, const double Q1, const double Q2, const doubl
      * perform a trial elastic update to the deviatoric stress
      */
     sigmaTrial_dev = sigmaInitial_dev + dt * dev_rate; // increment stress deviator using deviatoric rate
-    
-    /*
-     * check yield condition
-     */
+
     J2 = sqrt(3. / 2.) * sigmaTrial_dev.norm();
-    
-    double t1 = 2 * Q1f * cosh(1.5 * Q2 * pFinal / yieldStress_undamaged) - (1 + Q1f * Q1f);
-    if (t1 >= 0.0) {
-      // In this case Phi can never be equal to zero! Error.
-      printf(">>> Error: 2 * Q1f * cos(1.5 * Q2 * p / yieldStress_undamaged) - (1 + Q1f * Q1f) >= 0, no yield stress can be computed.\n");
-    } else {
-      yieldStress = sqrt(-t1) / yieldStress_undamaged;
-      LinearPlasticStrength(G, yieldStress, sigmaInitial_dev, d_dev, dt, sigmaFinal_dev__, sigma_dev_rate__, plastic_strain_increment, damage);
+
+    /*
+     * NEWTON - RAPHSON METHOD TO DETERMINE THE YIELD STRESS:
+     */
+
+    // determine stress triaxiality
+    double triax = 0.0;
+    if (p != 0.0 && J2 != 0.0) {
+      triax = -p / (J2 + 0.01 * fabs(p)); // have softening in denominator to avoid divison by zero
     }
+    double Q2triax = 1.5 * Q2 * triax;
+
+    double x = 1.0; // x = yieldStress / yieldStress_undamaged
+    double dx = 1.0; // dx = x_{n+1} - x_{n} initiated at a value higher than the accepted error margin.
+    double error = 0.001;
+    double xSq = -2 * Q1f * cosh(Q2triax * x) + (1 + Q1fSq);
+    x = sqrt(xSq);
+
+    double f = xSq + 2 * Q1f * cosh(Q2triax * x) - (1 + Q1fSq);
+    double fprime, fold;
+
+    while ((dx > error) || (dx < -error)) {
+      fprime = 2 * (x + Q1f * Q2triax * sinh(Q2triax * x));
+
+      x -= f/fprime;
+      fold = f;
+      f = x*x + 2 * Q1f * cosh(Q2triax * x) - (1 + Q1fSq);
+      dx = (f - fold)/fprime;
+    }
+
+
+    yieldStress = x * yieldStress_undamaged;
+
+    LinearPlasticStrength(G, yieldStress, sigmaInitial_dev, d_dev, dt, sigmaFinal_dev__, sigma_dev_rate__, plastic_strain_increment, damage);
+
     return yieldStress;
   }
 }
@@ -558,11 +582,13 @@ double JohnsonCookDamageIncrement(const double p, const Matrix3d Sdev, const dou
  ------------------------------------------------------------------------- */
 
 double GTNDamageIncrement(const double Q1, const double Q2, const double An, const double Komega, const double pressure, const Matrix3d Sdev, const Matrix3d stress, const double eff_plastic_strain, const double plastic_strain_increment, const double damage, const Matrix3d Fdot, const double yieldstress, const double hM) { // Following K. Nahshon, J.W. Hutchinson / European Journal of Mechanics A/Solids 27 (2008) 1–17
-
+  if (damage >= 1.0) return 0.0;
   double fndot = 0;
 
   if (An != 0) fndot = An * plastic_strain_increment; // rate of void nucleation
 
+  if (damage == 0.0) return fndot;
+  
   double fsdot = 0;
 
   if ((Komega != 0) && (eff_plastic_strain == 0)) {
@@ -575,9 +601,23 @@ double GTNDamageIncrement(const double Q1, const double Q2, const double An, con
     vol_change_rate = Fdot.determinant(); // volume change rate
 
     vm = sqrt(3. / 2.) * Sdev.norm(); // von-Mises equivalent stress
+    if (vm < 0.0) {
+      cout << "this is sdev " << endl << Sdev << endl;
+      printf("vm=%f < 0.0, surely must be an error\n", vm);
+      exit(1);
+    }
+
+    if ( vm == 0.0 ) return 0.0;
+    
     inverse_sM = yieldstress;
     J3 = Sdev.determinant();
+    //printf("vm = %f, yieldstress = %f, J3 = %f\n", vm, yieldstress, J3);
+    
     omega = 1 - square(13.5 * J3/(vm * vm * vm));
+
+    if ((omega < 0.0) || (omega > 1.0)) {
+      printf("omega=%f < 0.0 or omega=%f > 1.0, surely must be an error\n", omega, omega);
+    }
 
     tmp1 = -1.5 * Q2 * pressure * inverse_sM;
     Q1Q2 = Q1 * Q2;
@@ -596,9 +636,19 @@ double GTNDamageIncrement(const double Q1, const double Q2, const double An, con
 
     Dp = P * sigmaijPij/h;
     fsdot = Komega * damage * omega * sijPij/ vm;
+    if (isnan(fsdot) || (isnan(-fsdot)) || (fsdot > 0.1) || (fsdot < 0.0)) {
+      printf("GTN damage increment: %f\n", fsdot);
+      cout << "vm = " << vm << "\t";
+      cout << "yieldstress = " << yieldstress << "\t";
+      cout << "tmp1 = " << tmp1 << endl;
+      cout << "Here is P:" << endl << P << endl;
+    }
 
     if (fsdot < 0.0) printf("WARNING: damage growth negative! fsdot = %f\n", fsdot);
   }
-
-  return fndot + fsdot;
+  double f = fndot + fsdot;
+  if (isnan(f) || isnan(-f)){
+    cout << "fsdot = " << fsdot << "\t" << "fndot = " << fndot << endl;
+  }
+  return f;
 }
