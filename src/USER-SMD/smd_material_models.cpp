@@ -438,6 +438,11 @@ double GTNStrength(const double G, const double Q1, const double Q2, const doubl
     double dx = 1.0; // dx = x_{n+1} - x_{n} initiated at a value higher than the accepted error margin.
     double error = 0.001;
     double xSq = -2 * Q1f * cosh(Q2triax * x) + (1 + Q1fSq);
+
+    if (xSq < 0.0) { // Wrong prediction, let's put x to 0
+      xSq = -2 * Q1f + (1 + Q1fSq);
+    }
+    
     x = sqrt(xSq);
 
     double f = xSq + 2 * Q1f * cosh(Q2triax * x) - (1 + Q1fSq);
@@ -452,9 +457,13 @@ double GTNStrength(const double G, const double Q1, const double Q2, const doubl
       dx = (f - fold)/fprime;
     }
 
-
     yieldStress = x * yieldStress_undamaged;
 
+    if (isnan(yieldStress)) {
+      cout << "yieldStress = " << yieldStress << "\tf = " << f << "\tfprime = " << fprime << "\tdx = " << dx << endl;
+      cout << "G=" << G << "\tQ1=" <<  Q1 << "\tQ2=" << Q2 << "\tdt=" <<  dt << "\tdamage=" <<  damage << "\tJ2=" << J2 << "\tp=" << p << "\ttriax=" << triax << "yieldStress_undamaged = " << yieldStress_undamaged << endl << "\tsigmaInitial_dev=" << endl << sigmaInitial_dev << "d_dev = " << endl << d_dev << endl;
+    }
+    
     LinearPlasticStrength(G, yieldStress, sigmaInitial_dev, d_dev, dt, sigmaFinal_dev__, sigma_dev_rate__, plastic_strain_increment, damage);
 
     return yieldStress;
