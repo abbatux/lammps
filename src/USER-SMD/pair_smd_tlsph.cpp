@@ -765,7 +765,7 @@ void PairTlsph::ComputeForces(int eflag, int vflag) {
 			// What is required is to build a basis with surfaceNormal as one of the vectors:
 
 			f_stress = -(voli * volj * scale) * (PK1[j] + PK1[i]) * (Kundeg[i] * g);
-
+			
 			energy_per_bond[i][jj] = f_stress.dot(dx); // THIS IS NOT THE ENERGY PER BOND, I AM USING THIS VARIABLE TO STORE THIS VALUE TEMPORARILY
 			
 			/*
@@ -823,11 +823,15 @@ void PairTlsph::ComputeForces(int eflag, int vflag) {
 			}
 
 			// scale hourglass force with damage
-			f_hg *= (1.0 - damage[i]) * (1.0 - damage[j]);
+			f_hg *= scale; //(1.0 - damage[i]) * (1.0 - damage[j]);
 
 			// sum stress, viscous, and hourglass forces
 			sumForces = f_stress + f_visc + f_hg; // + f_spring;
 
+			if ((tag[i] == 1913) && (tag[j] == 1914)) {
+			  printf("f_stress[%d][%d] = [%f %f %f], damage[i] = %f, damage[j] = %f, f_hg = [%f %f %f]\n", tag[i], tag[j], f_stress[0], f_stress[1], f_stress[2], damage[i], damage[j], f_hg[0], f_hg[1], f_hg[2]);
+			}
+			
 			// energy rate -- project velocity onto force vector
 			deltaE = 0.5 * sumForces.dot(dv);
 
@@ -2646,7 +2650,7 @@ void PairTlsph::ComputeDamage(const int i, const Matrix3d strain, const Matrix3d
 	  damage_increment += GTNDamageIncrement(Lookup[GTN_Q1][itype], Lookup[GTN_Q2][itype], Lookup[GTN_AN][itype], Lookup[GTN_Komega][itype], pressure,
 						 stress_deviator, stress, eff_plastic_strain[i], plastic_strain_increment, damage[i], Fdot[i], yieldstress, hM);
 	  damage[i] += damage_increment;
-	  // if (atom->tag[i] == 570) {
+	  // if (atom->tag[i] == 1794) {
 	  //   cout << "damage[" << atom->tag[i] << "] = " << damage[i] << "\t" << "damage_increment = " << damage_increment << endl;
 	  // }
 	}
