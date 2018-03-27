@@ -15,6 +15,7 @@
 
 #include <Eigen/Eigen>
 #include <iostream>
+#include <stdio.h>
 using namespace Eigen;
 using namespace std;
 
@@ -163,6 +164,29 @@ static inline double TestMatricesEqual(Matrix3d A, Matrix3d B, double eps) {
 	return norm;
 }
 
+
+/*
+ * Calculate the trace of the product of two matrices
+ */
+
+  static inline double TraceProductSymmetricalMatrices(Matrix3d A, Matrix3d B){
+    Vector3d Av1, Av2, Bv1, Bv2;
+    Av1(0) = A(0, 0);
+    Av1(1) = A(1, 1);
+    Av1(2) = A(2, 2);
+    Av2(0) = A(0, 1);
+    Av2(1) = A(0, 2);
+    Av2(2) = A(1, 2);
+
+    Bv1(0) = B(0, 0);
+    Bv1(1) = B(1, 1);
+    Bv1(2) = B(2, 2);
+    Bv2(0) = B(0, 1);
+    Bv2(1) = B(0, 2);
+    Bv2(2) = B(1, 2);
+
+    return Av1.dot(Bv1) + 2 * Av2.dot(Bv2);
+  }
 /* ----------------------------------------------------------------------
  Limit eigenvalues of a matrix to upper and lower bounds.
  ------------------------------------------------------------------------- */

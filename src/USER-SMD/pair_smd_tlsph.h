@@ -66,9 +66,9 @@ public:
 
 	void ComputePressure(const int i, const double rho, const double mass_specific_energy, const double vol_specific_energy,
 			const double pInitial, const double d_iso, double &pFinal, double &p_rate);
-	void ComputeStressDeviator(const int i, const Eigen::Matrix3d sigmaInitial_dev, const Eigen::Matrix3d d_dev, Eigen::Matrix3d &sigmaFinal_dev,
-			Eigen::Matrix3d &sigma_dev_rate, double &plastic_strain_increment);
-        void ComputeDamage(const int i, const Eigen::Matrix3d strain, const Eigen::Matrix3d sigmaFinal, Eigen::Matrix3d &sigma_damaged, double plastic_strain_increment);
+	void ComputeStressDeviator(const int i, const double mass_specific_energy, const Eigen::Matrix3d sigmaInitial_dev, const Eigen::Matrix3d d_dev, Eigen::Matrix3d &sigmaFinal_dev,
+				   Eigen::Matrix3d &sigma_dev_rate, double &plastic_strain_increment, const double pFinal, double &yieldstress);
+	void ComputeDamage(const int i, const Eigen::Matrix3d strain, const Eigen::Matrix3d sigmaFinal, Eigen::Matrix3d &sigma_damaged, double plastic_strain_increment, const double yieldstress);
 	void UpdateDegradation();
  	void AdjustStressForZeroForceBC(const Eigen::Matrix3d sigma, const Eigen::Vector3d sU, Eigen::Matrix3d &sigmaBC);
 	double CalculateScale(const float degradation, const int itype);
@@ -164,7 +164,31 @@ protected:
 
 		CRITICAL_ENERGY_RELEASE_RATE = 50,
 
-		MAX_KEY_VALUE = 51
+		STRENGTH_LUDWICK_HOLLOMON = 51,
+		STRENGTH_SWIFT = 52,
+		STRENGTH_VOCE = 53,
+		
+		LH_A = 54,
+		LH_B = 55,
+		LH_n = 56,
+		SWIFT_A = 57,
+		SWIFT_B = 58,
+		SWIFT_n = 59,
+		SWIFT_eps0 = 60,
+		VOCE_A = 61,
+		VOCE_Q1 = 62,
+		VOCE_n1 = 63,
+		VOCE_Q2 = 64,
+		VOCE_n2 = 65,
+		VOCE_C = 66,
+		VOCE_epsdot0 = 67,
+
+		GTN_Q1 = 68,
+		GTN_Q2 = 69,
+		GTN_AN = 70,
+		GTN_Komega = 71,
+
+		MAX_KEY_VALUE = 72
 	};
 
 	struct failure_types { // this is defined per type and determines which failure/damage model is active
@@ -173,7 +197,8 @@ protected:
 		bool failure_max_principal_stress;
 		bool failure_max_plastic_strain;
 		bool failure_johnson_cook;
-	  bool failure_coupling; // true when the JC failure model couples damage with the constitutive laws.
+		bool failure_coupling; // true when the JC failure model couples damage with the constitutive laws.
+		bool failure_gtn;
 		bool failure_max_pairwise_strain;
 		bool integration_point_wise; // true if failure model applies to stress/strain state of integration point
 		bool failure_energy_release_rate;
@@ -185,6 +210,7 @@ protected:
 			failure_max_plastic_strain = false;
 			failure_johnson_cook = false;
 			failure_coupling = true;
+			failure_gtn = false;
 			failure_max_pairwise_strain = false;
 			integration_point_wise = false;
 			failure_energy_release_rate = false;

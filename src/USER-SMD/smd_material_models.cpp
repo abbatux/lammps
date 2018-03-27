@@ -23,11 +23,13 @@
  ------------------------------------------------------------------------- */
 #include <iostream>
 #include "math_special.h"
+#include "smd_math.h"
 #include <stdio.h>
 
 #include <Eigen/Eigen>
 
 using namespace LAMMPS_NS::MathSpecial;
+using namespace SMD_Math;
 using namespace std;
 using namespace Eigen;
 
@@ -39,7 +41,7 @@ using namespace Eigen;
  input: initial pressure pInitial, isotropic part of the strain rate d, time-step dt
  output: final pressure pFinal, pressure rate p_rate
  ------------------------------------------------------------------------- */
-void LinearEOS(double lambda, double pInitial, double d, double dt, double &pFinal, double &p_rate) {
+void LinearEOS(const double lambda, const double pInitial, const double d, const double dt, double &pFinal, double &p_rate) {
 
 	/*
 	 * pressure rate
@@ -49,6 +51,39 @@ void LinearEOS(double lambda, double pInitial, double d, double dt, double &pFin
 	pFinal = pInitial + dt * p_rate; // increment pressure using pressure rate
 	//cout << "hurz" << endl;
 
+}
+
+/* ----------------------------------------------------------------------
+ Linear EOS when there is damage integration point wise
+ input:
+ current density rho
+ reference density rho0
+ reference bulk modulus K
+ initial pressure pInitial
+ time step dt
+ current damage
+
+ output:
+ pressure rate p_rate
+ final pressure pFinal
+
+ ------------------------------------------------------------------------- */
+void LinearEOSwithDamage(const double rho, const double rho0, const double K, const double pInitial, const double dt, double &pFinal, double &p_rate, const double damage) {
+
+  double mu = rho / rho0 - 1.0;
+
+  if ((damage > 0.0) && (mu < 0.0)) {
+    if (damage >= 1.0) {
+      pFinal = 0.0;
+    } else {
+      mu = (1 - damage) * mu;
+      pFinal = -(1 - damage) * K * mu;
+    }
+  } else {
+    pFinal = -K * mu;
+  }
+
+  p_rate = (pFinal - pInitial) / dt;
 }
 
 /* ----------------------------------------------------------------------
@@ -69,8 +104,8 @@ void LinearEOS(double lambda, double pInitial, double d, double dt, double &pFin
  final pressure pFinal
 
  ------------------------------------------------------------------------- */
-void ShockEOS(double rho, double rho0, double e, double e0, double c0, double S, double Gamma, double pInitial, double dt,
-	      double &pFinal, double &p_rate, double damage) {
+void ShockEOS(const double rho, const double rho0, const double e, const double e0, const double c0, const double S, const double Gamma, const double pInitial, const double dt,
+	      double &pFinal, double &p_rate, const double damage) {
 
 	double mu = rho / rho0 - 1.0;
 	double pH = rho0 * square(c0) * mu * (1.0 + mu) / square(1.0 - (S - 1.0) * mu);
@@ -109,8 +144,8 @@ void ShockEOS(double rho, double rho0, double e, double e0, double c0, double S,
  final pressure pFinal
 
  ------------------------------------------------------------------------- */
-void polynomialEOS(double rho, double rho0, double e, double C0, double C1, double C2, double C3, double C4, double C5, double C6,
-		double pInitial, double dt, double &pFinal, double &p_rate) {
+void polynomialEOS(const double rho, const double rho0, const double e, const double C0, const double C1, const double C2, const double C3, const double C4, const double C5, const double C6,
+		   const double pInitial, const double dt, double &pFinal, double &p_rate, const double damage) {
 
 	double mu = rho / rho0 - 1.0;
 
@@ -121,6 +156,19 @@ void polynomialEOS(double rho, double rho0, double e, double C0, double C1, doub
 	}
 	pFinal = -pFinal; // we want the mean stress, not the pressure.
 
+	if ( damage > 0.0 ) {
+	  double mu_damaged = (1.0 - damage) * mu;
+	  double pFinal_damaged;
+	  if (mu_damaged > 0.0) {
+	    pFinal_damaged = C0 + C1 * mu_damaged + C2 * mu_damaged * mu_damaged + C3 * mu_damaged * mu_damaged * mu_damaged; // + (C4 + C5 * mu_damaged + C6 * mu_damaged * mu_damaged) * e;
+	  } else {
+	    pFinal_damaged = C0 + C1 * mu_damaged + C3 * mu_damaged * mu_damaged * mu_damaged; //  + (C4 + C5 * mu_damaged) * e;
+	  }
+	  pFinal_damaged = -pFinal_damaged;
+	  pFinal = MIN(pFinal, pFinal_damaged);
+	}
+
+	pFinal = -pFinal; // we want the mean stress, not the pressure.
 
 	//printf("pFinal = %f\n", pFinal);
 	p_rate = (pFinal - pInitial) / dt;
@@ -253,11 +301,12 @@ void LinearPlasticStrength(const double G, const double yieldStress, const Matri
 
 	Matrix3d sigmaTrial_dev, dev_rate;
 	double J2;
+	double Gd = (1 - damage) * G;
 
 	/*
 	 * deviatoric rate of unrotated stress
 	 */
-	dev_rate = 2.0 * G * d_dev;
+	dev_rate = 2.0 * Gd * d_dev;
 
 	/*
 	 * perform a trial elastic update to the deviatoric stress
@@ -270,7 +319,6 @@ void LinearPlasticStrength(const double G, const double yieldStress, const Matri
 	J2 = sqrt(3. / 2.) * sigmaTrial_dev.norm();
 
 	if (J2 < yieldStress) {
-	  //if (J2 < yieldStress * (1 - damage)) {
 		/*
 		 * no yielding has occured.
 		 * final deviatoric stress is trial deviatoric stress
@@ -286,8 +334,7 @@ void LinearPlasticStrength(const double G, const double yieldStress, const Matri
 		 * yielding has occured
 		 */
 
-	        //plastic_strain_increment = (J2 - yieldStress * (1 - damage)) / (3.0 * G);
-		plastic_strain_increment = (J2 - yieldStress) / (3.0 * G);
+		plastic_strain_increment = (J2 - yieldStress) / (3.0 * Gd);
 		/*
 		 * new deviatoric stress:
 		 * obtain by scaling the trial stress deviator
@@ -325,64 +372,103 @@ void JohnsonCookStrength(const double G, const double cp, const double espec, co
 		const double epdot, const Matrix3d sigmaInitial_dev, const Matrix3d d_dev, Matrix3d &sigmaFinal_dev__,
 			 Matrix3d &sigma_dev_rate__, double &plastic_strain_increment, const double damage) {
 
-	Matrix3d sigmaTrial_dev, dev_rate;
-	double J2, yieldStress;
+	double yieldStress;
 
-	double deltaT = espec / cp;
-	double TH = deltaT / (Tmelt - T0);
+	double TH = espec / (cp * (Tmelt - T0));
 	TH = MAX(TH, 0.0);
 	double epdot_ratio = epdot / epdot0;
 	epdot_ratio = MAX(epdot_ratio, 1.0);
 	//printf("current temperature delta is %f, TH=%f\n", deltaT, TH);
 	
 	yieldStress = (A + B * pow(ep, a)) * (1.0 + C * log(epdot_ratio)); // * (1.0 - pow(TH, M));
-
-	/*
-	 * deviatoric rate of unrotated stress
-	 */
-	dev_rate = 2.0 * G * (1 - damage) * d_dev;
-
-	/*
-	 * perform a trial elastic update to the deviatoric stress
-	 */
-	sigmaTrial_dev = sigmaInitial_dev + dt * dev_rate; // increment stress deviator using deviatoric rate
-
-	/*
-	 * check yield condition
-	 */
-	J2 = sqrt(3. / 2.) * sigmaTrial_dev.norm();
-
-	if (J2 < yieldStress) {
-		/*
-		 * no yielding has occured.
-		 * final deviatoric stress is trial deviatoric stress
-		 */
-		sigma_dev_rate__ = dev_rate;
-		sigmaFinal_dev__ = sigmaTrial_dev;
-		plastic_strain_increment = 0.0;
-		//printf("no yield\n");
-
-	} else {
-		//printf("yiedl\n");
-		/*
-		 * yielding has occured
-		 */
-		plastic_strain_increment = (J2 - yieldStress) / (3.0 * G * (1 - damage));
-
-		/*
-		 * new deviatoric stress:
-		 * obtain by scaling the trial stress deviator
-		 */
-		sigmaFinal_dev__ = (yieldStress / J2) * sigmaTrial_dev;
-
-		/*
-		 * new deviatoric stress rate
-		 */
-		sigma_dev_rate__ = sigmaFinal_dev__ - sigmaInitial_dev;
-		//printf("yielding has occured.\n");
-	}
+	
+	LinearPlasticStrength(G, yieldStress, sigmaInitial_dev, d_dev, dt, sigmaFinal_dev__, sigma_dev_rate__, plastic_strain_increment, damage);
 }
 
+/* ----------------------------------------------------------------------
+ Gurson - Tvergaard - Needleman (GTN) Material Strength model
+ input:
+ G : shear modulus
+ Q1, Q2: two model parameters
+ damage
+ 
+ input: sigmaInitial_dev, d_dev: initial stress deviator, deviatoric part of the strain rate tensor
+ input: dt: time-step
+ output:  sigmaFinal_dev, sigmaFinal_dev_rate__: final stress deviator and its rate.
+ ------------------------------------------------------------------------- */
+double GTNStrength(const double G, const double Q1, const double Q2, const double dt, const double damage,
+		 const Matrix3d sigmaInitial_dev, const Matrix3d d_dev, const double p, const double yieldStress_undamaged,
+		 Matrix3d &sigmaFinal_dev__, Matrix3d &sigma_dev_rate__, double &plastic_strain_increment) {
+  
+  if ((damage == 0.0 ) || (Q1 == 0.0)) {
+    LinearPlasticStrength(G, yieldStress_undamaged, sigmaInitial_dev, d_dev, dt, sigmaFinal_dev__, sigma_dev_rate__, plastic_strain_increment, damage);
+    return yieldStress_undamaged;
+  } else {
+
+    Matrix3d sigmaTrial_dev, dev_rate;
+    double yieldStress;
+    double J2, Phi;
+    double Gd = (1 - damage) * G;
+    double Q1f = Q1 * damage;
+    double Q1fSq = Q1f * Q1f;
+    /*
+     * deviatoric rate of unrotated stress
+     */
+    dev_rate = 2.0 * Gd * d_dev;
+    
+    /*
+     * perform a trial elastic update to the deviatoric stress
+     */
+    sigmaTrial_dev = sigmaInitial_dev + dt * dev_rate; // increment stress deviator using deviatoric rate
+
+    J2 = sqrt(3. / 2.) * sigmaTrial_dev.norm();
+
+    /*
+     * NEWTON - RAPHSON METHOD TO DETERMINE THE YIELD STRESS:
+     */
+
+    // determine stress triaxiality
+    double triax = 0.0;
+    if (p != 0.0 && J2 != 0.0) {
+      triax = -p / (J2 + 0.01 * fabs(p)); // have softening in denominator to avoid divison by zero
+    }
+    double Q2triax = 1.5 * Q2 * triax;
+
+    double x = 1.0; // x = yieldStress / yieldStress_undamaged
+    double dx = 1.0; // dx = x_{n+1} - x_{n} initiated at a value higher than the accepted error margin.
+    double error = 0.001;
+    double xSq = -2 * Q1f * cosh(Q2triax * x) + (1 + Q1fSq);
+
+    if (xSq < 0.0) { // Wrong prediction, let's put x to 0
+      xSq = -2 * Q1f + (1 + Q1fSq);
+    }
+    
+    x = sqrt(xSq);
+
+    double f = xSq + 2 * Q1f * cosh(Q2triax * x) - (1 + Q1fSq);
+    double fprime, fold;
+
+    while ((dx > error) || (dx < -error)) {
+      fprime = 2 * (x + Q1f * Q2triax * sinh(Q2triax * x));
+
+      x -= f/fprime;
+      fold = f;
+      f = x*x + 2 * Q1f * cosh(Q2triax * x) - (1 + Q1fSq);
+      dx = (f - fold)/fprime;
+    }
+
+    yieldStress = x * yieldStress_undamaged;
+
+    if (isnan(yieldStress) || yieldStress < 0.0) {
+      cout << "yieldStress = " << yieldStress << "\tf = " << f << "\tfprime = " << fprime << "\tdx = " << dx << endl;
+      cout << "G=" << G << "\tQ1=" <<  Q1 << "\tQ2=" << Q2 << "\tdt=" <<  dt << "\tdamage=" <<  damage << "\tJ2=" << J2 << "\tp=" << p << "\ttriax=" << triax << "yieldStress_undamaged = " << yieldStress_undamaged << endl << "\tsigmaInitial_dev=" << endl << sigmaInitial_dev << "d_dev = " << endl << d_dev << endl;
+    }
+    
+    LinearPlasticStrength(G, yieldStress, sigmaInitial_dev, d_dev, dt, sigmaFinal_dev__, sigma_dev_rate__, plastic_strain_increment, damage);
+
+    return yieldStress;
+  }
+}
 /* ----------------------------------------------------------------------
  isotropic maximum strain damage model
  input:
@@ -488,4 +574,90 @@ double JohnsonCookDamageIncrement(const double p, const Matrix3d Sdev, const dou
 	  return 0;
 	}
 
+}
+
+/* ----------------------------------------------------------------------
+ Gurson-Tvergaard-Needleman damage evolution model
+ input:
+ An and Komega: parameters
+ equivalent plastic strain increment
+ Finc
+ dt
+ damage
+
+ output:
+ damage increment
+
+ ------------------------------------------------------------------------- */
+
+double GTNDamageIncrement(const double Q1, const double Q2, const double An, const double Komega, const double pressure, const Matrix3d Sdev, const Matrix3d stress, const double eff_plastic_strain, const double plastic_strain_increment, const double damage, const Matrix3d Fdot, const double yieldstress, const double hM) { // Following K. Nahshon, J.W. Hutchinson / European Journal of Mechanics A/Solids 27 (2008) 1–17
+  if (damage >= 1.0) return 0.0;
+  double fndot = 0;
+
+  if (An != 0) fndot = An * plastic_strain_increment; // rate of void nucleation
+
+  if (damage == 0.0) return fndot;
+  
+  double fsdot = 0;
+
+  if ((Komega != 0) && (eff_plastic_strain == 0)) {
+    double vol_change_rate;
+    double vm, inverse_sM, J3, omega;
+    double h, tmp1, dF_over_df, dF_over_dsigmaM, sigmaijPij, sijPij, Q1Q2, sinh_tmp1;
+    Matrix3d P, Dp, eye;
+    eye.setIdentity();
+
+    vol_change_rate = Fdot.determinant(); // volume change rate
+
+    vm = sqrt(3. / 2.) * Sdev.norm(); // von-Mises equivalent stress
+    if (vm < 0.0) {
+      cout << "this is sdev " << endl << Sdev << endl;
+      printf("vm=%f < 0.0, surely must be an error\n", vm);
+      exit(1);
+    }
+
+    if ( vm == 0.0 ) return 0.0;
+    
+    inverse_sM = yieldstress;
+    J3 = Sdev.determinant();
+    //printf("vm = %f, yieldstress = %f, J3 = %f\n", vm, yieldstress, J3);
+    
+    omega = 1 - square(13.5 * J3/(vm * vm * vm));
+
+    if ((omega < 0.0) || (omega > 1.0)) {
+      printf("omega=%f < 0.0 or omega=%f > 1.0, surely must be an error\n", omega, omega);
+    }
+
+    tmp1 = -1.5 * Q2 * pressure * inverse_sM;
+    Q1Q2 = Q1 * Q2;
+    sinh_tmp1 = sinh(tmp1);
+
+    P = inverse_sM * (3 * inverse_sM * Sdev + damage * Q1Q2 *sinh_tmp1*eye);
+
+    dF_over_df = 2 * Q1 * (cosh(tmp1) - Q1 * damage);
+    dF_over_dsigmaM = - inverse_sM * inverse_sM * ( 2 * vm * vm * inverse_sM + 3* Q1Q2 * damage * pressure * sinh_tmp1);
+
+    sigmaijPij = TraceProductSymmetricalMatrices(stress, P);
+    sijPij = TraceProductSymmetricalMatrices(Sdev, Dp);
+    h = - ( ( (1 - damage) * P.trace() + Komega * damage * omega / vm * sijPij) * dF_over_df
+	    + hM * inverse_sM * dF_over_dsigmaM * sigmaijPij / (1 - damage));
+
+
+    Dp = P * sigmaijPij/h;
+    fsdot = Komega * damage * omega * sijPij/ vm;
+    if (isnan(fsdot) || (isnan(-fsdot)) || (fsdot > 0.1) || (fsdot < 0.0)) {
+      printf("GTN damage increment: %f\n", fsdot);
+      cout << "vm = " << vm << "\t";
+      cout << "yieldstress = " << yieldstress << "\t";
+      cout << "tmp1 = " << tmp1 << endl;
+      cout << "Here is P:" << endl << P << endl;
+    }
+
+    if (fsdot < 0.0) printf("WARNING: damage growth negative! fsdot = %f\n", fsdot);
+  }
+  double f = fndot + fsdot;
+  if (isnan(f) || isnan(-f)){
+    cout << "fsdot = " << fsdot << "\t" << "fndot = " << fndot << endl;
+  }
+  return f;
 }
