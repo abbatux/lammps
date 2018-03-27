@@ -186,9 +186,11 @@ protected:
 		GTN_Q1 = 68,
 		GTN_Q2 = 69,
 		GTN_AN = 70,
-		GTN_Komega = 71,
+		GTN_f0 = 71,
+		GTN_fcr = 72,
+		GTN_Komega = 73,
 
-		MAX_KEY_VALUE = 72
+		MAX_KEY_VALUE = 74
 	};
 
 	struct failure_types { // this is defined per type and determines which failure/damage model is active
