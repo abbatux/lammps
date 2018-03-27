@@ -1945,8 +1945,12 @@ void PairTlsph::coeff(int narg, char **arg) {
 			}
 
 			if (iNextKwd - ioffset != 4 + 1) {
-				sprintf(str, "expected 4 arguments following *GURSON_TVERGAARD_NEEDLEMAN but got %d\n", iNextKwd - ioffset - 1);
-				error->all(FLERR, str);
+			  if ((iNextKwd - ioffset == 5 + 1) && (strcmp(arg[ioffset + 5], "NO_COUPLING") == 0)) {
+			    failureModel[itype].failure_coupling = false;
+			  } else {
+			    sprintf(str, "expected 4 arguments following *GURSON_TVERGAARD_NEEDLEMAN but got %d\n", iNextKwd - ioffset - 1);
+			    error->all(FLERR, str);
+			  }
 			}
 
 			failureModel[itype].failure_gtn = true;
@@ -1964,6 +1968,7 @@ void PairTlsph::coeff(int narg, char **arg) {
 				printf("%60s : %g\n", "Q2: ", Lookup[GTN_Q2][itype]);
 				printf("%60s : %g\n", "An: ", Lookup[GTN_AN][itype]);
 				printf("%60s : %g\n", "Komega: magnitude of the damage growth rate in pure shear states (from Nahshon and Hutchinson, 2008)", Lookup[GTN_Komega][itype]);
+				if (failureModel[itype].failure_coupling == false) printf("%60s\n", "NO COUPLING WITH CONSTITUTIVE LAWS");
 			}
 
 		} 
@@ -2532,10 +2537,14 @@ void PairTlsph::ComputeDamage(const int i, const Matrix3d strain, const Matrix3d
 	    error->one(FLERR, "unknown strength model.");
 	    break;
 	  }
-	  double damage_increment;
-	  damage_increment += GTNDamageIncrement(Lookup[GTN_Q1][itype], Lookup[GTN_Q2][itype], Lookup[GTN_AN][itype], Lookup[GTN_Komega][itype], pressure,
-						 stress_deviator, stress, eff_plastic_strain[i], plastic_strain_increment, damage[i], Fdot[i], yieldstress, hM);
-	  damage[i] += damage_increment;
+	  damage_increment = GTNDamageIncrement(Lookup[GTN_Q1][itype], Lookup[GTN_Q2][itype], Lookup[GTN_AN][itype], Lookup[GTN_Komega][itype], pressure,
+						stress_deviator, stress, eff_plastic_strain[i], plastic_strain_increment, damage[i], Fdot[i], yieldstress, hM);
+	  if (failureModel[itype].failure_coupling == true) {
+	    damage[i] += damage_increment;
+	  } else {
+	    damage_init[i] += damage_increment;
+	    if (damage_init[i] >= 1.0) damage[i] = 1.0;
+	  }
 	}
 
 	damage[i] = MIN(damage[i], 1.0);
