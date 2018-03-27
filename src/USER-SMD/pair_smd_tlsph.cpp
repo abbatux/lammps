@@ -828,10 +828,6 @@ void PairTlsph::ComputeForces(int eflag, int vflag) {
 			// sum stress, viscous, and hourglass forces
 			sumForces = f_stress + f_visc + f_hg; // + f_spring;
 
-			if ((tag[i] == 1913) && (tag[j] == 1914)) {
-			  printf("f_stress[%d][%d] = [%f %f %f], damage[i] = %f, damage[j] = %f, f_hg = [%f %f %f]\n", tag[i], tag[j], f_stress[0], f_stress[1], f_stress[2], damage[i], damage[j], f_hg[0], f_hg[1], f_hg[2]);
-			}
-			
 			// energy rate -- project velocity onto force vector
 			deltaE = 0.5 * sumForces.dot(dv);
 
@@ -2509,26 +2505,19 @@ void PairTlsph::ComputeStressDeviator(const int i, const double mass_specific_en
 		break;
 	case STRENGTH_VOCE:
 		yieldStress = Lookup[VOCE_A][itype] - Lookup[VOCE_Q1][itype] * exp(-Lookup[VOCE_n1][itype] * eff_plastic_strain[i])
-		  - Lookup[VOCE_Q2][itype] * exp(Lookup[VOCE_n2][itype] * eff_plastic_strain[i]);
+		  - Lookup[VOCE_Q2][itype] * exp(-Lookup[VOCE_n2][itype] * eff_plastic_strain[i]);
 
 		if ( Lookup[VOCE_C][itype] != 0.0 ) {
 		  double epdot_ratio = eff_plastic_strain_rate[i] / Lookup[VOCE_epsdot0][itype];
 		  epdot_ratio = MAX(epdot_ratio, 1.0);
 		  yieldStress *= 1.0 + Lookup[VOCE_C][itype] * log(epdot_ratio);
 		}
-		
 		if (failureModel[itype].failure_gtn) GTNStrength(Lookup[SHEAR_MODULUS][itype], Lookup[GTN_Q1][itype], Lookup[GTN_Q2][itype],
 								 dt, damage[i], sigmaInitial_dev, d_dev, pFinal, yieldStress,
 								 sigmaFinal_dev, sigma_dev_rate, plastic_strain_increment);
 		else
 		  LinearPlasticStrength(Lookup[SHEAR_MODULUS][itype], yieldStress, sigmaInitial_dev, d_dev, dt, sigmaFinal_dev,
 					sigma_dev_rate, plastic_strain_increment, damage[i]);
-		// if (yieldStress != Lookup[VOCE_A][itype] - Lookup[VOCE_Q1][itype] * exp(-Lookup[VOCE_n1][itype] * eff_plastic_strain[i])
-		//   - Lookup[VOCE_Q2][itype] * exp(Lookup[VOCE_n2][itype] * eff_plastic_strain[i])) {
-		//   cout << "yieldstress = " << yieldStress << endl;
-		//   cout << "sigma0 = " << Lookup[VOCE_A][itype] - Lookup[VOCE_Q1][itype] * exp(-Lookup[VOCE_n1][itype] * eff_plastic_strain[i])
-		//     - Lookup[VOCE_Q2][itype] * exp(Lookup[VOCE_n2][itype] * eff_plastic_strain[i]) << endl;
-		// }
 		break;
 	case STRENGTH_JOHNSON_COOK:
 		JohnsonCookStrength(Lookup[SHEAR_MODULUS][itype], Lookup[HEAT_CAPACITY][itype], mass_specific_energy, Lookup[JC_A][itype],
@@ -2650,9 +2639,6 @@ void PairTlsph::ComputeDamage(const int i, const Matrix3d strain, const Matrix3d
 	  damage_increment += GTNDamageIncrement(Lookup[GTN_Q1][itype], Lookup[GTN_Q2][itype], Lookup[GTN_AN][itype], Lookup[GTN_Komega][itype], pressure,
 						 stress_deviator, stress, eff_plastic_strain[i], plastic_strain_increment, damage[i], Fdot[i], yieldstress, hM);
 	  damage[i] += damage_increment;
-	  // if (atom->tag[i] == 1794) {
-	  //   cout << "damage[" << atom->tag[i] << "] = " << damage[i] << "\t" << "damage_increment = " << damage_increment << endl;
-	  // }
 	}
 
 	damage[i] = MIN(damage[i], 1.0);

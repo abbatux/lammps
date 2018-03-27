@@ -459,7 +459,7 @@ double GTNStrength(const double G, const double Q1, const double Q2, const doubl
 
     yieldStress = x * yieldStress_undamaged;
 
-    if (isnan(yieldStress)) {
+    if (isnan(yieldStress) || yieldStress < 0.0) {
       cout << "yieldStress = " << yieldStress << "\tf = " << f << "\tfprime = " << fprime << "\tdx = " << dx << endl;
       cout << "G=" << G << "\tQ1=" <<  Q1 << "\tQ2=" << Q2 << "\tdt=" <<  dt << "\tdamage=" <<  damage << "\tJ2=" << J2 << "\tp=" << p << "\ttriax=" << triax << "yieldStress_undamaged = " << yieldStress_undamaged << endl << "\tsigmaInitial_dev=" << endl << sigmaInitial_dev << "d_dev = " << endl << d_dev << endl;
     }
