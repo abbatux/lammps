@@ -434,28 +434,21 @@ double GTNStrength(const double G, const double Q1, const double Q2, const doubl
       triax = -p / (J2 + 0.01 * fabs(p)); // have softening in denominator to avoid divison by zero
     }
     double Q2triax = 1.5 * Q2 * triax;
+    double Q1fQ2triax = Q1f * Q2triax;
 
     double x = 1.0; // x = yieldStress / yieldStress_undamaged
     double dx = 1.0; // dx = x_{n+1} - x_{n} initiated at a value higher than the accepted error margin.
     double error = 0.001;
-    double xSq = -2 * Q1f * cosh(Q2triax * x) + (1 + Q1fSq);
 
-    if (xSq < 0.0) { // Wrong prediction, let's put x to 0
-      xSq = -2 * Q1f + (1 + Q1fSq);
-    }
-    
-    x = sqrt(xSq);
-
-    double F = xSq + 2 * Q1f * cosh(Q2triax * x) - (1 + Q1fSq);
-    double Fprime, Fold;
+    double F, Fprime, Q2triaxx;
 
     while ((dx > error) || (dx < -error)) {
-      Fprime = 2 * (x + Q1f * Q2triax * sinh(Q2triax * x));
+      Q2triaxx = Q2triax * x;
+      F = x*x + 2 * Q1f * cosh(Q2triaxx) - (1 + Q1fSq);
+      Fprime = 2 * (x + Q1fQ2triax * sinh(Q2triaxx));
 
-      x -= F/Fprime;
-      Fold = F;
-      F = x*x + 2 * Q1f * cosh(Q2triax * x) - (1 + Q1fSq);
-      dx = (F - Fold)/Fprime;
+      dx = -F/Fprime;
+      x += dx;
     }
 
     yieldStress = x * yieldStress_undamaged;
@@ -623,10 +616,23 @@ double GTNDamageIncrement(const double Q1, const double Q2, const double An, con
     J3 = Sdev.determinant();
     //printf("vm = %f, yieldstress_undamaged = %f, J3 = %f\n", vm, yieldstress_undamaged, J3);
 
-    omega = 1 - square(13.5 * J3/(vm * vm * vm));
+    omega = 1 - 182.25 * J3 * J3/(vm * vm * vm * vm * vm * vm);
 
-    if ((omega < 0.0) || (omega > 1.0)) {
-      printf("omega=%f < 0.0 or omega=%f > 1.0, surely must be an error\n", omega, omega);
+    if (omega < 0.0) {
+      // printf("omega=%10.e < 0.0, surely must be an error\n", omega);
+      // cout << "vm = " << vm << "\t";
+      // cout << "J3 = " << J3 << "\t";
+      // cout << "J3 * J3/(vm * vm * vm * vm * vm * vm) = " << J3 * J3/(vm * vm * vm * vm * vm * vm) << endl;
+      // cout << "Here is S:" << endl << Sdev << endl;
+      omega = 0;
+    }
+    else if (omega > 1.0) {
+      // printf("omega=%10.e > 1.0, surely must be an error\n", omega);
+      // cout << "vm = " << vm << "\t";
+      // cout << "J3 = " << J3 << "\t";
+      // cout << "J3 * J3/(vm * vm * vm * vm * vm * vm) = " << J3 * J3/(vm * vm * vm * vm * vm * vm) << endl;
+      // cout << "Here is S:" << endl << Sdev << endl;
+      omega = 1.0;
     }
 
     tmp1 = -1.5 * Q2 * pressure * inverse_sM;
@@ -635,7 +641,7 @@ double GTNDamageIncrement(const double Q1, const double Q2, const double An, con
 
     fs_increment = lambda_increment * f * inverse_sM * ((1 - f) * 3 * Q1 * Q2 * sinh_tmp1 + Komega * omega * 2 * vm * inverse_sM);
 
-    if (isnan(fs_increment) || (isnan(-fs_increment)) {
+    if (isnan(fs_increment) || isnan(-fs_increment)) {
       printf("GTN f increment: %10.e\n", fs_increment);
       cout << "vm = " << vm << "\t";
       cout << "yieldstress_undamaged = " << yieldstress_undamaged << "\t";
