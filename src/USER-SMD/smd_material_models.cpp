@@ -398,7 +398,7 @@ void JohnsonCookStrength(const double G, const double cp, const double espec, co
  ------------------------------------------------------------------------- */
 double GTNStrength(const double G, const double Q1, const double Q2, const double dt, const double damage, const double fcr,
 		 const Matrix3d sigmaInitial_dev, const Matrix3d d_dev, const double p, const double yieldStress_undamaged,
-		 Matrix3d &sigmaFinal_dev__, Matrix3d &sigma_dev_rate__, double &plastic_strain_increment) {
+		   Matrix3d &sigmaFinal_dev__, Matrix3d &sigma_dev_rate__, double &plastic_strain_increment, const bool coupling) {
   
   if ((damage == 0.0 ) || (Q1 == 0.0)) {
     LinearPlasticStrength(G, yieldStress_undamaged, sigmaInitial_dev, d_dev, dt, sigmaFinal_dev__, sigma_dev_rate__, plastic_strain_increment, damage);
@@ -408,7 +408,8 @@ double GTNStrength(const double G, const double Q1, const double Q2, const doubl
     Matrix3d sigmaTrial_dev, dev_rate;
     double yieldStress;
     double J2, Phi;
-    double Gd = (1 - damage) * G;
+    double Gd = G;
+    if (coupling == true) Gd *= (1-damage); 
     double f = damage * fcr;
     double Q1f = Q1 * f;
     double Q1fSq = Q1f * Q1f;

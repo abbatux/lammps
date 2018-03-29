@@ -53,7 +53,7 @@ void JohnsonCookStrength(const double G, const double cp, const double espec, co
 		Matrix3d &sigma_dev_rate__, double &plastic_strain_increment, const double damage);
 double GTNStrength(const double G, const double Q1, const double Q2, const double dt, const double damage, const double fcr,
 		   const Matrix3d sigmaInitial_dev, const Matrix3d d_dev, const double pFinal, const double yieldStress_undamaged,
-		   Matrix3d &sigmaFinal_dev__, Matrix3d &sigma_dev_rate__, double &plastic_strain_increment);
+		   Matrix3d &sigmaFinal_dev__, Matrix3d &sigma_dev_rate__, double &plastic_strain_increment, const bool coupling);
 
 /*
  * Damage models
