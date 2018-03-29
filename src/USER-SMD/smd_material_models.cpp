@@ -409,8 +409,8 @@ double GTNStrength(const double G, const double Q1, const double Q2, const doubl
     double yieldStress;
     double J2, Phi;
     double Gd = G;
-    if (coupling == true) Gd *= (1-damage); 
     double f = damage * fcr;
+    if (coupling == true) Gd *= (1-f); 
     double Q1f = Q1 * f;
     double Q1fSq = Q1f * Q1f;
     /*
@@ -638,7 +638,7 @@ double GTNDamageIncrement(const double Q1, const double Q2, const double An, con
 
     tmp1 = -1.5 * Q2 * pressure * inverse_sM;
     sinh_tmp1 = sinh(tmp1);
-    lambda_increment = 2 * yieldstress_undamaged * plastic_strain_increment * (1 - f) / (vm * vm * inverse_sM * inverse_sM + Q1 * f * tmp1 * sinh_tmp1);
+    lambda_increment = 0.5 * yieldstress_undamaged * plastic_strain_increment * (1 - f) / (vm * vm * inverse_sM * inverse_sM + Q1 * f * tmp1 * sinh_tmp1);
 
     fs_increment = lambda_increment * f * inverse_sM * ((1 - f) * 3 * Q1 * Q2 * sinh_tmp1 + Komega * omega * 2 * vm * inverse_sM);
 
