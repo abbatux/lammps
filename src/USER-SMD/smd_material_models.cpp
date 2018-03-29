@@ -400,31 +400,36 @@ double GTNStrength(const double G, const double Q1, const double Q2, const doubl
 		 const Matrix3d sigmaInitial_dev, const Matrix3d d_dev, const double p, const double yieldStress_undamaged,
 		   Matrix3d &sigmaFinal_dev__, Matrix3d &sigma_dev_rate__, double &plastic_strain_increment, const bool coupling) {
   
+  Matrix3d sigmaTrial_dev, dev_rate;
+  double J2, yieldStress;
+  double Gd = G;
+  double f = damage * fcr;
+  if (coupling == true) Gd *= (1-f); 
+  double x = 1.0;
+  
+  /*
+   * deviatoric rate of unrotated stress
+   */
+  dev_rate = 2.0 * Gd * d_dev;
+
+  /*
+   * perform a trial elastic update to the deviatoric stress
+   */
+  sigmaTrial_dev = sigmaInitial_dev + dt * dev_rate; // increment stress deviator using deviatoric rate
+  
+  /*
+   * check yield condition
+   */
+  J2 = sqrt(3. / 2.) * sigmaTrial_dev.norm();
+  
   if ((damage == 0.0 ) || (Q1 == 0.0)) {
-    LinearPlasticStrength(G, yieldStress_undamaged, sigmaInitial_dev, d_dev, dt, sigmaFinal_dev__, sigma_dev_rate__, plastic_strain_increment, damage);
-    return yieldStress_undamaged;
+    yieldStress = yieldStress_undamaged;
   } else {
 
-    Matrix3d sigmaTrial_dev, dev_rate;
-    double yieldStress;
-    double J2, Phi;
-    double Gd = G;
-    double f = damage * fcr;
-    if (coupling == true) Gd *= (1-f); 
+    double Phi; 
     double Q1f = Q1 * f;
     double Q1fSq = Q1f * Q1f;
-    /*
-     * deviatoric rate of unrotated stress
-     */
-    dev_rate = 2.0 * Gd * d_dev;
     
-    /*
-     * perform a trial elastic update to the deviatoric stress
-     */
-    sigmaTrial_dev = sigmaInitial_dev + dt * dev_rate; // increment stress deviator using deviatoric rate
-
-    J2 = sqrt(3. / 2.) * sigmaTrial_dev.norm();
-
     /*
      * NEWTON - RAPHSON METHOD TO DETERMINE THE YIELD STRESS:
      */
@@ -437,7 +442,6 @@ double GTNStrength(const double G, const double Q1, const double Q2, const doubl
     double Q2triax = 1.5 * Q2 * triax;
     double Q1fQ2triax = Q1f * Q2triax;
 
-    double x = 1.0; // x = yieldStress / yieldStress_undamaged
     double dx = 1.0; // dx = x_{n+1} - x_{n} initiated at a value higher than the accepted error margin.
     double error = 0.001;
 
@@ -458,13 +462,40 @@ double GTNStrength(const double G, const double Q1, const double Q2, const doubl
       cout << "yieldStress = " << yieldStress << "\tF = " << F << "\tFprime = " << Fprime << "\tdx = " << dx << endl;
       cout << "G=" << G << "\tQ1=" <<  Q1 << "\tQ2=" << Q2 << "\tdt=" <<  dt << "\tdamage=" <<  damage << "\tf=" <<  f << "\tJ2=" << J2 << "\tp=" << p << "\ttriax=" << triax << "yieldStress_undamaged = " << yieldStress_undamaged << endl << "\tsigmaInitial_dev=" << endl << sigmaInitial_dev << "d_dev = " << endl << d_dev << endl;
     }
-    
-    LinearPlasticStrength(G, yieldStress, sigmaInitial_dev, d_dev, dt, sigmaFinal_dev__, sigma_dev_rate__, plastic_strain_increment, damage);
-
-    plastic_strain_increment *= x/(1 - f);
-
-    return yieldStress;
   }
+  if (J2 < yieldStress) {
+    /*
+     * no yielding has occured.
+     * final deviatoric stress is trial deviatoric stress
+     */
+    sigma_dev_rate__ = dev_rate;
+    sigmaFinal_dev__ = sigmaTrial_dev;
+    plastic_strain_increment = 0.0;
+    //printf("no yield\n");
+    
+  } else {
+    //printf("yiedl\n");
+    /*
+     * yielding has occured
+     */
+    
+    plastic_strain_increment = (J2 - yieldStress) / (3.0 * Gd);
+    /*
+     * new deviatoric stress:
+     * obtain by scaling the trial stress deviator
+     */
+    sigmaFinal_dev__ = (yieldStress / J2) * sigmaTrial_dev;
+    
+    /*
+     * new deviatoric stress rate
+     */
+    sigma_dev_rate__ = sigmaFinal_dev__ - sigmaInitial_dev;
+    //printf("yielding has occured.\n");
+  }
+  
+  plastic_strain_increment *= x/(1 - f);
+  
+  return yieldStress;
 }
 /* ----------------------------------------------------------------------
  isotropic maximum strain damage model
