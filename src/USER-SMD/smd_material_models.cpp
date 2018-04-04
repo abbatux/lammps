@@ -404,7 +404,7 @@ double GTNStrength(const double G, const double Q1, const double Q2, const doubl
   double J2, yieldStress;
   double Gd = G;
   double f = damage * fcr;
-  if (coupling == true) Gd *= (1-f); 
+  if (coupling == true) Gd *= (1-damage); 
   double x = 1.0;
   
   /*
@@ -426,7 +426,6 @@ double GTNStrength(const double G, const double Q1, const double Q2, const doubl
     yieldStress = yieldStress_undamaged;
   } else {
 
-    double Phi; 
     double Q1f = Q1 * f;
     double Q1fSq = Q1f * Q1f;
     
@@ -644,7 +643,7 @@ double GTNDamageIncrement(const double Q1, const double Q2, const double An, con
 
     if ( vm == 0.0 ) return 0.0;
 
-    inverse_sM = yieldstress_undamaged;
+    inverse_sM = 1.0/yieldstress_undamaged;
     J3 = Sdev.determinant();
     //printf("vm = %f, yieldstress_undamaged = %f, J3 = %f\n", vm, yieldstress_undamaged, J3);
 
