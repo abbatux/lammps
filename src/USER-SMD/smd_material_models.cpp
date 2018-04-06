@@ -438,7 +438,7 @@ double GTNStrength(const double G, const double An, const double Q1, const doubl
     // determine stress triaxiality
     double triax = 0.0;
     if (p != 0.0 && J2 != 0.0) {
-      triax = -p / (J2 + 0.01 * fabs(p)); // have softening in denominator to avoid divison by zero
+      triax = p / (J2 + 0.01 * fabs(p)); // have softening in denominator to avoid divison by zero
     }
     double Q2triax = 1.5 * Q2 * triax;
     double Q1fQ2triax = Q1f * Q2triax;
