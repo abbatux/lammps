@@ -516,16 +516,23 @@ double GTNStrength(const double G, const double An, const double Q1, const doubl
 	else if (omega > 1.0) omega = 1.0;
       } else omega = 0;
 
-      lambda_increment = 0.5 * yieldStress_undamaged * plastic_strain_increment * (1 - f) / (x*x + Q1*f*Q2triaxx * sinh(Q2triaxx));
+
+      tmp1 = 1.5 * Q2 * p * inverse_sM;
+      sinh_tmp1 = sinh(tmp1);
+      lambda_increment = 0.5 * yieldStress_undamaged * plastic_strain_increment * (1 - f) / (J2 * J2 * inverse_sM * inverse_sM + Q1 * f * tmp1 * sinh_tmp1);
       
-      fs_increment = lambda_increment * f * inverse_sM * ((1 - f) * 3 * Q1 * Q2 * sinh(Q2triaxx) + Komega * omega * 2 * x);
+      fs_increment = lambda_increment * f * inverse_sM * ((1 - f) * 3 * Q1 * Q2 * sinh_tmp1 + Komega * omega * 2 * J2 * inverse_sM);
+
+      //lambda_increment = 0.5 * yieldStress_undamaged * plastic_strain_increment * (1 - f) / (x*x + Q1*f*Q2triaxx * sinh(Q2triaxx));
+      
+      //fs_increment = lambda_increment * f * inverse_sM * ((1 - f) * 3 * Q1 * Q2 * sinh(Q2triaxx) + Komega * omega * 2 * x);
 
       //if (tag == 2151) {
-      //printf("lambda_increment = %10.e, fs_increment = %10.e, f = %10.e, Q2triaxx = %10.e, triax = %10.e, x = %10.e\n", lambda_increment, fs_increment, f, Q2triaxx, triax, x);
+      //printf("lambda_increment = %.10e, lambda_increment2 = %.10e, fs_increment = %.10e, fs_increment2 = %.10e, f = %.10e, \n", lambda_increment, lambda_increment2, fs_increment, fs_increment2, f);
       //}
       
       if (isnan(fs_increment) || isnan(-fs_increment)) {
-	printf("GTN f increment: %10.e\n", fs_increment);
+	printf("GTN f increment: %.10e\n", fs_increment);
 	cout << "J2 = " << J2 << "\t";
 	cout << "yieldStress_undamaged = " << yieldStress_undamaged << "\t";
 	cout << "tmp1 = " << tmp1 << endl;
@@ -698,7 +705,7 @@ double GTNDamageIncrement(const double Q1, const double Q2, const double An, con
   omega = 1 - 182.25 * J3 * J3/(vm * vm * vm * vm * vm * vm);
   
   if (omega < 0.0) {
-    // printf("omega=%10.e < 0.0, surely must be an error\n", omega);
+    // printf("omega=%.10e < 0.0, surely must be an error\n", omega);
     // cout << "vm = " << vm << "\t";
     // cout << "J3 = " << J3 << "\t";
     // cout << "J3 * J3/(vm * vm * vm * vm * vm * vm) = " << J3 * J3/(vm * vm * vm * vm * vm * vm) << endl;
@@ -706,7 +713,7 @@ double GTNDamageIncrement(const double Q1, const double Q2, const double An, con
     omega = 0;
   }
   else if (omega > 1.0) {
-    // printf("omega=%10.e > 1.0, surely must be an error\n", omega);
+    // printf("omega=%.10e > 1.0, surely must be an error\n", omega);
     // cout << "vm = " << vm << "\t";
     // cout << "J3 = " << J3 << "\t";
     // cout << "J3 * J3/(vm * vm * vm * vm * vm * vm) = " << J3 * J3/(vm * vm * vm * vm * vm * vm) << endl;
@@ -721,7 +728,7 @@ double GTNDamageIncrement(const double Q1, const double Q2, const double An, con
   fs_increment = lambda_increment * f * inverse_sM * ((1 - f) * 3 * Q1 * Q2 * sinh_tmp1 + Komega * omega * 2 * vm * inverse_sM);
   
   if (isnan(fs_increment) || isnan(-fs_increment)) {
-    printf("GTN f increment: %10.e\n", fs_increment);
+    printf("GTN f increment: %.10e\n", fs_increment);
     cout << "vm = " << vm << "\t";
     cout << "yieldstress_undamaged = " << yieldstress_undamaged << "\t";
     cout << "tmp1 = " << tmp1 << endl;
