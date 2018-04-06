@@ -396,9 +396,9 @@ void JohnsonCookStrength(const double G, const double cp, const double espec, co
  input: dt: time-step
  output:  sigmaFinal_dev, sigmaFinal_dev_rate__: final stress deviator and its rate.
  ------------------------------------------------------------------------- */
-double GTNStrength(const double G, const double Q1, const double Q2, const double dt, const double damage, const double fcr,
+double GTNStrength(const double G, const double An, const double Q1, const double Q2, const double Komega, const double dt, const double damage, const double fcr,
 		 const Matrix3d sigmaInitial_dev, const Matrix3d d_dev, const double p, const double yieldStress_undamaged,
-		   Matrix3d &sigmaFinal_dev__, Matrix3d &sigma_dev_rate__, double &plastic_strain_increment, const bool coupling) {
+		   Matrix3d &sigmaFinal_dev__, Matrix3d &sigma_dev_rate__, double &plastic_strain_increment, const bool coupling, const int tag) {
   
   Matrix3d sigmaTrial_dev, dev_rate;
   double J2, yieldStress;
@@ -406,6 +406,8 @@ double GTNStrength(const double G, const double Q1, const double Q2, const doubl
   double f = damage * fcr;
   if (coupling == true) Gd *= (1-damage); 
   double x = 1.0;
+  double damage_increment = 0.0;
+  double Q2triaxx;
   
   /*
    * deviatoric rate of unrotated stress
@@ -444,7 +446,7 @@ double GTNStrength(const double G, const double Q1, const double Q2, const doubl
     double dx = 1.0; // dx = x_{n+1} - x_{n} initiated at a value higher than the accepted error margin.
     double error = 0.001;
 
-    double F, Fprime, Q2triaxx;
+    double F, Fprime;
 
     while ((dx > error) || (dx < -error)) {
       Q2triaxx = Q2triax * x;
@@ -470,6 +472,7 @@ double GTNStrength(const double G, const double Q1, const double Q2, const doubl
     sigma_dev_rate__ = dev_rate;
     sigmaFinal_dev__ = sigmaTrial_dev;
     plastic_strain_increment = 0.0;
+    damage_increment = 0.0;
     //printf("no yield\n");
     
   } else {
@@ -490,9 +493,58 @@ double GTNStrength(const double G, const double Q1, const double Q2, const doubl
      */
     sigma_dev_rate__ = sigmaFinal_dev__ - sigmaInitial_dev;
     //printf("yielding has occured.\n");
+   
+    double fn_increment = 0.0;
+    double fs_increment = 0.0;
+    
+    if (An != 0) fn_increment = An * plastic_strain_increment; // rate of void nucleation
+
+    if ((damage > 0.0) && (damage < 1.0) && (plastic_strain_increment > 0.0)) {
+      double f = damage * fcr;
+      double inverse_sM, J3, omega;
+      double lambda_increment, tmp1, sinh_tmp1;
+      
+      inverse_sM = 1.0/yieldStress_undamaged;
+
+      if (Komega != 0) {
+	J3 = sigmaTrial_dev.determinant();
+	//printf("J2 = %f, yieldstress_undamaged = %f, J3 = %f\n", J2, yieldstress_undamaged, J3);
+	
+	omega = 1 - 182.25 * J3 * J3/(J2 * J2 * J2 * J2 * J2 * J2);
+	
+	if (omega < 0.0) omega = 0;
+	else if (omega > 1.0) omega = 1.0;
+      } else omega = 0;
+
+      lambda_increment = 0.5 * yieldStress_undamaged * plastic_strain_increment * (1 - f) / (x*x + Q1*f*Q2triaxx * sinh(Q2triaxx));
+      
+      fs_increment = lambda_increment * f * inverse_sM * ((1 - f) * 3 * Q1 * Q2 * sinh(Q2triaxx) + Komega * omega * 2 * x);
+
+      if (tag == 2151) {
+	printf("lambda_increment = %10.e, fs_increment = %10.e, f = %10.e\n", lambda_increment, fs_increment, f);
+      }
+      
+      if (isnan(fs_increment) || isnan(-fs_increment)) {
+	printf("GTN f increment: %10.e\n", fs_increment);
+	cout << "J2 = " << J2 << "\t";
+	cout << "yieldStress_undamaged = " << yieldStress_undamaged << "\t";
+	cout << "tmp1 = " << tmp1 << endl;
+	cout << "f = " << f << endl;
+	cout << "omega = " << omega << endl;
+	cout << "F = " << J2 * J2 * inverse_sM * inverse_sM + 2 * Q1 * f * cosh(tmp1) - (1 + Q1 * Q1 * f * f) << endl;
+	cout << "plastic_strain_increment = " << plastic_strain_increment << endl;
+      }
+      
+      if (fs_increment < 0.0) fs_increment = 0.0;
+    }
+    
+    double f_increment = fn_increment + fs_increment;
+    if (isnan(f_increment) || isnan(-f_increment)){
+      cout << "fs_increment = " << fs_increment << "\t" << "fn_increment = " << fn_increment << endl;
+    }
+    damage_increment = f_increment / fcr;
   }
-  
-  return yieldStress;
+  return damage_increment;
 }
 /* ----------------------------------------------------------------------
  isotropic maximum strain damage model
@@ -627,62 +679,61 @@ double GTNDamageIncrement(const double Q1, const double Q2, const double An, con
 
   double fs_increment = 0;
   double f = damage * fcr;
+  double vm, inverse_sM, J3, omega;
+  double lambda_increment, tmp1, sinh_tmp1;
   
-  if (Komega != 0) {
-    double vm, inverse_sM, J3, omega;
-    double lambda_increment, tmp1, sinh_tmp1;
-
-    vm = sqrt(3. / 2.) * Sdev.norm(); // von-Mises equivalent stress
-    if (vm < 0.0) {
-      cout << "this is sdev " << endl << Sdev << endl;
-      printf("vm=%f < 0.0, surely must be an error\n", vm);
-      exit(1);
-    }
-
-    if ( vm == 0.0 ) return 0.0;
-
-    inverse_sM = 1.0/yieldstress_undamaged;
-    J3 = Sdev.determinant();
-    //printf("vm = %f, yieldstress_undamaged = %f, J3 = %f\n", vm, yieldstress_undamaged, J3);
-
-    omega = 1 - 182.25 * J3 * J3/(vm * vm * vm * vm * vm * vm);
-
-    if (omega < 0.0) {
-      // printf("omega=%10.e < 0.0, surely must be an error\n", omega);
-      // cout << "vm = " << vm << "\t";
-      // cout << "J3 = " << J3 << "\t";
-      // cout << "J3 * J3/(vm * vm * vm * vm * vm * vm) = " << J3 * J3/(vm * vm * vm * vm * vm * vm) << endl;
-      // cout << "Here is S:" << endl << Sdev << endl;
-      omega = 0;
-    }
-    else if (omega > 1.0) {
-      // printf("omega=%10.e > 1.0, surely must be an error\n", omega);
-      // cout << "vm = " << vm << "\t";
-      // cout << "J3 = " << J3 << "\t";
-      // cout << "J3 * J3/(vm * vm * vm * vm * vm * vm) = " << J3 * J3/(vm * vm * vm * vm * vm * vm) << endl;
-      // cout << "Here is S:" << endl << Sdev << endl;
-      omega = 1.0;
-    }
-
-    tmp1 = -1.5 * Q2 * pressure * inverse_sM;
-    sinh_tmp1 = sinh(tmp1);
-    lambda_increment = 0.5 * vm * plastic_strain_increment / (vm * vm * inverse_sM * inverse_sM + Q1 * f * tmp1 * sinh_tmp1);
-
-    fs_increment = lambda_increment * f * inverse_sM * ((1 - f) * 3 * Q1 * Q2 * sinh_tmp1 + Komega * omega * 2 * vm * inverse_sM);
-
-    if (isnan(fs_increment) || isnan(-fs_increment)) {
-      printf("GTN f increment: %10.e\n", fs_increment);
-      cout << "vm = " << vm << "\t";
-      cout << "yieldstress_undamaged = " << yieldstress_undamaged << "\t";
-      cout << "tmp1 = " << tmp1 << endl;
-      cout << "f = " << f << endl;
-      cout << "omega = " << omega << endl;
-      cout << "F = " << vm * vm * inverse_sM * inverse_sM + 2 * Q1 * f * cosh(tmp1) - (1 + Q1 * Q1 * f * f) << endl;
-      cout << "plastic_strain_increment = " << plastic_strain_increment << endl;
-    }
-
-    if (fs_increment < 0.0) fs_increment = 0.0;
+  vm = sqrt(3. / 2.) * Sdev.norm(); // von-Mises equivalent stress
+  if (vm < 0.0) {
+    cout << "this is sdev " << endl << Sdev << endl;
+    printf("vm=%f < 0.0, surely must be an error\n", vm);
+    exit(1);
   }
+  
+  if ( vm == 0.0 ) return 0.0;
+  
+  inverse_sM = 1.0/yieldstress_undamaged;
+  J3 = Sdev.determinant();
+  //printf("vm = %f, yieldstress_undamaged = %f, J3 = %f\n", vm, yieldstress_undamaged, J3);
+  
+  omega = 1 - 182.25 * J3 * J3/(vm * vm * vm * vm * vm * vm);
+  
+  if (omega < 0.0) {
+    // printf("omega=%10.e < 0.0, surely must be an error\n", omega);
+    // cout << "vm = " << vm << "\t";
+    // cout << "J3 = " << J3 << "\t";
+    // cout << "J3 * J3/(vm * vm * vm * vm * vm * vm) = " << J3 * J3/(vm * vm * vm * vm * vm * vm) << endl;
+    // cout << "Here is S:" << endl << Sdev << endl;
+    omega = 0;
+  }
+  else if (omega > 1.0) {
+    // printf("omega=%10.e > 1.0, surely must be an error\n", omega);
+    // cout << "vm = " << vm << "\t";
+    // cout << "J3 = " << J3 << "\t";
+    // cout << "J3 * J3/(vm * vm * vm * vm * vm * vm) = " << J3 * J3/(vm * vm * vm * vm * vm * vm) << endl;
+    // cout << "Here is S:" << endl << Sdev << endl;
+    omega = 1.0;
+  }
+  
+  tmp1 = -1.5 * Q2 * pressure * inverse_sM;
+  sinh_tmp1 = sinh(tmp1);
+  lambda_increment = 0.5 * yieldstress_undamaged * plastic_strain_increment * (1 - f) / (vm * vm * inverse_sM * inverse_sM + Q1 * f * tmp1 * sinh_tmp1);
+  
+  fs_increment = lambda_increment * f * inverse_sM * ((1 - f) * 3 * Q1 * Q2 * sinh_tmp1 + Komega * omega * 2 * vm * inverse_sM);
+  
+  if (isnan(fs_increment) || isnan(-fs_increment)) {
+    printf("GTN f increment: %10.e\n", fs_increment);
+    cout << "vm = " << vm << "\t";
+    cout << "yieldstress_undamaged = " << yieldstress_undamaged << "\t";
+    cout << "tmp1 = " << tmp1 << endl;
+    cout << "f = " << f << endl;
+    cout << "omega = " << omega << endl;
+    cout << "F = " << vm * vm * inverse_sM * inverse_sM + 2 * Q1 * f * cosh(tmp1) - (1 + Q1 * Q1 * f * f) << endl;
+    cout << "plastic_strain_increment = " << plastic_strain_increment << endl;
+  }
+  
+  if (fs_increment < 0.0) fs_increment = 0.0;
+  
+  
   double f_increment = fn_increment + fs_increment;
   if (isnan(f_increment) || isnan(-f_increment)){
     cout << "fs_increment = " << fs_increment << "\t" << "fn_increment = " << fn_increment << endl;
