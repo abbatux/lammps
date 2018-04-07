@@ -400,7 +400,7 @@ double GTNStrength(const double G, const double An, const double Q1, const doubl
 		 const Matrix3d sigmaInitial_dev, const Matrix3d d_dev, const double p, const double yieldStress_undamaged,
 		   Matrix3d &sigmaFinal_dev__, Matrix3d &sigma_dev_rate__, double &plastic_strain_increment, const bool coupling, const int tag) {
   
-  Matrix3d sigmaTrial_dev, dev_rate;
+  Matrix3d sigmaTrial_dev, dev_rate, plastic_strain_increment_array;
   double J2, yieldStress;
   double Gd = G;
   double f = damage * fcr;
@@ -482,6 +482,7 @@ double GTNStrength(const double G, const double An, const double Q1, const doubl
      */
     
     plastic_strain_increment = (J2 - yieldStress) / (3.0 * Gd);
+    double plastic_hydrostatic_strain_increment = abs(((1.0 - yieldStress/J2) / (3.0 * Gd)) * p); // or should it be multiplied by 3??
     /*
      * new deviatoric stress:
      * obtain by scaling the trial stress deviator
@@ -517,18 +518,19 @@ double GTNStrength(const double G, const double An, const double Q1, const doubl
       } else omega = 0;
 
 
-      tmp1 = 1.5 * Q2 * p * inverse_sM;
-      sinh_tmp1 = sinh(tmp1);
-      lambda_increment = 0.5 * yieldStress_undamaged * plastic_strain_increment * (1 - f) / (J2 * J2 * inverse_sM * inverse_sM + Q1 * f * tmp1 * sinh_tmp1);
+      //tmp1 = 1.5 * Q2 * p * inverse_sM;
+      //sinh_tmp1 = sinh(tmp1);
+      //lambda_increment = 0.5 * yieldStress_undamaged * plastic_strain_increment * (1 - f) / (J2 * J2 * inverse_sM * inverse_sM + Q1 * f * tmp1 * sinh_tmp1);
       
-      fs_increment = lambda_increment * f * inverse_sM * ((1 - f) * 3 * Q1 * Q2 * sinh_tmp1 + Komega * omega * 2 * J2 * inverse_sM);
+      //fs_increment = lambda_increment * f * inverse_sM * ((1 - f) * 3 * Q1 * Q2 * sinh_tmp1 + Komega * omega * 2 * J2 * inverse_sM);
+      fs_increment = (1-f)*plastic_hydrostatic_strain_increment;
 
       //lambda_increment = 0.5 * yieldStress_undamaged * plastic_strain_increment * (1 - f) / (x*x + Q1*f*Q2triaxx * sinh(Q2triaxx));
       
       //fs_increment = lambda_increment * f * inverse_sM * ((1 - f) * 3 * Q1 * Q2 * sinh(Q2triaxx) + Komega * omega * 2 * x);
 
       //if (tag == 2151) {
-      //printf("lambda_increment = %.10e, lambda_increment2 = %.10e, fs_increment = %.10e, fs_increment2 = %.10e, f = %.10e, \n", lambda_increment, lambda_increment2, fs_increment, fs_increment2, f);
+      //printf("lambda_increment = %.10e, fs_increment = %.10e, fs_increment2 = %.10e, f = %.10e, \n", lambda_increment, fs_increment, (1-f)*plastic_hydrostatic_strain_increment, f);
       //}
       
       if (isnan(fs_increment) || isnan(-fs_increment)) {
