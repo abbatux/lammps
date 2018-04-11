@@ -839,7 +839,7 @@ void PairTlsph::AssembleStress() {
 				 */
 
 				//cout << "this is the strain deviator rate" << endl << d_dev << endl;
-				ComputeStressDeviator(i, mass_specific_energy, sigmaInitial_dev, d_dev, sigmaFinal_dev, sigma_dev_rate, plastic_strain_increment, pFinal, yieldstress);
+				ComputeStressDeviator(i, mass_specific_energy, sigmaInitial_dev, d_dev, sigmaFinal_dev, sigma_dev_rate, plastic_strain_increment, pInitial, pFinal, yieldstress);
 				//cout << "this is the stress deviator rate" << endl << sigma_dev_rate << endl;
 
 				// keep a rolling average of the plastic strain rate over the last 100 or so timesteps
@@ -2345,7 +2345,7 @@ void PairTlsph::ComputePressure(const int i, const double rho, const double mass
  Compute stress deviator. Called from AssembleStress().
  ------------------------------------------------------------------------- */
 void PairTlsph::ComputeStressDeviator(const int i, const double mass_specific_energy, const Matrix3d sigmaInitial_dev, const Matrix3d d_dev, Matrix3d &sigmaFinal_dev,
-				      Matrix3d &sigma_dev_rate, double &plastic_strain_increment, const double pFinal, double &yieldStress) {
+				      Matrix3d &sigma_dev_rate, double &plastic_strain_increment, const double pInitial, const double pFinal, double &yieldStress) {
 	double *eff_plastic_strain = atom->eff_plastic_strain;
 	double *eff_plastic_strain_rate = atom->eff_plastic_strain_rate;
 	int *type = atom->type;
@@ -2381,11 +2381,11 @@ void PairTlsph::ComputeStressDeviator(const int i, const double mass_specific_en
 		if (failureModel[itype].failure_gtn) {
 		  if (failureModel[itype].failure_coupling == true) {
 		    damage_increment = GTNStrength(Lookup[SHEAR_MODULUS][itype], Lookup[GTN_AN][itype], Lookup[GTN_Q1][itype], Lookup[GTN_Q2][itype], Lookup[GTN_Komega][itype],
-				dt, damage[i], Lookup[GTN_fcr][itype], sigmaInitial_dev, d_dev, pFinal, yieldStress,
+				dt, damage[i], Lookup[GTN_fcr][itype], sigmaInitial_dev, d_dev, pInitial, pFinal, yieldStress,
 				sigmaFinal_dev, sigma_dev_rate, plastic_strain_increment, true, atom->tag[i]);
 		  } else {
 		    damage_increment = GTNStrength(Lookup[SHEAR_MODULUS][itype], Lookup[GTN_AN][itype], Lookup[GTN_Q1][itype], Lookup[GTN_Q2][itype], Lookup[GTN_Komega][itype],
-				dt, damage_init[i], Lookup[GTN_fcr][itype], sigmaInitial_dev, d_dev, pFinal, yieldStress,
+				dt, damage_init[i], Lookup[GTN_fcr][itype], sigmaInitial_dev, d_dev, pInitial, pFinal, yieldStress,
 				sigmaFinal_dev, sigma_dev_rate, plastic_strain_increment, false, atom->tag[i]);
 		  }
 		}
@@ -2397,13 +2397,15 @@ void PairTlsph::ComputeStressDeviator(const int i, const double mass_specific_en
 		yieldStress = Lookup[LH_A][itype] + Lookup[LH_B][itype] * pow(eff_plastic_strain[i], Lookup[LH_n][itype]);
 		if (failureModel[itype].failure_gtn) {
 		  if (failureModel[itype].failure_coupling == true) {
-		    damage_increment = GTNStrength(Lookup[SHEAR_MODULUS][itype], Lookup[GTN_AN][itype], Lookup[GTN_Q1][itype], Lookup[GTN_Q2][itype], Lookup[GTN_Komega][itype],
-				dt, damage[i], Lookup[GTN_fcr][itype], sigmaInitial_dev, d_dev, pFinal, yieldStress,
-				sigmaFinal_dev, sigma_dev_rate, plastic_strain_increment, true, atom->tag[i]);
+		    damage_increment = GTNStrength(Lookup[SHEAR_MODULUS][itype], Lookup[LH_A][itype], Lookup[LH_B][itype], Lookup[LH_n][itype], Lookup[GTN_AN][itype],
+						   Lookup[GTN_Q1][itype], Lookup[GTN_Q2][itype], Lookup[GTN_Komega][itype], dt, damage[i], Lookup[GTN_fcr][itype],
+						   sigmaInitial_dev, d_dev, pInitial, pFinal, yieldStress, sigmaFinal_dev, sigma_dev_rate, plastic_strain_increment,
+						   true, atom->tag[i]);
 		  } else {
-		    damage_increment = GTNStrength(Lookup[SHEAR_MODULUS][itype], Lookup[GTN_AN][itype], Lookup[GTN_Q1][itype], Lookup[GTN_Q2][itype], Lookup[GTN_Komega][itype],
-				dt, damage_init[i], Lookup[GTN_fcr][itype], sigmaInitial_dev, d_dev, pFinal, yieldStress,
-				sigmaFinal_dev, sigma_dev_rate, plastic_strain_increment, false, atom->tag[i]);
+		    damage_increment = GTNStrength(Lookup[SHEAR_MODULUS][itype], Lookup[LH_A][itype], Lookup[LH_B][itype], Lookup[LH_n][itype], Lookup[GTN_AN][itype],
+						   Lookup[GTN_Q1][itype], Lookup[GTN_Q2][itype], Lookup[GTN_Komega][itype], dt, damage[i], Lookup[GTN_fcr][itype],
+						   sigmaInitial_dev, d_dev, pInitial, pFinal, yieldStress, sigmaFinal_dev, sigma_dev_rate, plastic_strain_increment,
+						   false, atom->tag[i]);
 		  }
 		}
 		else
@@ -2415,11 +2417,11 @@ void PairTlsph::ComputeStressDeviator(const int i, const double mass_specific_en
 		if (failureModel[itype].failure_gtn) {
 		  if (failureModel[itype].failure_coupling == true) {
 		    damage_increment = GTNStrength(Lookup[SHEAR_MODULUS][itype], Lookup[GTN_AN][itype], Lookup[GTN_Q1][itype], Lookup[GTN_Q2][itype], Lookup[GTN_Komega][itype],
-				dt, damage[i], Lookup[GTN_fcr][itype], sigmaInitial_dev, d_dev, pFinal, yieldStress,
+				dt, damage[i], Lookup[GTN_fcr][itype], sigmaInitial_dev, d_dev, pInitial, pFinal, yieldStress,
 				sigmaFinal_dev, sigma_dev_rate, plastic_strain_increment, true, atom->tag[i]);
 		  } else {
 		    damage_increment = GTNStrength(Lookup[SHEAR_MODULUS][itype], Lookup[GTN_AN][itype], Lookup[GTN_Q1][itype], Lookup[GTN_Q2][itype], Lookup[GTN_Komega][itype],
-				dt, damage_init[i], Lookup[GTN_fcr][itype], sigmaInitial_dev, d_dev, pFinal, yieldStress,
+				dt, damage_init[i], Lookup[GTN_fcr][itype], sigmaInitial_dev, d_dev, pInitial, pFinal, yieldStress,
 				sigmaFinal_dev, sigma_dev_rate, plastic_strain_increment, false, atom->tag[i]);
 		  }
 		}
@@ -2439,11 +2441,11 @@ void PairTlsph::ComputeStressDeviator(const int i, const double mass_specific_en
 		if (failureModel[itype].failure_gtn) {
 		  if (failureModel[itype].failure_coupling == true) {
 		    damage_increment = GTNStrength(Lookup[SHEAR_MODULUS][itype], Lookup[GTN_AN][itype], Lookup[GTN_Q1][itype], Lookup[GTN_Q2][itype], Lookup[GTN_Komega][itype],
-				dt, damage[i], Lookup[GTN_fcr][itype], sigmaInitial_dev, d_dev, pFinal, yieldStress,
+				dt, damage[i], Lookup[GTN_fcr][itype], sigmaInitial_dev, d_dev, pInitial, pFinal, yieldStress,
 				sigmaFinal_dev, sigma_dev_rate, plastic_strain_increment, true, atom->tag[i]);
 		  } else {
 		    damage_increment = GTNStrength(Lookup[SHEAR_MODULUS][itype], Lookup[GTN_AN][itype], Lookup[GTN_Q1][itype], Lookup[GTN_Q2][itype], Lookup[GTN_Komega][itype],
-				dt, damage_init[i], Lookup[GTN_fcr][itype], sigmaInitial_dev, d_dev, pFinal, yieldStress,
+				dt, damage_init[i], Lookup[GTN_fcr][itype], sigmaInitial_dev, d_dev, pInitial, pFinal, yieldStress,
 				sigmaFinal_dev, sigma_dev_rate, plastic_strain_increment, false, atom->tag[i]);		    
 		  }
 		}
