@@ -550,19 +550,18 @@ double GTNStrength(const double G, const double An, const double Q1, const doubl
   return damage_increment;
 }
 
-double GTNStrengthLH(const double G, const double LH_A, const double LH_B, const double LH_n, const double An, const double Q1, const double Q2,
-		     const double Komega, const double fcr, const double dt, const double damage, const double ep, const Matrix3d sigmaInitial_dev,
+void GTNStrengthLH(const double G, const double LH_A, const double LH_B, const double LH_n, const double An, const double Q1, const double Q2,
+		     const double Komega, const double fcr, const double dt, double &damage, const double ep, const Matrix3d sigmaInitial_dev,
 		     const Matrix3d d_dev, const double pInitial, const double pFinal, Matrix3d &sigmaFinal_dev__, Matrix3d &sigma_dev_rate__,
 		     double &plastic_strain_increment, const bool coupling, const int tag) {
   
   Matrix3d sigmaTrial_dev, dev_rate, plastic_strain_increment_array;
-  double J2, yieldStress;
+  double J2, yieldStress_undamaged;
   double Gd = G;
   double f = damage * fcr;
   if (coupling == true) Gd *= (1-damage); 
   double x;
-  double damage_increment = 0.0;
-  double F, Q2triaxx, Q1f, Q1fSq, Q2triax, inverse_sM, tmp1, cosh_tmp1x;
+  double F, Q2triaxx, Q1f, Q1fSq, Q2triax, inverse_sM, Q2triax, cosh_Q2triaxx, sqrt3halves;
   
   /*
    * deviatoric rate of unrotated stress
@@ -575,13 +574,13 @@ double GTNStrengthLH(const double G, const double LH_A, const double LH_B, const
   sigma_dev_rate__ = dt * dev_rate; // I am using this variable to store dt * dev_rate
   sigmaTrial_dev = sigmaInitial_dev + sigma_dev_rate__; // increment stress deviator using deviatoric rate
 
-  
   /*
    * check yield condition
    */
-  J2 = sqrt(3. / 2.) * sigmaTrial_dev.norm();
-  yieldStress = LH_A + LH_B * pow(ep, LH_n);
-  inverse_sM = 1.0/yieldStress;
+  sqrt3halves = sqrt(3. / 2.);
+  J2 = sqrt3halves * sigmaTrial_dev.norm();
+  yieldStress_undamaged = LH_A + LH_B * pow(ep, LH_n);
+  inverse_sM = 1.0/yieldStress_undamaged;
 
   // determine stress triaxiality
   double triax = 0.0;
@@ -595,8 +594,8 @@ double GTNStrengthLH(const double G, const double LH_A, const double LH_B, const
   Q1f = Q1 * f;
   Q1fSq = Q1f * Q1f;
   x = J2 * inverse_sM;
-  tmp1 = 1.5 * Q2 * triax;
-  F = x*x + 2 * Q1f * cosh(tmp1 * x) - (1 + Q1fSq);
+  Q2triax = 1.5 * Q2 * triax;
+  F = x*x + 2 * Q1f * cosh(Q2triax * x) - (1 + Q1fSq);
 
   if (F < 0.0) {
     /*
@@ -606,7 +605,6 @@ double GTNStrengthLH(const double G, const double LH_A, const double LH_B, const
     sigma_dev_rate__ = dev_rate;
     sigmaFinal_dev__ = sigmaTrial_dev;
     plastic_strain_increment = 0.0;
-    damage_increment = 0.0;
     //printf("no yield F = %.10e\n", F);
 
   } else {
@@ -614,115 +612,80 @@ double GTNStrengthLH(const double G, const double LH_A, const double LH_B, const
     /*
      * yielding has occured
      */
+    /*
+     * NEWTON - RAPHSON METHOD TO DETERMINE THE YIELD STRESS:
+     */
 
-    int i = 0;
-    double plastic_strain_increment_old, delta_plastic_strain_increment, error, deps, F, Fprime, J2_old, yieldStress_old, sinh_tmp1x, strain_increment;
-    double f0, sinhtmp1x, J3, omega, dF_dJ2, dF_dsM, dF_df, inverse_x, alpha, df_deps_pM, dsM_deps_pM, dJ2_deps_pM;
-    Matrix3d T;
-    double plastic_strain_increment_e_pp;
-    double J20 = J2;
+    double Q1fQ2triax = Q1f * Q2triax;
 
-    strain_increment = sqrt(2. / 3.) * sigma_dev_rate__.norm();
-    plastic_strain_increment_e_pp = strain_increment;
-    if (plastic_strain_increment_e_pp < 0) printf("J2 = %.10e, yieldStress = %.10e\n", J2, yieldStress);
-    sigmaTrial_dev = sigmaInitial_dev + sigma_dev_rate__ * (1 - plastic_strain_increment_e_pp/strain_increment);
-    J2_old = J2;
-    J2 = sqrt(3. / 2.) * sigmaTrial_dev.norm();
+    double x = 1.0; // x = yieldStress / yieldStress_undamaged
+    double dx = 1.0; // dx = x_{n+1} - x_{n} initiated at a value higher than the accepted error margin.
+    double error = 0.001;
+    double F, Fprime, Q2triaxx;
 
-    error = 0.01;
-    deps = 1.0;
-    f0 = f;
-    inverse_sM = 1.0/yieldStress;
-    x = J2 * inverse_sM;
-    alpha = 1.5 * inverse_x * Q1 * f0 * Q2 * sinhtmp1x;
-    if (Komega != 0) {
-      J3 = sigmaTrial_dev.determinant();
-      omega = 1 - 182.25 * J3 * J3/(J2 * J2 * J2 * J2 * J2 * J2);
-      if (omega < 0.0) omega = 0;
-      else if (omega > 1.0) omega = 1.0;
-    } else omega = 0;
-    
-    sinh_tmp1x = sinh(tmp1 * x);
-    cosh_tmp1x = cosh(tmp1 * x);
-    plastic_strain_increment = plastic_strain_increment_e_pp * x * (1 + alpha * triax)/(1 - f0); // This is the matrix equivalent plastic strain;
-    yieldStress_old = yieldStress;
-    yieldStress = LH_A + LH_B * pow(ep + plastic_strain_increment, LH_n);
-    inverse_sM = 1.0/yieldStress;
-    f = f0 + (1-f0) * inverse_x * (alpha * (1-f0)/(alpha*triax + 1) + f0 * Komega * omega) * plastic_strain_increment;
-    Q1f = Q1 * f;
-    x = J2 * inverse_sM;
-    F = x*x + 2 * Q1f * cosh_tmp1x - (1 + Q1f * Q1f);
-    printf("%d - plastic_strain_increment = %.10e, deps = %f, J2 = %f, yieldStress = %f, ep = %.10e, df = %.10e, F = %.10e, Fprime = %.10e\n", i, plastic_strain_increment, deps, J2, yieldStress, ep, f-f0, F, Fprime);
-    while(abs(deps) > error || abs(F) > error) {
-      // NEWTON RAPHSON METHOD:
-      i++;
-      T = sigmaTrial_dev * sigma_dev_rate__;
+    while ((dx > error) || (dx < -error)) {
+      Q2triaxx = Q2triax * x;
+      F = x*x + 2 * Q1f * cosh(Q2triaxx) - (1 + Q1fSq);
+      Fprime = 2 * (x + Q1fQ2triax * sinh(Q2triaxx));
 
-      dF_dJ2 = 2.0 * inverse_sM * (x + tmp1 * Q1f * sinhtmp1x);
-      dF_dsM = -x * dF_dJ2;
-      dF_df = 2.0 * Q1 * (cosh_tmp1x - Q1f);
-      inverse_x = 1.0 / x;
-      df_deps_pM = (1-f0) * inverse_x * (alpha * (1 - f0) / (triax * alpha + 1 ) + f0 * Komega * omega);
-      dsM_deps_pM = LH_n * LH_B * pow(ep + plastic_strain_increment, LH_n-1);
-      dJ2_deps_pM = -1.5 * T.trace()/strain_increment * (1 - f) / (x + 1.5 * Q1f * Q2 * sinhtmp1x * triax);
-
-
-      Fprime = dF_dJ2 * dJ2_deps_pM + dF_dsM * dsM_deps_pM + dF_df * df_deps_pM;
-      delta_plastic_strain_increment = plastic_strain_increment - plastic_strain_increment_old;
-      plastic_strain_increment_old = plastic_strain_increment;
-      plastic_strain_increment -= F/Fprime;
-
-      if (plastic_strain_increment < 0.0) {
-	printf("before: plastic_strain_increment = %.10e\n", plastic_strain_increment);
-	plastic_strain_increment = plastic_strain_increment_old - delta_plastic_strain_increment + (J2_old - yieldStress_old)/((yieldStress - yieldStress_old) - (J2 - J2_old)) * delta_plastic_strain_increment;
-	if (plastic_strain_increment < 0.0) plastic_strain_increment = 0.5*plastic_strain_increment_old;
-	printf("after: plastic_strain_increment = %.10e\n", plastic_strain_increment);
-	printf("delta_plastic_strain_increment = %.10e, plastic_strain_increment_old = %.10e,J2 = %f, J2_old = %f, yieldStress = %f, yieldStress_old = %f\n", delta_plastic_strain_increment, plastic_strain_increment_old, J2, J2_old, yieldStress, yieldStress_old);
-      }
-
-      if (Komega != 0) {
-	J3 = sigmaTrial_dev.determinant();
-	omega = 1 - 182.25 * J3 * J3/(J2 * J2 * J2 * J2 * J2 * J2);
-	if (omega < 0.0) omega = 0;
-	else if (omega > 1.0) omega = 1.0;
-      } else omega = 0;
-
-      f = f0 + (1-f0) * inverse_x * (alpha * (1-f0)/(alpha*triax + 1) + f0 * Komega * omega) * plastic_strain_increment;
-      plastic_strain_increment_e_pp = plastic_strain_increment * (1 - f) / (x + 1.5 * Q1f * Q2 * sinhtmp1x * triax);
-      yieldStress_old = yieldStress;
-      yieldStress = LH_A + LH_B * pow(ep + plastic_strain_increment, LH_n);
-      sigmaTrial_dev = sigmaInitial_dev + sigma_dev_rate__ * (1 - plastic_strain_increment_e_pp/strain_increment);
-      J2_old = J2;
-      J2 = sqrt(3. / 2.) * sigmaTrial_dev.norm();
-      inverse_sM = 1.0/yieldStress;
-      x = J2 * inverse_sM;
-      cosh_tmp1x = cosh(tmp1 * x);
-      sinh_tmp1x = sinh(tmp1 * x);
-      alpha = 1.5 * inverse_x * Q1 * f0 * Q2 * sinhtmp1x;
-      Q1f = Q1 * f;
-      F = x*x + 2 * Q1f * cosh_tmp1x - (1 + Q1f * Q1f);
-
-      deps = (plastic_strain_increment - plastic_strain_increment_old) / plastic_strain_increment;
-      printf("%d - plastic_strain_increment = %.10e, deps = %f, J2 = %f, yieldStress = %f, ep = %.10e, df = %.10e, F = %.10e, Fprime = %.10e\n", i, plastic_strain_increment, deps, J2, yieldStress, ep, f-f0, F, Fprime);
+      dx = -F/Fprime;
+      x += dx;
     }
 
-    // yieldStress = LH_A + LH_B * pow(ep + plastic_strain_increment, LH_n);
-    // sigmaTrial_dev = sigmaInitial_dev + sigma_dev_rate__ * (1 - plastic_strain_increment_e_pp/strain_increment);
-    // J2 = sqrt(3. / 2.) * sigmaTrial_dev.norm();
-    sigmaFinal_dev__ = (yieldStress / J2) * sigmaTrial_dev;
-    //if (tag == 3592) printf("End - plastic_strain_increment = %.10e, J2 = %f, yieldStress = %f, ep = %.10e\n", plastic_strain_increment, J2, yieldStress, ep);
+    /*
+     * NEWTON - RAPHSON METHOD TO DETERMINE THE MATRIX PLASTIC STRAIN INCREMENT:
+     */
+    int j = 0;
+    double yieldStress, plastic_strain_increment_old, delta_plastic_strain_increment, F, Fprime, beta, sinh_Q2triaxx, inverse_x;
+
+    dx = 1.0;
+
+    yieldStress = x * yieldStress_undamaged;
+    sinh_Q2triaxx = sinh(Q2triaxx);
+    beta = x + 1.5 * Q1fQ2triax * sinh_Q2triaxx;
+    plastic_strain_increment = (J2 - yieldStress) / (3.0 * Gd) * beta/(1 - f); // This assumes all strain increase is plastic!
+
+    while(abs(dx) > error) {
+      j++;
+      yieldStress_undamaged = LH_A + LH_B * pow(ep + plastic_strain_increment, LH_n);
+      yieldStress = x * yieldStress_undamaged;
+      F = 3.0 * Gd * (1 - f) * plastic_strain_increment - beta * yieldStress;
+      Fprime = 3.0 * Gd * (1 - f) - beta * x * LH_B * LH_n * pow(ep + plastic_strain_increment, LH_n - 1);
+      plastic_strain_increment_old = plastic_strain_increment;
+      plastic_strain_increment -= F/Fprime;
+      if (plastic_strain_increment < 0.0) {
+	plastic_strain_increment = 0.5*plastic_strain_increment_old;
+      }
+      dx = (plastic_strain_increment - plastic_strain_increment_old) / plastic_strain_increment;
+      //printf("%d - %d - plastic_strain_increment = %.10e, dx = %f, J2 = %f, yieldStress = %f, ep = %.10e\n", tag, j, plastic_strain_increment, dx, J2, yieldStress, ep);
+    }
+
+    yieldStress = LH_A + LH_B * pow(ep + plastic_strain_increment, LH_n);
+    sigmaFinal_dev__ = (yieldStress/J2) * sigmaTrial_dev;
 
     /*
      * new deviatoric stress rate
      */
     sigma_dev_rate__ = sigmaFinal_dev__ - sigmaInitial_dev;
     //printf("yielding has occured.\n");
-    x = J2 / yieldStress;
-    inverse_x = 1 / x;
-    alpha = 1.5 * inverse_x * Q1f * Q2 * sinh(tmp1 * x);
-    damage_increment = (1-f) * inverse_x * (alpha * (1-f)/(alpha*triax + 1) + f * Komega * omega) * plastic_strain_increment / fcr;
+
+
+    /*
+     * Update f
+     */
+    inverse_x = 1.0/x;
+    alpha = 1.5 * Q1f * Q2 * sinh_Q2triaxx * inverse_x;
+
+    if (Komega != 0) {
+      J3 = sigmaTrial_dev.determinant();
+      omega = 1 - 182.25 * J3 * J3/(J2 * J2 * J2 * J2 * J2 * J2);
+      if (omega < 0.0) omega = 0;
+      else if (omega > 1.0) omega = 1.0;
+    } else omega = 0;
+
+    f += (1-f) * inverse_x * (alpha * (1-f)/(alpha*triax + 1) + f * Komega * omega) * plastic_strain_increment / x;
+    damage = f / fcr;
   }
-  return damage_increment;
 }
 /* ----------------------------------------------------------------------
  isotropic maximum strain damage model

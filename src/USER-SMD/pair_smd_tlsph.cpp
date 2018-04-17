@@ -2396,15 +2396,15 @@ void PairTlsph::ComputeStressDeviator(const int i, const double mass_specific_en
 	case STRENGTH_LUDWICK_HOLLOMON:
 		if (failureModel[itype].failure_gtn == true) {
 		  if (failureModel[itype].failure_coupling == true) {
-		    damage_increment = GTNStrengthLH(Lookup[SHEAR_MODULUS][itype], Lookup[LH_A][itype], Lookup[LH_B][itype], Lookup[LH_n][itype], Lookup[GTN_AN][itype],
-						     Lookup[GTN_Q1][itype], Lookup[GTN_Q2][itype], Lookup[GTN_Komega][itype], Lookup[GTN_fcr][itype], dt, damage[i], 
-						     eff_plastic_strain[i], sigmaInitial_dev, d_dev, pInitial, pFinal, sigmaFinal_dev, sigma_dev_rate, plastic_strain_increment,
-						     true, atom->tag[i]);
+		    GTNStrengthLH(Lookup[SHEAR_MODULUS][itype], Lookup[LH_A][itype], Lookup[LH_B][itype], Lookup[LH_n][itype], Lookup[GTN_AN][itype],
+				  Lookup[GTN_Q1][itype], Lookup[GTN_Q2][itype], Lookup[GTN_Komega][itype], Lookup[GTN_fcr][itype], dt, damage[i], 
+				  eff_plastic_strain[i], sigmaInitial_dev, d_dev, pInitial, pFinal, sigmaFinal_dev, sigma_dev_rate, plastic_strain_increment,
+				  true, atom->tag[i]);
 		  } else {
-		    damage_increment = GTNStrengthLH(Lookup[SHEAR_MODULUS][itype], Lookup[LH_A][itype], Lookup[LH_B][itype], Lookup[LH_n][itype], Lookup[GTN_AN][itype],
-						     Lookup[GTN_Q1][itype], Lookup[GTN_Q2][itype], Lookup[GTN_Komega][itype], Lookup[GTN_fcr][itype], dt, damage[i], 
-						     eff_plastic_strain[i], sigmaInitial_dev, d_dev, pInitial, pFinal, sigmaFinal_dev, sigma_dev_rate, plastic_strain_increment,
-						     false, atom->tag[i]);
+		    GTNStrengthLH(Lookup[SHEAR_MODULUS][itype], Lookup[LH_A][itype], Lookup[LH_B][itype], Lookup[LH_n][itype], Lookup[GTN_AN][itype],
+				  Lookup[GTN_Q1][itype], Lookup[GTN_Q2][itype], Lookup[GTN_Komega][itype], Lookup[GTN_fcr][itype], dt, damage[i], 
+				  eff_plastic_strain[i], sigmaInitial_dev, d_dev, pInitial, pFinal, sigmaFinal_dev, sigma_dev_rate, plastic_strain_increment,
+				  false, atom->tag[i]);
 		  }
 		}
 		else {
