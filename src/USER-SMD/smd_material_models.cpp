@@ -559,9 +559,9 @@ void GTNStrengthLH(const double G, const double LH_A, const double LH_B, const d
   double J2, yieldStress_undamaged;
   double Gd = G;
   double f = damage * fcr;
-  if (coupling == true) Gd *= (1-damage); 
+  if (coupling == true) Gd *= (1-f); 
   double x;
-  double F, Q2triaxx, Q1f, Q1fSq, Q2triax, inverse_sM, Q2triax, cosh_Q2triaxx, sqrt3halves;
+  double F, Q2triaxx, Q1f, Q1fSq, Q2triax, inverse_sM, cosh_Q2triaxx, sqrt3halves;
   
   /*
    * deviatoric rate of unrotated stress
@@ -585,7 +585,7 @@ void GTNStrengthLH(const double G, const double LH_A, const double LH_B, const d
   // determine stress triaxiality
   double triax = 0.0;
   if (pFinal != 0.0 && J2 != 0.0) {
-    triax = -pFinal / (J2 + 0.01 * fabs(pFinal)); // have softening in denominator to avoid divison by zero
+    triax = pFinal / (J2 + 0.01 * fabs(pFinal)); // have softening in denominator to avoid divison by zero
   }
   if (triax > 3.0) {                                                                                                                                                                                
     triax = 3.0;
@@ -608,7 +608,7 @@ void GTNStrengthLH(const double G, const double LH_A, const double LH_B, const d
     //printf("no yield F = %.10e\n", F);
 
   } else {
-    printf("yiedl\n");
+    //printf("yiedl\n");
     /*
      * yielding has occured
      */
@@ -636,28 +636,27 @@ void GTNStrengthLH(const double G, const double LH_A, const double LH_B, const d
      * NEWTON - RAPHSON METHOD TO DETERMINE THE MATRIX PLASTIC STRAIN INCREMENT:
      */
     int j = 0;
-    double yieldStress, plastic_strain_increment_old, delta_plastic_strain_increment, F, Fprime, beta, sinh_Q2triaxx, inverse_x;
+    double yieldStress, plastic_strain_increment_old, delta_plastic_strain_increment, alpha, beta, sinh_Q2triaxx, inverse_x, J3, omega;
 
     dx = 1.0;
 
     yieldStress = x * yieldStress_undamaged;
     sinh_Q2triaxx = sinh(Q2triaxx);
-    beta = x + 1.5 * Q1fQ2triax * sinh_Q2triaxx;
-    plastic_strain_increment = (J2 - yieldStress) / (3.0 * Gd) * beta/(1 - f); // This assumes all strain increase is plastic!
+    beta = (x + 1.5 * Q1fQ2triax * sinh_Q2triaxx) / (3.0 * Gd * (1 - f));
+    plastic_strain_increment = (J2 - yieldStress) * beta; // This assumes all strain increase is plastic!
 
     while(abs(dx) > error) {
       j++;
-      yieldStress_undamaged = LH_A + LH_B * pow(ep + plastic_strain_increment, LH_n);
-      yieldStress = x * yieldStress_undamaged;
-      F = 3.0 * Gd * (1 - f) * plastic_strain_increment - beta * yieldStress;
-      Fprime = 3.0 * Gd * (1 - f) - beta * x * LH_B * LH_n * pow(ep + plastic_strain_increment, LH_n - 1);
+      yieldStress = x * (LH_A + LH_B * pow(ep + plastic_strain_increment, LH_n));
+      F = plastic_strain_increment - (J2 - yieldStress) * beta;
+      Fprime = 1.0 + beta * x * LH_B * LH_n * pow(ep + plastic_strain_increment, LH_n - 1);
       plastic_strain_increment_old = plastic_strain_increment;
       plastic_strain_increment -= F/Fprime;
       if (plastic_strain_increment < 0.0) {
 	plastic_strain_increment = 0.5*plastic_strain_increment_old;
       }
       dx = (plastic_strain_increment - plastic_strain_increment_old) / plastic_strain_increment;
-      //printf("%d - %d - plastic_strain_increment = %.10e, dx = %f, J2 = %f, yieldStress = %f, ep = %.10e\n", tag, j, plastic_strain_increment, dx, J2, yieldStress, ep);
+      if (j>10) printf("%d - %d - plastic_strain_increment = %.10e, dx = %f, J2 = %f, yieldStress = %f, ep = %.10e, F = %.10e, Fprime = %.10e\n", tag, j, plastic_strain_increment, dx, J2, yieldStress, ep, F, Fprime);
     }
 
     yieldStress = LH_A + LH_B * pow(ep + plastic_strain_increment, LH_n);
@@ -683,7 +682,8 @@ void GTNStrengthLH(const double G, const double LH_A, const double LH_B, const d
       else if (omega > 1.0) omega = 1.0;
     } else omega = 0;
 
-    f += (1-f) * inverse_x * (alpha * (1-f)/(alpha*triax + 1) + f * Komega * omega) * plastic_strain_increment / x;
+    //printf("plastic_strain_increment = %.10e, alpha = %.10e, x = %.10e, triax = %.10e, Komega = %.10e, omega = %.10e, f = %.10e, f_increment = %.10e", plastic_strain_increment, alpha, x, triax, Komega, omega, f, (1-f) * inverse_x * (alpha * (1-f)/(alpha*triax + 1) + f * Komega * omega) * plastic_strain_increment);
+    f += (1-f) * inverse_x * (max(0.0, alpha * (1-f)/(alpha*triax + 1)) + f * Komega * omega) * plastic_strain_increment;
     damage = f / fcr;
   }
 }
