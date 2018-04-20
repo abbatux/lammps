@@ -553,7 +553,7 @@ double GTNStrength(const double G, const double An, const double Q1, const doubl
 
 double GTNStrengthLH(const double G, const double LH_A, const double LH_B, const double LH_n, const double An, const double Q1, const double Q2,
 		     const double Komega, const double fcr, const double dt, const double damage, const double ep, const Matrix3d sigmaInitial_dev,
-		     const Matrix3d d_dev, const double pInitial, const double pFinal, Matrix3d &sigmaFinal_dev__, Matrix3d &sigma_dev_rate__,
+		     const Matrix3d d_dev, const double pInitial, double &pFinal, Matrix3d &sigmaFinal_dev__, Matrix3d &sigma_dev_rate__,
 		     double &plastic_strain_increment, const bool coupling, const int tag) {
   
   Matrix3d sigmaTrial_dev, dev_rate, plastic_strain_increment_array;
@@ -690,6 +690,7 @@ double GTNStrengthLH(const double G, const double LH_A, const double LH_B, const
       } else omega = 0;
       
       //printf("plastic_strain_increment = %.10e, alpha = %.10e, x = %.10e, triax = %.10e, Komega = %.10e, omega = %.10e, f = %.10e, f_increment = %.10e", plastic_strain_increment, alpha, x, triax, Komega, omega, f, (1-f) * inverse_x * (alpha * (1-f)/(alpha*triax + 1) + f * Komega * omega) * plastic_strain_increment);
+      pFinal -= plastic_strain_increment * triax/beta;
       damage_increment = (1-f) * inverse_x * (max(0.0, alpha) * (1-f) + f * Komega * omega) * plastic_strain_increment / (fcr * (alpha*triax + 1));
     }
   }
