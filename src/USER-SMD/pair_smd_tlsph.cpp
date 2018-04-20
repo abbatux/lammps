@@ -787,7 +787,7 @@ void PairTlsph::AssembleStress() {
 	int i, itype, idim;
 	int nlocal = atom->nlocal;
 	double dt = update->dt;
-	double M_eff, K_eff, mu_eff, p_wave_speed, mass_specific_energy, vol_specific_energy, yieldstress;
+	double M_eff, K_eff, mu_eff, p_wave_speed, mass_specific_energy, vol_specific_energy, yieldstress, f;
 	Matrix3d sigma_rate, eye, sigmaInitial, sigmaFinal, T, T_damaged, Jaumann_rate, sigma_rate_check;
 	Matrix3d d_dev, sigmaInitial_dev, sigmaFinal_dev, sigma_dev_rate, strain, deltaSigma;
 	Vector3d vi;
@@ -921,12 +921,18 @@ void PairTlsph::AssembleStress() {
 				deltaSigma = sigmaFinal - sigmaInitial;
 				p_rate = deltaSigma.trace() / (3.0 * dt + 1.0e-16);
 				sigma_dev_rate = Deviator(deltaSigma) / (dt + 1.0e-16);
-
-				effective_longitudinal_modulus(itype, dt, d_iso, p_rate, d_dev, sigma_dev_rate, damage[i], K_eff, mu_eff, M_eff);
+				if (failureModel[itype].failure_gtn) {
+				  double fcrQ1 = Lookup[GTN_Q1][itype] * Lookup[GTN_fcr][itype];
+				  if (damage[i] <= fcrQ1) f = damage[i] / Lookup[GTN_Q1][itype];
+				  else f = Lookup[GTN_fcr][itype] + (damage[i] - fcrQ1) / (1 - fcrQ1) * (Lookup[GTN_fF][itype] - Lookup[GTN_fcr][itype]);
+				} else {
+				  f = damage[i];
+				}
+				  effective_longitudinal_modulus(itype, dt, d_iso, p_rate, d_dev, sigma_dev_rate, f, K_eff, mu_eff, M_eff);
 
 				if ((damage[i] > 0.0) && (pFinal > 0.0)) {
 				  // If the particle is under tension, voids are open:
-				  p_wave_speed = sqrt(M_eff * (1.0 - damage[i]) / (rho[i]*(1.0 - damage[i]) + Lookup[REFERENCE_DENSITY][itype] * damage[i]));
+				  p_wave_speed = sqrt(M_eff * (1.0 - damage[i]) / (rho[i]*(1.0 - f) + Lookup[REFERENCE_DENSITY][itype] * f));
 				} else {
 				  p_wave_speed = sqrt(M_eff / rho[i]);
 				}
@@ -938,8 +944,8 @@ void PairTlsph::AssembleStress() {
 				for (idim = 0; idim < 3; idim++) {
 				  vi(idim) = v[i][idim];
 				}
-				//double max_damage = max(0.0001, 1 - damage[i]);
-				particle_dt[i] = 2.0 * radius[i] / (p_wave_speed + vij_max[i]); //* max(0.0001, 1 - damage[i] * vi.norm()*dt/radius[i]);
+				//double max_damage = max(0.0001, 1 - f);
+				particle_dt[i] = 2.0 * radius[i] / (p_wave_speed + vij_max[i]); //* max(0.0001, 1 - fx * vi.norm()*dt/radius[i]);
 				dtCFL = MIN(dtCFL, particle_dt[i]);
 
 			} else { // end if mol > 0
@@ -1944,8 +1950,8 @@ void PairTlsph::coeff(int narg, char **arg) {
 				error->all(FLERR, str);
 			}
 
-			if (iNextKwd - ioffset != 6 + 1) {
-			  if ((iNextKwd - ioffset == 7 + 1) && (strcmp(arg[ioffset + 7], "NO_COUPLING") == 0)) {
+			if (iNextKwd - ioffset != 7 + 1) {
+			  if ((iNextKwd - ioffset == 8 + 1) && (strcmp(arg[ioffset + 8], "NO_COUPLING") == 0)) {
 			    failureModel[itype].failure_coupling = false;
 			  } else {
 			    sprintf(str, "expected 7 arguments following *GURSON_TVERGAARD_NEEDLEMAN but got %d\n", iNextKwd - ioffset - 1);
@@ -1962,7 +1968,8 @@ void PairTlsph::coeff(int narg, char **arg) {
 			Lookup[GTN_AN][itype] = force->numeric(FLERR, arg[ioffset + 3]);
 			Lookup[GTN_f0][itype] = force->numeric(FLERR, arg[ioffset + 4]);
 			Lookup[GTN_fcr][itype] = force->numeric(FLERR, arg[ioffset + 5]);
-			Lookup[GTN_Komega][itype] = force->numeric(FLERR, arg[ioffset + 6]);
+			Lookup[GTN_fF][itype] = force->numeric(FLERR, arg[ioffset + 6]);
+			Lookup[GTN_Komega][itype] = force->numeric(FLERR, arg[ioffset + 7]);
 
 			if (comm->me == 0) {
 				printf("%60s\n", " Gurson - Tvergaard - Needleman failure model");
@@ -1970,7 +1977,8 @@ void PairTlsph::coeff(int narg, char **arg) {
 				printf("%60s : %g\n", "Q2 ", Lookup[GTN_Q2][itype]);
 				printf("%60s : %g\n", "An ", Lookup[GTN_AN][itype]);
 				printf("%60s : %g\n", "Initial void fraction f0", Lookup[GTN_f0][itype]);
-				printf("%60s : %g\n", "Void fraction at rupture", Lookup[GTN_fcr][itype]);
+				printf("%60s : %g\n", "Critical void fraction", Lookup[GTN_fcr][itype]);
+				printf("%60s : %g\n", "Void fraction at failure", Lookup[GTN_fF][itype]);
 				printf("%60s : %g\n", "Komega: magnitude of the damage growth rate in pure shear states (from Nahshon and Hutchinson, 2008)", Lookup[GTN_Komega][itype]);
 				if (failureModel[itype].failure_coupling == false) printf("%60s\n", "NO COUPLING WITH CONSTITUTIVE LAWS");
 			}
@@ -2308,13 +2316,23 @@ void PairTlsph::ComputePressure(const int i, const double rho, const double mass
 	double dt = update->dt;
 	double *damage = atom->damage;
 	int itype;
+	double f; //Void fraction.
+
+	if (failureModel[itype].failure_gtn) {
+	  double f;
+	  double fcrQ1 = Lookup[GTN_Q1][itype]*Lookup[GTN_fcr][itype];
+	  if (damage[i] <= fcrQ1) f = damage[i] / Lookup[GTN_Q1][itype];
+	  else f = Lookup[GTN_fcr][itype] + (damage[i] - fcrQ1)/(1 - fcrQ1) * (Lookup[GTN_fF][itype] - Lookup[GTN_fcr][itype]);
+	} else {
+	  f = damage[i];
+	}
 
 	itype = type[i];
 
 	switch (eos[itype]) {
 	case EOS_LINEAR:
-	  if ((failureModel[itype].integration_point_wise == true) && (damage[i] > 0.0)){
-	    LinearEOSwithDamage(rho, Lookup[REFERENCE_DENSITY][itype], Lookup[BULK_MODULUS][itype], pInitial, dt, pFinal, p_rate, damage[i]);
+	  if ((failureModel[itype].integration_point_wise == true) && (f > 0.0)){
+	    LinearEOSwithDamage(rho, Lookup[REFERENCE_DENSITY][itype], Lookup[BULK_MODULUS][itype], pInitial, dt, pFinal, p_rate, f);  
 	  } else {
 	    LinearEOS(Lookup[BULK_MODULUS][itype], pInitial, d_iso, dt, pFinal, p_rate);
 	  }
@@ -2325,16 +2343,15 @@ void PairTlsph::ComputePressure(const int i, const double rho, const double mass
 		break;
 	case EOS_SHOCK:
 //  rho,  rho0,  e,  e0,  c0,  S,  Gamma,  pInitial,  dt,  &pFinal,  &p_rate);
-		ShockEOS(rho, Lookup[REFERENCE_DENSITY][itype], mass_specific_energy, 0.0, Lookup[EOS_SHOCK_C0][itype],
-			 Lookup[EOS_SHOCK_S][itype], Lookup[EOS_SHOCK_GAMMA][itype], pInitial, dt, pFinal, p_rate, damage[i]);
-		break;
+	  ShockEOS(rho, Lookup[REFERENCE_DENSITY][itype], mass_specific_energy, 0.0, Lookup[EOS_SHOCK_C0][itype],
+		   Lookup[EOS_SHOCK_S][itype], Lookup[EOS_SHOCK_GAMMA][itype], pInitial, dt, pFinal, p_rate, f);
+	    break;
 	case EOS_POLYNOMIAL:
-		polynomialEOS(rho, Lookup[REFERENCE_DENSITY][itype], vol_specific_energy, Lookup[EOS_POLYNOMIAL_C0][itype],
-				Lookup[EOS_POLYNOMIAL_C1][itype], Lookup[EOS_POLYNOMIAL_C2][itype], Lookup[EOS_POLYNOMIAL_C3][itype],
-				Lookup[EOS_POLYNOMIAL_C4][itype], Lookup[EOS_POLYNOMIAL_C5][itype], Lookup[EOS_POLYNOMIAL_C6][itype], pInitial, dt,
-			      pFinal, p_rate, damage[i]);
-
-		break;
+	  polynomialEOS(rho, Lookup[REFERENCE_DENSITY][itype], vol_specific_energy, Lookup[EOS_POLYNOMIAL_C0][itype],
+			Lookup[EOS_POLYNOMIAL_C1][itype], Lookup[EOS_POLYNOMIAL_C2][itype], Lookup[EOS_POLYNOMIAL_C3][itype],
+			Lookup[EOS_POLYNOMIAL_C4][itype], Lookup[EOS_POLYNOMIAL_C5][itype], Lookup[EOS_POLYNOMIAL_C6][itype], pInitial, dt,
+			pFinal, p_rate, f);
+	    break;
 	default:
 		error->one(FLERR, "unknown EOS.");
 		break;
@@ -2345,7 +2362,7 @@ void PairTlsph::ComputePressure(const int i, const double rho, const double mass
  Compute stress deviator. Called from AssembleStress().
  ------------------------------------------------------------------------- */
 void PairTlsph::ComputeStressDeviator(const int i, const double mass_specific_energy, const Matrix3d sigmaInitial_dev, const Matrix3d d_dev, Matrix3d &sigmaFinal_dev,
-				      Matrix3d &sigma_dev_rate, double &plastic_strain_increment, const double pInitial, const double pFinal, double &yieldStress) {
+				      Matrix3d &sigma_dev_rate, double &plastic_strain_increment, const double pInitial, double &pFinal, double &yieldStress) {
 	double *eff_plastic_strain = atom->eff_plastic_strain;
 	double *eff_plastic_strain_rate = atom->eff_plastic_strain_rate;
 	int *type = atom->type;
@@ -2397,12 +2414,12 @@ void PairTlsph::ComputeStressDeviator(const int i, const double mass_specific_en
 		if (failureModel[itype].failure_gtn == true) {
 		  if (failureModel[itype].failure_coupling == true) {
 		    damage_increment = GTNStrengthLH(Lookup[SHEAR_MODULUS][itype], Lookup[LH_A][itype], Lookup[LH_B][itype], Lookup[LH_n][itype], Lookup[GTN_AN][itype],
-						     Lookup[GTN_Q1][itype], Lookup[GTN_Q2][itype], Lookup[GTN_Komega][itype], Lookup[GTN_fcr][itype], dt, damage[i],
+						     Lookup[GTN_Q1][itype], Lookup[GTN_Q2][itype], Lookup[GTN_Komega][itype], Lookup[GTN_fcr][itype], Lookup[GTN_fF][itype], dt, damage[i],
 						     eff_plastic_strain[i], sigmaInitial_dev, d_dev, pInitial, pFinal, sigmaFinal_dev, sigma_dev_rate, plastic_strain_increment,
 						     true, atom->tag[i]);
 		  } else {
 		     damage_increment = GTNStrengthLH(Lookup[SHEAR_MODULUS][itype], Lookup[LH_A][itype], Lookup[LH_B][itype], Lookup[LH_n][itype], Lookup[GTN_AN][itype],
-						      Lookup[GTN_Q1][itype], Lookup[GTN_Q2][itype], Lookup[GTN_Komega][itype], Lookup[GTN_fcr][itype], dt, damage_init[i],
+						      Lookup[GTN_Q1][itype], Lookup[GTN_Q2][itype], Lookup[GTN_Komega][itype], Lookup[GTN_fcr][itype], Lookup[GTN_fF][itype], dt, damage_init[i],
 						      eff_plastic_strain[i], sigmaInitial_dev, d_dev, pInitial, pFinal, sigmaFinal_dev, sigma_dev_rate, plastic_strain_increment,
 						      false, atom->tag[i]);
 		  }

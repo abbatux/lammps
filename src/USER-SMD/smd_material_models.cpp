@@ -552,18 +552,26 @@ double GTNStrength(const double G, const double An, const double Q1, const doubl
 }
 
 double GTNStrengthLH(const double G, const double LH_A, const double LH_B, const double LH_n, const double An, const double Q1, const double Q2,
-		     const double Komega, const double fcr, const double dt, const double damage, const double ep, const Matrix3d sigmaInitial_dev,
+		     const double Komega, const double fcr, const double fF, const double dt, const double damage, const double ep, const Matrix3d sigmaInitial_dev,
 		     const Matrix3d d_dev, const double pInitial, double &pFinal, Matrix3d &sigmaFinal_dev__, Matrix3d &sigma_dev_rate__,
 		     double &plastic_strain_increment, const bool coupling, const int tag) {
   
   Matrix3d sigmaTrial_dev, dev_rate, plastic_strain_increment_array;
   double J2, yieldStress_undamaged, damage_increment;
   double Gd = G;
-  double f = damage * fcr;
-  if (coupling == true) Gd *= (1-f); 
+  double f;
+  double fcrQ1 = fcr*Q1;
   double x;
   double F, Q2triaxx, Q1f, Q1fSq, Q2triax, cosh_Q2triaxx;
+
+  if (damage <= fcrQ1) f = damage/Q1;
+  else {
+    f = fcr + (damage-fcrQ1)/(1-fcrQ1)*(fF - fcr);
+  }
+  if (coupling == true) Gd *= (1-f); 
+
   damage_increment = 0.0;
+
   /*
    * deviatoric rate of unrotated stress
    */
@@ -590,11 +598,11 @@ double GTNStrengthLH(const double G, const double LH_A, const double LH_B, const
     triax = 3.0;
   }
 
-  Q1f = Q1 * f;
-  Q1fSq = Q1f * Q1f;
+  Q1f = damage; // In reality it is Q1 * void function (f*) which is equal to damage
+  Q1fSq = damage * damage;
   x = J2/yieldStress_undamaged;
   Q2triax = 1.5 * Q2 * triax;
-  F = x*x + 2 * Q1f * cosh(Q2triax * x) - (1 + Q1fSq);
+  F = x*x + 2 * damage * cosh(Q2triax * x) - (1 + Q1fSq);
 
   if (F < 0.0) {
     /*
@@ -615,7 +623,7 @@ double GTNStrengthLH(const double G, const double LH_A, const double LH_B, const
      * NEWTON - RAPHSON METHOD TO DETERMINE THE YIELD STRESS:
      */
 
-    double Q1fQ2triax = Q1f * Q2triax;
+    double Q1fQ2triax = damage * Q2triax;
 
     double x = 1.0; // x = yieldStress / yieldStress_undamaged
     double dx = 1.0; // dx = x_{n+1} - x_{n} initiated at a value higher than the accepted error margin.
@@ -691,7 +699,11 @@ double GTNStrengthLH(const double G, const double LH_A, const double LH_B, const
       
       //printf("plastic_strain_increment = %.10e, alpha = %.10e, x = %.10e, triax = %.10e, Komega = %.10e, omega = %.10e, f = %.10e, f_increment = %.10e", plastic_strain_increment, alpha, x, triax, Komega, omega, f, (1-f) * inverse_x * (alpha * (1-f)/(alpha*triax + 1) + f * Komega * omega) * plastic_strain_increment);
       pFinal -= plastic_strain_increment * triax/beta;
-      damage_increment = (1-f) * inverse_x * (max(0.0, alpha) * (1-f) + f * Komega * omega) * plastic_strain_increment / (fcr * (alpha*triax + 1));
+      f += (1-f) * inverse_x * (max(0.0, alpha) * (1-f) + f * Komega * omega) * plastic_strain_increment / (alpha*triax + 1);
+      if (f <= fcr) damage_increment = Q1*f - damage;
+      else {
+	damage_increment = fcrQ1 + (1 - fcrQ1)/(fF - fcr)*(f - fcr) - damage;
+      }
     }
   }
   return damage_increment;
