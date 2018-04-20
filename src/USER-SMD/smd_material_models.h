@@ -54,10 +54,11 @@ void JohnsonCookStrength(const double G, const double cp, const double espec, co
 double GTNStrength(const double G, const double An, const double Q1, const double Q2, const double Komega, const double dt, const double damage, const double fcr,
 		   const Matrix3d sigmaInitial_dev, const Matrix3d d_dev, const double pInitial, const double pFinal, const double yieldStress_undamaged,
 		   Matrix3d &sigmaFinal_dev__, Matrix3d &sigma_dev_rate__, double &plastic_strain_increment, const bool coupling, const int tag);
-double GTNStrengthLH(const double G, const double LH_A, const double LH_B, const double LH_n, const double An, const double Q1, const double Q2,
-		   const double Komega, const double fcr, const double fF, const double dt, const double damage, const double ep, const Matrix3d sigmaInitial_dev,
-		   const Matrix3d d_dev, const double pInitial, double &pFinal, Matrix3d &sigmaFinal_dev__, Matrix3d &sigma_dev_rate__,
-		   double &plastic_strain_increment, const bool coupling, const int tag);
+double GTNStrengthLH(const double G, const double LH_A, const double LH_B, const double LH_n, const double Q1, const double Q2,
+		     const double fcr, const double fF, const double FN, const double sN, const double epsN, const double Komega, 
+		     const double dt, const double damage, const double ep, const Matrix3d sigmaInitial_dev, const Matrix3d d_dev,
+		     const double pInitial, double &pFinal, Matrix3d &sigmaFinal_dev__, Matrix3d &sigma_dev_rate__,
+		     double &plastic_strain_increment, const bool coupling, const int tag);
 /*
  * Damage models
  */
