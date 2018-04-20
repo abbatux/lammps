@@ -690,7 +690,7 @@ double GTNStrengthLH(const double G, const double LH_A, const double LH_B, const
       } else omega = 0;
       
       //printf("plastic_strain_increment = %.10e, alpha = %.10e, x = %.10e, triax = %.10e, Komega = %.10e, omega = %.10e, f = %.10e, f_increment = %.10e", plastic_strain_increment, alpha, x, triax, Komega, omega, f, (1-f) * inverse_x * (alpha * (1-f)/(alpha*triax + 1) + f * Komega * omega) * plastic_strain_increment);
-      damage_increment = (1-f) * inverse_x * (max(0.0, alpha * (1-f)/(alpha*triax + 1)) + f * Komega * omega) * plastic_strain_increment / fcr;
+      damage_increment = (1-f) * inverse_x * (max(0.0, alpha) * (1-f) + f * Komega * omega) * plastic_strain_increment / (fcr * (alpha*triax + 1));
     }
   }
   return damage_increment;
