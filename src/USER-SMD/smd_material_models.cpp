@@ -631,13 +631,16 @@ double GTNStrengthLH(const double G, const double LH_A, const double LH_B, const
     double error = 0.001;
     double Fprime, Q2triaxx;
 
-    while ((dx > error) || (dx < -error)) {
+    int i = 0;
+    while ((dx > error) || (dx < -error) || (J2 - x*yieldStress_undamaged) < 0.0) {
       Q2triaxx = Q2triax * x;
       F = x*x + 2 * Q1f * cosh(Q2triaxx) - (1 + Q1fSq);
       Fprime = 2 * (x + Q1fQ2triax * sinh(Q2triaxx));
 
       dx = -F/Fprime;
       x += dx;
+      if (i > 1) if (abs(dx) > error and (J2 - x*yieldStress_undamaged) < 0.0) printf("%d - %d - F = %.10e, x = %f, J2 = %.10e, yieldStress_undamaged = %.10e, ep = %.10e, f = %.10e, triax = %.10e\n", tag, i, F, x, J2, yieldStress_undamaged, ep, f, triax);
+      i++;
     }
 
     /*
