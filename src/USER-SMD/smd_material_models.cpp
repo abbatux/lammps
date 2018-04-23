@@ -552,7 +552,7 @@ double GTNStrength(const double G, const double An, const double Q1, const doubl
 }
 
 double GTNStrengthLH(const double G, const double LH_A, const double LH_B, const double LH_n, const double Q1, const double Q2,
-		     const double fcr, const double fF, const double FN, const double sN, const double epsN, const double Komega, 
+		     const double fcr, const double fF, const double FN, const double inverse_sN, const double epsN, const double Komega,
 		     const double dt, const double damage, const double ep, const Matrix3d sigmaInitial_dev, const Matrix3d d_dev,
 		     const double pInitial, double &pFinal, Matrix3d &sigmaFinal_dev__, Matrix3d &sigma_dev_rate__,
 		     double &plastic_strain_increment, const bool coupling, const int tag) {
@@ -698,7 +698,6 @@ double GTNStrengthLH(const double G, const double LH_A, const double LH_B, const
 	else if (omega > 1.0) omega = 1.0;
       } else omega = 0;
       
-      //printf("plastic_strain_increment = %.10e, alpha = %.10e, x = %.10e, triax = %.10e, Komega = %.10e, omega = %.10e, f = %.10e, f_increment = %.10e", plastic_strain_increment, alpha, x, triax, Komega, omega, f, (1-f) * inverse_x * (alpha * (1-f)/(alpha*triax + 1) + f * Komega * omega) * plastic_strain_increment);
       pFinal -= plastic_strain_increment * triax/beta;
 
       // Damage growth:
@@ -706,16 +705,17 @@ double GTNStrengthLH(const double G, const double LH_A, const double LH_B, const
 
       //Damage nucleation:
       if (FN != 0) {
-	double inverse_sN = 1/sN;
-	if (sN == 0)
+	if (inverse_sN == 0)
 	  f += FN * plastic_strain_increment ; // 0.39894228 = 1/sqrt(2*PI)
 	else
-	  f += FN * 0.39894228 * inverse_sN * exp(-0.5 * inverse_sN * (ep - epsN)) * plastic_strain_increment; // 0.39894228 = 1/sqrt(2*PI)
+	  if (f < FN)
+	    f += FN * 0.39894228 * inverse_sN * exp(-0.5 * inverse_sN * (ep - epsN)) * plastic_strain_increment; // 0.39894228 = 1/sqrt(2*PI)
       }
       if (f <= fcr) damage_increment = Q1*f - damage;
       else {
 	damage_increment = fcrQ1 + (1.0 - fcrQ1)/(fF - fcr)*(f - fcr) - damage;
       }
+      //if (tag == 34937) printf("plastic_strain_increment = %.10e, alpha = %.10e, x = %.10e, triax = %.10e, Komega = %.10e, omega = %.10e, f = %.10e, f_increment = %.10e, fN_increment = %.10e, damage_increment = %.10e, damage = %.10e\n", plastic_strain_increment, alpha, x, triax, Komega, omega, f, (1-f) * inverse_x * (max(0.0, alpha) * (1-f)/(alpha*triax + 1) + f * Komega * omega) * plastic_strain_increment, FN * 0.39894228 * 1/sN * exp(-0.5 * 1/sN * (ep - epsN)) * plastic_strain_increment, damage_increment, damage);
     }
   }
   return damage_increment;

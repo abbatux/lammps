@@ -186,7 +186,7 @@ protected:
 		GTN_Q1 = 68,
 		GTN_Q2 = 69,
 		GTN_FN = 70,
-		GTN_sN = 71,
+		GTN_inverse_sN = 71,
 		GTN_epsN = 72,
 		GTN_f0 = 73,
 		GTN_fcr = 74,

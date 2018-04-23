@@ -1971,7 +1971,11 @@ void PairTlsph::coeff(int narg, char **arg) {
 			Lookup[GTN_Q1][itype] = force->numeric(FLERR, arg[ioffset + 1]);
 			Lookup[GTN_Q2][itype] = force->numeric(FLERR, arg[ioffset + 2]);
 			Lookup[GTN_FN][itype] = force->numeric(FLERR, arg[ioffset + 3]);
-			Lookup[GTN_sN][itype] = force->numeric(FLERR, arg[ioffset + 4]);
+			//Lookup[GTN_sN][itype] = force->numeric(FLERR, arg[ioffset + 4]);
+			if (force->numeric(FLERR, arg[ioffset + 4]) == 0.0)
+			  Lookup[GTN_inverse_sN][itype] = 0.0;
+			else
+			  Lookup[GTN_inverse_sN][itype] = 1.0/force->numeric(FLERR, arg[ioffset + 4]);
 			Lookup[GTN_epsN][itype] = force->numeric(FLERR, arg[ioffset + 5]);
 			Lookup[GTN_f0][itype] = force->numeric(FLERR, arg[ioffset + 6]);
 			Lookup[GTN_fcr][itype] = force->numeric(FLERR, arg[ioffset + 7]);
@@ -1980,11 +1984,15 @@ void PairTlsph::coeff(int narg, char **arg) {
 
 			if (comm->me == 0) {
 				printf("%60s\n", " Gurson - Tvergaard - Needleman failure model");
-				printf("%60s : %g\n", "Q1 ", Lookup[GTN_Q1][itype]);
-				printf("%60s : %g\n", "Q2 ", Lookup[GTN_Q2][itype]);
-				printf("%60s : %g\n", "If sN == 0, AN otherwise FN", Lookup[GTN_FN][itype]);
-				printf("%60s : %g\n", "sN ", Lookup[GTN_sN][itype]);
-				printf("%60s : %g\n", "epsN ", Lookup[GTN_epsN][itype]);
+				printf("%60s : %g\n", "Q1", Lookup[GTN_Q1][itype]);
+				printf("%60s : %g\n", "Q2", Lookup[GTN_Q2][itype]);
+				if (Lookup[GTN_inverse_sN][itype] == 0.0) {
+				  printf("%60s : %g\n", "AN", Lookup[GTN_FN][itype]);
+				} else {
+				  printf("%60s : %g\n", "FN", Lookup[GTN_FN][itype]);
+				  printf("%60s : %g\n", "sN", 1.0/Lookup[GTN_inverse_sN][itype]);
+				  printf("%60s : %g\n", "epsN", Lookup[GTN_epsN][itype]);
+				}
 				printf("%60s : %g\n", "Initial void fraction f0", Lookup[GTN_f0][itype]);
 				printf("%60s : %g\n", "Critical void fraction", Lookup[GTN_fcr][itype]);
 				printf("%60s : %g\n", "Void fraction at failure", Lookup[GTN_fF][itype]);
@@ -2421,7 +2429,7 @@ void PairTlsph::ComputeStressDeviator(const int i, const double mass_specific_en
 	case STRENGTH_LUDWICK_HOLLOMON:
 		if (failureModel[itype].failure_gtn == true) {
 		  damage_increment = GTNStrengthLH(Lookup[SHEAR_MODULUS][itype], Lookup[LH_A][itype], Lookup[LH_B][itype], Lookup[LH_n][itype], Lookup[GTN_Q1][itype],
-						   Lookup[GTN_Q2][itype], Lookup[GTN_fcr][itype], Lookup[GTN_fF][itype], Lookup[GTN_FN][itype], Lookup[GTN_sN][itype],
+						   Lookup[GTN_Q2][itype], Lookup[GTN_fcr][itype], Lookup[GTN_fF][itype], Lookup[GTN_FN][itype], Lookup[GTN_inverse_sN][itype],
 						   Lookup[GTN_epsN][itype], Lookup[GTN_Komega][itype], dt, damage[i], eff_plastic_strain[i], sigmaInitial_dev, d_dev,
 						   pInitial, pFinal, sigmaFinal_dev, sigma_dev_rate, plastic_strain_increment, coupling, atom->tag[i]);
 		}
