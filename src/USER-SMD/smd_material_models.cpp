@@ -890,3 +890,37 @@ double GTNDamageIncrement(const double Q1, const double Q2, const double An, con
   }
   return f_increment / fcr;
 }
+
+/* ----------------------------------------------------------------------
+ Cockcroft-Latham failure model
+ input:
+
+
+ output:
+
+
+ ------------------------------------------------------------------------- */
+
+double CockcroftLathamDamageIncrement(const Matrix3d S, const double W, const double plastic_strain_increment) {
+
+  if (plastic_strain_increment > 0.0) {
+    // Principal stress:
+    EigenSolver<Matrix3d> ES;
+    ES.compute(S); // Compute eigenvalues and eigenvectors
+    Vector3d Lambda = ES.eigenvalues().real(); // Vector of eigenvalues (real).
+    Vector3d Lambda_abs = ES.eigenvalues().real().cwiseAbs(); // Vector of the absolute value of eigenvalues (real).
+    double Lambda_max = Lambda.maxCoeff();
+
+    if (Lambda_max == Lambda_abs.maxCoeff()) {
+      // The principal stress is positive
+      //printf("Lambda = [%.10e %.10e %.10e], Lambda_max = %.10e, plastic_strain_increment / W = %.10e, damage_increment = %.10e\n", Lambda[0], Lambda[1], Lambda[2], Lambda_max, plastic_strain_increment / W,Lambda_max * plastic_strain_increment / W);
+      return Lambda_max * plastic_strain_increment / W;
+    } else {
+      //printf("Lambda = [%.10e %.10e %.10e], damage_increment = 0\n", Lambda[0], Lambda[1], Lambda[2]);
+      // The principal stress is negative
+      return 0;
+    }
+  } else {
+    return 0;
+  }
+}

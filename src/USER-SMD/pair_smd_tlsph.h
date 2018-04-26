@@ -67,7 +67,7 @@ public:
 	void ComputePressure(const int i, const double rho, const double mass_specific_energy, const double vol_specific_energy,
 			const double pInitial, const double d_iso, double &pFinal, double &p_rate);
 	void ComputeStressDeviator(const int i, const double mass_specific_energy, const Eigen::Matrix3d sigmaInitial_dev, const Eigen::Matrix3d d_dev, Eigen::Matrix3d &sigmaFinal_dev,
-				   Eigen::Matrix3d &sigma_dev_rate, double &plastic_strain_increment, const double pInitial, const double pFinal, double &yieldstress);
+				   Eigen::Matrix3d &sigma_dev_rate, double &plastic_strain_increment, const double pInitial, double &pFinal, double &yieldstress);
 	void ComputeDamage(const int i, const Eigen::Matrix3d strain, const Eigen::Matrix3d sigmaFinal, Eigen::Matrix3d &sigma_damaged, double plastic_strain_increment, const double yieldstress);
 	void UpdateDegradation();
  	void AdjustStressForZeroForceBC(const Eigen::Matrix3d sigma, const Eigen::Vector3d sU, Eigen::Matrix3d &sigmaBC);
@@ -189,8 +189,9 @@ protected:
 		GTN_f0 = 71,
 		GTN_fcr = 72,
 		GTN_Komega = 73,
+		CL_W = 74,
 
-		MAX_KEY_VALUE = 74
+		MAX_KEY_VALUE = 75
 	};
 
 	struct failure_types { // this is defined per type and determines which failure/damage model is active
@@ -201,6 +202,7 @@ protected:
 		bool failure_johnson_cook;
 		bool failure_coupling; // true when the JC failure model couples damage with the constitutive laws.
 		bool failure_gtn;
+		bool failure_cockcroft_latham;
 		bool failure_max_pairwise_strain;
 		bool integration_point_wise; // true if failure model applies to stress/strain state of integration point
 		bool failure_energy_release_rate;
