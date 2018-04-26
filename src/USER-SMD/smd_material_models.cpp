@@ -380,7 +380,7 @@ void JohnsonCookStrength(const double G, const double cp, const double espec, co
 	epdot_ratio = MAX(epdot_ratio, 1.0);
 	//printf("current temperature delta is %f, TH=%f\n", deltaT, TH);
 	
-	yieldStress = (A + B * pow(ep, a)) * (1.0 + C * log(epdot_ratio)); // * (1.0 - pow(TH, M));
+	yieldStress = (A + B * pow(ep, a)) * pow(1.0 + epdot_ratio, C); // * (1.0 - pow(TH, M));
 	
 	LinearPlasticStrength(G, yieldStress, sigmaInitial_dev, d_dev, dt, sigmaFinal_dev__, sigma_dev_rate__, plastic_strain_increment, damage);
 }
