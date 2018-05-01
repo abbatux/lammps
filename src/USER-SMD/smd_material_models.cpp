@@ -639,7 +639,7 @@ double GTNStrengthLH(const double G, const double LH_A, const double LH_B, const
 
       dx = -F/Fprime;
       x += dx;
-      if (i > 1) if (abs(dx) > error and (J2 - x*yieldStress_undamaged) < 0.0) printf("%d - %d - F = %.10e, x = %f, J2 = %.10e, yieldStress_undamaged = %.10e, ep = %.10e, f = %.10e, triax = %.10e\n", tag, i, F, x, J2, yieldStress_undamaged, ep, f, triax);
+      //if (i > 1) if (abs(dx) > error and (J2 - x*yieldStress_undamaged) < 0.0) printf("%d - %d - F = %.10e, x = %f, J2 = %.10e, yieldStress_undamaged = %.10e, ep = %.10e, f = %.10e, triax = %.10e\n", tag, i, F, x, J2, yieldStress_undamaged, ep, f, triax);
       i++;
     }
 

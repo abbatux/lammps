@@ -2442,11 +2442,15 @@ void PairTlsph::ComputeStressDeviator(const int i, const double mass_specific_en
 	bool coupling;
 	plastic_strain_increment = 0.0;
 	itype = type[i];
+	double d;
 
-	if (failureModel[itype].failure_coupling == true)
+	if (failureModel[itype].failure_coupling == true) {
 	  coupling = true;
+	  d = damage[i];
+	}
 	else
 	  coupling = false;
+	  d = damage_init[i];
 	
 	switch (strengthModel[itype]) {
 	case STRENGTH_LINEAR:
@@ -2467,36 +2471,36 @@ void PairTlsph::ComputeStressDeviator(const int i, const double mass_specific_en
 		yieldStress = Lookup[YIELD_STRESS][itype] + Lookup[HARDENING_PARAMETER][itype] * eff_plastic_strain[i];
 		if (failureModel[itype].failure_gtn) {
 		  damage_increment = GTNStrength(Lookup[SHEAR_MODULUS][itype], Lookup[GTN_FN][itype], Lookup[GTN_Q1][itype], Lookup[GTN_Q2][itype], Lookup[GTN_Komega][itype],
-						 dt, damage[i], Lookup[GTN_fcr][itype], sigmaInitial_dev, d_dev, pInitial, pFinal, yieldStress,
+						 dt, d, Lookup[GTN_fcr][itype], sigmaInitial_dev, d_dev, pInitial, pFinal, yieldStress,
 						 sigmaFinal_dev, sigma_dev_rate, plastic_strain_increment, coupling, atom->tag[i]);
 		}
 		else 
 		  LinearPlasticStrength(Lookup[SHEAR_MODULUS][itype], yieldStress, sigmaInitial_dev, d_dev, dt, sigmaFinal_dev,
-					sigma_dev_rate, plastic_strain_increment, damage[i]);
+					sigma_dev_rate, plastic_strain_increment, d);
 		break;
 	case STRENGTH_LUDWICK_HOLLOMON:
 		if (failureModel[itype].failure_gtn == true) {
 		  damage_increment = GTNStrengthLH(Lookup[SHEAR_MODULUS][itype], Lookup[LH_A][itype], Lookup[LH_B][itype], Lookup[LH_n][itype], Lookup[GTN_Q1][itype],
 						   Lookup[GTN_Q2][itype], Lookup[GTN_fcr][itype], Lookup[GTN_fF][itype], Lookup[GTN_FN][itype], Lookup[GTN_inverse_sN][itype],
-						   Lookup[GTN_epsN][itype], Lookup[GTN_Komega][itype], dt, damage[i], eff_plastic_strain[i], sigmaInitial_dev, d_dev,
+						   Lookup[GTN_epsN][itype], Lookup[GTN_Komega][itype], dt, d, eff_plastic_strain[i], sigmaInitial_dev, d_dev,
 						   pInitial, pFinal, sigmaFinal_dev, sigma_dev_rate, plastic_strain_increment, coupling, atom->tag[i]);
 		}
 		else {
 		  yieldStress = Lookup[LH_A][itype] + Lookup[LH_B][itype] * pow(eff_plastic_strain[i], Lookup[LH_n][itype]);
 		  LinearPlasticStrength(Lookup[SHEAR_MODULUS][itype], yieldStress, sigmaInitial_dev, d_dev, dt, sigmaFinal_dev,
-					sigma_dev_rate, plastic_strain_increment, damage[i]);
+					sigma_dev_rate, plastic_strain_increment, d);
 		}
 		break;
 	case STRENGTH_SWIFT:
 		yieldStress = Lookup[SWIFT_A][itype] + Lookup[SWIFT_B][itype] * pow(eff_plastic_strain[i] + Lookup[SWIFT_eps0][itype], Lookup[SWIFT_n][itype]);
 		if (failureModel[itype].failure_gtn) {
 		  damage_increment = GTNStrength(Lookup[SHEAR_MODULUS][itype], Lookup[GTN_FN][itype], Lookup[GTN_Q1][itype], Lookup[GTN_Q2][itype], Lookup[GTN_Komega][itype],
-						 dt, damage[i], Lookup[GTN_fcr][itype], sigmaInitial_dev, d_dev, pInitial, pFinal, yieldStress,
+						 dt, d, Lookup[GTN_fcr][itype], sigmaInitial_dev, d_dev, pInitial, pFinal, yieldStress,
 						 sigmaFinal_dev, sigma_dev_rate, plastic_strain_increment, coupling, atom->tag[i]);
 		}
 		else 
 		  LinearPlasticStrength(Lookup[SHEAR_MODULUS][itype], yieldStress, sigmaInitial_dev, d_dev, dt, sigmaFinal_dev,
-					sigma_dev_rate, plastic_strain_increment, damage[i]);
+					sigma_dev_rate, plastic_strain_increment, d);
 		break;
 	case STRENGTH_VOCE:
 		yieldStress = Lookup[VOCE_A][itype] - Lookup[VOCE_Q1][itype] * exp(-Lookup[VOCE_n1][itype] * eff_plastic_strain[i])
@@ -2509,18 +2513,18 @@ void PairTlsph::ComputeStressDeviator(const int i, const double mass_specific_en
 		}
 		if (failureModel[itype].failure_gtn) {
 		  damage_increment = GTNStrength(Lookup[SHEAR_MODULUS][itype], Lookup[GTN_FN][itype], Lookup[GTN_Q1][itype], Lookup[GTN_Q2][itype], Lookup[GTN_Komega][itype],
-						 dt, damage[i], Lookup[GTN_fcr][itype], sigmaInitial_dev, d_dev, pInitial, pFinal, yieldStress,
+						 dt, d, Lookup[GTN_fcr][itype], sigmaInitial_dev, d_dev, pInitial, pFinal, yieldStress,
 						 sigmaFinal_dev, sigma_dev_rate, plastic_strain_increment, coupling, atom->tag[i]);
 		}
 		else
 		  LinearPlasticStrength(Lookup[SHEAR_MODULUS][itype], yieldStress, sigmaInitial_dev, d_dev, dt, sigmaFinal_dev,
-					sigma_dev_rate, plastic_strain_increment, damage[i]);
+					sigma_dev_rate, plastic_strain_increment, d);
 		break;
 	case STRENGTH_JOHNSON_COOK:
 		JohnsonCookStrength(Lookup[SHEAR_MODULUS][itype], Lookup[HEAT_CAPACITY][itype], mass_specific_energy, Lookup[JC_A][itype],
 				Lookup[JC_B][itype], Lookup[JC_a][itype], Lookup[JC_C][itype], Lookup[JC_epdot0][itype], Lookup[JC_T0][itype],
 				Lookup[JC_Tmelt][itype], Lookup[JC_M][itype], dt, eff_plastic_strain[i], eff_plastic_strain_rate[i],
-				sigmaInitial_dev, d_dev, sigmaFinal_dev, sigma_dev_rate, plastic_strain_increment, damage[i]);
+				sigmaInitial_dev, d_dev, sigmaFinal_dev, sigma_dev_rate, plastic_strain_increment, d);
 		break;
 	case STRENGTH_NONE:
 		sigmaFinal_dev.setZero();
@@ -2530,7 +2534,7 @@ void PairTlsph::ComputeStressDeviator(const int i, const double mass_specific_en
 		error->one(FLERR, "unknown strength model.");
 		break;
 	}
-	//printf("damage_increment = %10.e, plastic_strain_increment = %10.e\n", damage_increment, plastic_strain_increment);
+
 	if (failureModel[itype].failure_coupling == true) {
 	  damage[i] += damage_increment;
 	} else {
