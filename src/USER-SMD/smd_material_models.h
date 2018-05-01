@@ -69,6 +69,6 @@ double JohnsonCookDamageIncrement(const double p, const Matrix3d Sdev, const dou
 				  const double d4, const double epdot0, const double epdot, const double plastic_strain_increment);
 double GTNDamageIncrement(const double Q1, const double Q2, const double An, const double Komega, const double pressure, const Matrix3d Sdev, const Matrix3d stress,
 			  const double plastic_strain_increment, const double damage, const double fcr, const double yieldstress);
-
+double CockcroftLathamDamageIncrement(const Matrix3d S, const double W, const double plastic_strain_increment);
 
 #endif /* SMD_MATERIAL_MODELS_H_ */

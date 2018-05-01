@@ -2000,6 +2000,54 @@ void PairTlsph::coeff(int narg, char **arg) {
 				if (failureModel[itype].failure_coupling == false) printf("%60s\n", "NO COUPLING WITH CONSTITUTIVE LAWS");
 			}
 
+		} // End of GURSON_TVERGAARD_NEEDLEMAN
+
+		else if (strcmp(arg[ioffset], "*COCKCROFT_LATHAM") == 0) {
+
+			/*
+			 * COCKCROFT - LATHAMGURSON Model
+			 */
+		  
+			if (comm->me == 0) {
+				printf("reading *COCKCROFT_LATHAM\n");
+			}
+
+			t = string("*");
+			iNextKwd = -1;
+			for (iarg = ioffset + 1; iarg < narg; iarg++) {
+				s = string(arg[iarg]);
+				if (s.compare(0, t.length(), t) == 0) {
+					iNextKwd = iarg;
+					break;
+				}
+			}
+
+			if (iNextKwd < 0) {
+				sprintf(str, "no *KEYWORD terminates *COCKCROFT_LATHAM");
+				error->all(FLERR, str);
+			}
+
+			if (iNextKwd - ioffset != 1 + 1) {
+			  if ((iNextKwd - ioffset == 2 + 1) && (strcmp(arg[ioffset + 2], "NO_COUPLING") == 0)) {
+			    failureModel[itype].failure_coupling = false;
+			  } else {
+			    sprintf(str, "expected 2 arguments following *COCKCROFT_LATHAM but got %d\n", iNextKwd - ioffset - 1);
+			    error->all(FLERR, str);
+			  }
+			}
+
+			failureModel[itype].failure_cockcroft_latham = true;
+			failureModel[itype].integration_point_wise = true;
+			failureModel[itype].failure_none = false;
+			
+			Lookup[CL_W][itype] = force->numeric(FLERR, arg[ioffset + 1]);
+
+			if (comm->me == 0) {
+				printf("%60s\n", " Cockcroft - Latham failure model");
+				printf("%60s : %g\n", "Total plastic work per unit volume: W", Lookup[CL_W][itype]);
+				if (failureModel[itype].failure_coupling == false) printf("%60s\n", "NO COUPLING WITH CONSTITUTIVE LAWS");
+			}
+
 		} 
 
 		else {
@@ -2568,6 +2616,14 @@ void PairTlsph::ComputeDamage(const int i, const Matrix3d strain, const Matrix3d
 	    // damage_init[i] += GTNDamageIncrement(Lookup[GTN_Q1][itype], Lookup[GTN_Q2][itype], Lookup[GTN_AN][itype], Lookup[GTN_Komega][itype], pressure,
 	    // 					stress_deviator, stress, plastic_strain_increment, damage_init[i], Lookup[GTN_fcr][itype], yieldstress);
 
+	    if (damage_init[i] >= 1.0) damage[i] = 1.0;
+	  }
+	} else if (failureModel[itype].failure_cockcroft_latham) {
+	  damage_increment = CockcroftLathamDamageIncrement(stress, Lookup[CL_W][itype], plastic_strain_increment);
+	  if (failureModel[itype].failure_coupling == true) {
+	    damage[i] += damage_increment;
+	  } else {
+	    damage_init[i] += damage_increment;
 	    if (damage_init[i] >= 1.0) damage[i] = 1.0;
 	  }
 	}

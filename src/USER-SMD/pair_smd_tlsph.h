@@ -192,8 +192,9 @@ protected:
 		GTN_fcr = 74,
 		GTN_fF = 75,
 		GTN_Komega = 76,
+		CL_W = 77,
 
-		MAX_KEY_VALUE = 77
+		MAX_KEY_VALUE = 78
 	};
 
 	struct failure_types { // this is defined per type and determines which failure/damage model is active
@@ -204,6 +205,7 @@ protected:
 		bool failure_johnson_cook;
 		bool failure_coupling; // true when the JC failure model couples damage with the constitutive laws.
 		bool failure_gtn;
+		bool failure_cockcroft_latham;
 		bool failure_max_pairwise_strain;
 		bool integration_point_wise; // true if failure model applies to stress/strain state of integration point
 		bool failure_energy_release_rate;
