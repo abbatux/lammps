@@ -988,6 +988,8 @@
 /compute_smd_ulsph_strain_rate.h
 /compute_smd_ulsph_stress.cpp
 /compute_smd_ulsph_stress.h
+/compute_smd_vfrac.cpp
+/compute_smd_vfrac.h
 /compute_smd_vol.cpp
 /compute_smd_vol.h
 /compute_temp_cs.cpp
