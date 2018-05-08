@@ -1404,7 +1404,7 @@ void PairTlsph::coeff(int narg, char **arg) {
 			flowstress.LH(Lookup[LH_A][itype], Lookup[LH_B][itype], Lookup[LH_n][itype]);
 
 			if (comm->me == 0) {
-				printf("%60s\n", "Ludwick-Hollomon material strength model");
+				printf("%60s : %s\n", "Ludwick-Hollomon material strength model","A + B * pow(ep, n)");
 				printf("%60s : %g\n", "A: initial yield stress", Lookup[LH_A][itype]);
 				printf("%60s : %g\n", "B : proportionality factor for plastic strain dependency", Lookup[LH_B][itype]);
 				printf("%60s : %g\n", "n : exponent for plastic strain dependency", Lookup[LH_n][itype]);
@@ -1454,7 +1454,7 @@ void PairTlsph::coeff(int narg, char **arg) {
 			}
 
 			if (comm->me == 0) {
-				printf("%60s\n", "Swift strength model");
+				printf("%60s : %s\n", "Swift strength model", "A + B * pow(ep - eps0, n)");
 				printf("%60s : %g\n", "A: initial yield stress", Lookup[SWIFT_A][itype]);
 				printf("%60s : %g\n", "B : proportionality factor for plastic strain dependency", Lookup[SWIFT_B][itype]);
 				printf("%60s : %g\n", "n : exponent for plastic strain dependency", Lookup[SWIFT_n][itype]);
@@ -1503,12 +1503,13 @@ void PairTlsph::coeff(int narg, char **arg) {
 			flowstress.VOCE(Lookup[VOCE_A][itype], Lookup[VOCE_Q1][itype], Lookup[VOCE_n1][itype], Lookup[VOCE_Q2][itype], Lookup[VOCE_n2][itype], Lookup[VOCE_C][itype], Lookup[VOCE_epsdot0][itype]);
 
 			if (comm->me == 0) {
-				printf("%60s\n", "Voce strength model");
-				printf("%60s : %g\n", "initial yield stress A", Lookup[VOCE_A][itype]);
+				printf("%60s : %s\n", "Voce strength model", "A - Q1 * exp(-n1 * ep) - Q2 * exp(-n2 * ep)");
+				printf("%60s : %g\n", "A", Lookup[VOCE_A][itype]);
 				printf("%60s : %g\n", "Q1", Lookup[VOCE_Q1][itype]);
 				printf("%60s : %g\n", "n1", Lookup[VOCE_n1][itype]);
 				printf("%60s : %g\n", "Q2", Lookup[VOCE_Q2][itype]);
 				printf("%60s : %g\n", "n2", Lookup[VOCE_n2][itype]);
+				printf("%60s : %g\n", "initial yield stress sigma0", Lookup[VOCE_A][itype] - Lookup[VOCE_Q1][itype] - Lookup[VOCE_Q2][itype]);
 				printf("%60s : %g\n", "proportionality factor for logarithmic plastic strain rate dependency C", Lookup[VOCE_C][itype]);
 				printf("%60s : %g\n", "dimensionality factor for plastic strain rate dependency epsdot0", Lookup[VOCE_epsdot0][itype]);
 			}

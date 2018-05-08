@@ -17,8 +17,8 @@ class FlowStress {
     type = 0;
   }
 
-  void VOCE(double sigma0, double Q1, double n1, double Q2, double n2, double c, double epsdot0) {
-    C[0] = sigma0;
+  void VOCE(double A, double Q1, double n1, double Q2, double n2, double c, double epsdot0) {
+    C[0] = A;
     C[1] = Q1;
     C[2] = n1;
     C[3] = Q2;
@@ -59,7 +59,7 @@ class FlowStress {
     case 0: // LH
       return C[0] + C[1] * pow(ep, C[2]);
     case 1: // VOCE
-      return C[0] + C[1] * (1.0 - exp(-C[2] * ep)) + C[3] * (1.0 - exp(-C[4] * ep));
+      return C[0] - C[1] * exp(-C[2] * ep) - C[3] * exp(-C[4] * ep);
     case 2: // SWIFT
       return C[0] + C[1] * pow(ep - C[3], C[2]);
     case 3: // JC
