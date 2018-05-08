@@ -33,6 +33,7 @@ PairStyle(smd/tlsph,PairTlsph)
 
 #include "pair.h"
 #include <Eigen/Eigen>
+#include "smd_flowstress.h"
 
 namespace LAMMPS_NS {
 
@@ -234,6 +235,7 @@ protected:
 private:
 	double **Lookup; // holds per-type material parameters for the quantities defined in enum statement above.
 	bool first; // if first is true, do not perform any computations, beacuse reference configuration is not ready yet.
+  FlowStress flowstress; // holds the flow stress equations
 };
 
 }
