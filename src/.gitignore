@@ -918,7 +918,6 @@
 /remap_wrap.h
 /restart_mpiio.cpp
 /restart_mpiio.h
-/smd_flowstress.h
 /smd_kernels.h
 /smd_material_models.cpp
 /smd_material_models.h

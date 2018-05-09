@@ -823,9 +823,11 @@ void PairTlsph::AssembleStress() {
 				sigmaInitial_dev = Deviator(sigmaInitial);
 				d_iso = D[i].trace(); // volumetric part of stretch rate
 				d_dev = Deviator(D[i]); // deviatoric part of stretch rate
-				strain = 0.5 * (Fincr[i].transpose() * Fincr[i] - eye);
+				Matrix3d FtF = Fincr[i].transpose() * Fincr[i];
+				strain = 0.5 * (FtF - eye);
 				mass_specific_energy = e[i] / rmass[i]; // energy per unit mass
-				rho[i] = rmass[i] / (detF[i] * vfrac[i]);
+				//rho[i] = rmass[i] / (detF[i] * vfrac[i]);
+				rho[i] = rmass[i] / (sqrt(FtF.determinant()) * vfrac[i]);
 				vol_specific_energy = mass_specific_energy * rho[i]; // energy per current volume
 
 				/*

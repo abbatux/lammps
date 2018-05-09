@@ -33,7 +33,7 @@ PairStyle(smd/tlsph,PairTlsph)
 
 #include "pair.h"
 #include <Eigen/Eigen>
-#include "smd_flowstress.h"
+#include "smd_material_models.h"
 
 namespace LAMMPS_NS {
 
