@@ -62,42 +62,6 @@ using namespace SMD_Math;
 #define TLSPH_DEBUG 0
 #define PLASTIC_STRAIN_AVERAGE_WINDOW 100.0
 
-static Matrix3d CreateOrthonormalBasisFromOneVector(Vector3d sU) {
-  Matrix3d P;
-  Vector3d sV, sW;
-  double sU_Norm;
-
-  // Make sure that sU has a norm of one:
-  sU_Norm = sU.norm();
-  if (sU_Norm != 1.0) {
-    sU /= sU_Norm;
-  }
-
-  if (abs(float(sU[1])) > 1.0e-15) {
-    sV[0] = 0.0;
-    sV[1] = - sU[2];
-    sV[2] = sU[1];
-  } else if (abs(float(sU[2])) > 1.0e-15) {
-    sV[0] = sU[2];
-    sV[1] = 0.0;
-    sV[2] = -sU[0];
-  } else {
-    sV[0] = 0.0;
-    sV[1] = 1.0;
-    sV[2] = 0.0;
-  }
-  
-  sV /= sV.norm();
-  sW = sU.cross(sV);
-  //sW /= sW.norm(); This can be skipped since sU and sV are orthogonal and both unitary.
-
-  P.col(0) = sU;
-  P.col(1) = sV;
-  P.col(2) = sW;
-
-  return P;
-}
-
 /* ---------------------------------------------------------------------- */
 
 PairTlsph::PairTlsph(LAMMPS *lmp) :
@@ -543,7 +507,6 @@ void PairTlsph::ComputeForces(int eflag, int vflag) {
 	Vector3d **partnerx0 = ((FixSMD_TLSPH_ReferenceConfiguration *) modify->fix[ifix_tlsph])->partnerx0;
         double **partnervol = ((FixSMD_TLSPH_ReferenceConfiguration *) modify->fix[ifix_tlsph])->partnervol;
 	Matrix3d eye;
-	Vector3d sU, sV, sW;
 	Matrix3d *K0 = ((FixSMD_TLSPH_ReferenceConfiguration *) modify->fix[ifix_tlsph])->K0;
 	eye.setIdentity();
 
@@ -841,7 +804,7 @@ void PairTlsph::AssembleStress() {
 				 */
 
 				//cout << "this is the strain deviator rate" << endl << d_dev << endl;
-				ComputeStressDeviator(i, mass_specific_energy, sigmaInitial_dev, d_dev, sigmaFinal_dev, sigma_dev_rate, plastic_strain_increment, pInitial, pFinal, yieldstress);
+				ComputeStressDeviator(i, mass_specific_energy, sigmaInitial_dev, d_dev, sigmaFinal_dev, sigma_dev_rate, plastic_strain_increment, pInitial, pFinal);
 				//cout << "this is the stress deviator rate" << endl << sigma_dev_rate << endl;
 
 				// keep a rolling average of the plastic strain rate over the last 100 or so timesteps
@@ -897,7 +860,7 @@ void PairTlsph::AssembleStress() {
 				 */
 
 				if (failureModel[itype].integration_point_wise) {
-				  ComputeDamage(i, strain, T, T_damaged, plastic_strain_increment, yieldstress);
+				  ComputeDamage(i, strain, T, T_damaged, plastic_strain_increment);
 				  T = T_damaged;
 				}
 
@@ -2441,7 +2404,7 @@ void PairTlsph::ComputePressure(const int i, const double rho, const double mass
  Compute stress deviator. Called from AssembleStress().
  ------------------------------------------------------------------------- */
 void PairTlsph::ComputeStressDeviator(const int i, const double mass_specific_energy, const Matrix3d sigmaInitial_dev, const Matrix3d d_dev, Matrix3d &sigmaFinal_dev,
-				      Matrix3d &sigma_dev_rate, double &plastic_strain_increment, const double pInitial, double &pFinal, double &yieldStress) {
+				      Matrix3d &sigma_dev_rate, double &plastic_strain_increment, const double pInitial, double &pFinal) {
 	double *eff_plastic_strain = atom->eff_plastic_strain;
 	double *eff_plastic_strain_rate = atom->eff_plastic_strain_rate;
 	int *type = atom->type;
@@ -2457,6 +2420,7 @@ void PairTlsph::ComputeStressDeviator(const int i, const double mass_specific_en
 	plastic_strain_increment = 0.0;
 	itype = type[i];
 	double d;
+	double yieldStress;
 
 	if (failureModel[itype].failure_coupling == true) {
 	  coupling = true;
@@ -2487,8 +2451,7 @@ void PairTlsph::ComputeStressDeviator(const int i, const double mass_specific_en
 						 Lookup[GTN_Q2][itype], Lookup[GTN_fcr][itype], Lookup[GTN_fF][itype], Lookup[GTN_FN][itype], Lookup[GTN_inverse_sN][itype],
 						 Lookup[GTN_epsN][itype], Lookup[GTN_Komega][itype], dt, d, eff_plastic_strain[i], sigmaInitial_dev, d_dev,
 						 pInitial, pFinal, sigmaFinal_dev, sigma_dev_rate, plastic_strain_increment, coupling, atom->tag[i]);
-		}
-		else {
+		} else {
 		  yieldStress = flowstress.evaluate(eff_plastic_strain[i]);
 		  LinearPlasticStrength(Lookup[SHEAR_MODULUS][itype], yieldStress, sigmaInitial_dev, d_dev, dt, sigmaFinal_dev,
 					sigma_dev_rate, plastic_strain_increment, d);
@@ -2500,8 +2463,7 @@ void PairTlsph::ComputeStressDeviator(const int i, const double mass_specific_en
 						 Lookup[GTN_Q2][itype], Lookup[GTN_fcr][itype], Lookup[GTN_fF][itype], Lookup[GTN_FN][itype], Lookup[GTN_inverse_sN][itype],
 						 Lookup[GTN_epsN][itype], Lookup[GTN_Komega][itype], dt, d, eff_plastic_strain[i], sigmaInitial_dev, d_dev,
 						 pInitial, pFinal, sigmaFinal_dev, sigma_dev_rate, plastic_strain_increment, coupling, atom->tag[i]);
-		}
-		else {
+		} else {
 		  yieldStress = flowstress.evaluate(eff_plastic_strain[i]);
 		  if (yieldStress != Lookup[LH_A][itype] + Lookup[LH_B][itype] * pow(eff_plastic_strain[i], Lookup[LH_n][itype]))
 		    printf("ERROR: yieldStress = %.10e != %.10e", yieldStress, Lookup[LH_A][itype] + Lookup[LH_B][itype] * pow(eff_plastic_strain[i], Lookup[LH_n][itype]));
@@ -2515,8 +2477,7 @@ void PairTlsph::ComputeStressDeviator(const int i, const double mass_specific_en
 						 Lookup[GTN_Q2][itype], Lookup[GTN_fcr][itype], Lookup[GTN_fF][itype], Lookup[GTN_FN][itype], Lookup[GTN_inverse_sN][itype],
 						 Lookup[GTN_epsN][itype], Lookup[GTN_Komega][itype], dt, d, eff_plastic_strain[i], sigmaInitial_dev, d_dev,
 						 pInitial, pFinal, sigmaFinal_dev, sigma_dev_rate, plastic_strain_increment, coupling, atom->tag[i]);
-		}
-		else { 
+		} else { 
 		  yieldStress = flowstress.evaluate(eff_plastic_strain[i]); //Lookup[SWIFT_A][itype] + Lookup[SWIFT_B][itype] * pow(eff_plastic_strain[i] + Lookup[SWIFT_eps0][itype], Lookup[SWIFT_n][itype]);
 		  LinearPlasticStrength(Lookup[SHEAR_MODULUS][itype], yieldStress, sigmaInitial_dev, d_dev, dt, sigmaFinal_dev,
 					sigma_dev_rate, plastic_strain_increment, d);
@@ -2528,8 +2489,7 @@ void PairTlsph::ComputeStressDeviator(const int i, const double mass_specific_en
 						 Lookup[GTN_Q2][itype], Lookup[GTN_fcr][itype], Lookup[GTN_fF][itype], Lookup[GTN_FN][itype], Lookup[GTN_inverse_sN][itype],
 						 Lookup[GTN_epsN][itype], Lookup[GTN_Komega][itype], dt, d, eff_plastic_strain[i], sigmaInitial_dev, d_dev,
 						 pInitial, pFinal, sigmaFinal_dev, sigma_dev_rate, plastic_strain_increment, coupling, atom->tag[i]);
-		}
-		else {
+		} else {
 		  yieldStress = flowstress.evaluate(eff_plastic_strain[i]);
 		/*yieldStress = Lookup[VOCE_A][itype] - Lookup[VOCE_Q1][itype] * exp(-Lookup[VOCE_n1][itype] * eff_plastic_strain[i])
 		  - Lookup[VOCE_Q2][itype] * exp(-Lookup[VOCE_n2][itype] * eff_plastic_strain[i]);
@@ -2569,7 +2529,7 @@ void PairTlsph::ComputeStressDeviator(const int i, const double mass_specific_en
 /* ----------------------------------------------------------------------
  Compute damage. Called from AssembleStress().
  ------------------------------------------------------------------------- */
-void PairTlsph::ComputeDamage(const int i, const Matrix3d strain, const Matrix3d stress, Matrix3d &stress_damaged, double plastic_strain_increment, const double yieldstress) {
+void PairTlsph::ComputeDamage(const int i, const Matrix3d strain, const Matrix3d stress, Matrix3d &stress_damaged, double plastic_strain_increment) {
 	double *eff_plastic_strain = atom->eff_plastic_strain;
 	double *eff_plastic_strain_rate = atom->eff_plastic_strain_rate;
 	double *radius = atom->radius;
@@ -2616,8 +2576,8 @@ void PairTlsph::ComputeDamage(const int i, const Matrix3d strain, const Matrix3d
 		}
 	} else if (failureModel[itype].failure_johnson_cook) {
 	  damage_increment = JohnsonCookDamageIncrement(pressure, stress_deviator, Lookup[FAILURE_JC_D1][itype],
-						   Lookup[FAILURE_JC_D2][itype], Lookup[FAILURE_JC_D3][itype], Lookup[FAILURE_JC_D4][itype],
-						   Lookup[FAILURE_JC_EPDOT0][itype], eff_plastic_strain_rate[i], plastic_strain_increment);
+							Lookup[FAILURE_JC_D2][itype], Lookup[FAILURE_JC_D3][itype], Lookup[FAILURE_JC_D4][itype],
+							Lookup[FAILURE_JC_EPDOT0][itype], eff_plastic_strain_rate[i], plastic_strain_increment);
 	  if (failureModel[itype].failure_coupling == true) {
 	    damage[i] += damage_increment;
 	  } else {
@@ -2631,18 +2591,12 @@ void PairTlsph::ComputeDamage(const int i, const Matrix3d strain, const Matrix3d
 
 	  if (failureModel[itype].failure_coupling == true) {
 	    if (damage[i] == 0) damage[i] = Lookup[GTN_f0][itype] * Lookup[GTN_Q1][itype];
-	    //damage_increment = GTNDamageIncrement(Lookup[GTN_Q1][itype], Lookup[GTN_Q2][itype], Lookup[GTN_AN][itype], Lookup[GTN_Komega][itype], pressure,
-	    //					  stress_deviator, stress, plastic_strain_increment, damage[i], Lookup[GTN_fcr][itype], yieldstress);
-	    //if(atom->tag[i] == 2251) printf("damage_increment = %10.e, plastic_strain_increment = %10.e\n", damage_increment, plastic_strain_increment);
-	    //damage[i] += 0;
+	    // Damage increment is determined in ComputeStressDeviator
 	    if (damage[i] >= 1.0) damage[i] = 1.0;
 
 	  } else {
 	    if (damage_init[i] == 0) damage_init[i] = Lookup[GTN_f0][itype] * Lookup[GTN_Q1][itype];
-
-	    // damage_init[i] += GTNDamageIncrement(Lookup[GTN_Q1][itype], Lookup[GTN_Q2][itype], Lookup[GTN_AN][itype], Lookup[GTN_Komega][itype], pressure,
-	    // 					stress_deviator, stress, plastic_strain_increment, damage_init[i], Lookup[GTN_fcr][itype], yieldstress);
-
+	    // Damage increment is determined in ComputeStressDeviator
 	    if (damage_init[i] >= 1.0) damage[i] = 1.0;
 	  }
 	} else if (failureModel[itype].failure_cockcroft_latham) {
@@ -2656,7 +2610,6 @@ void PairTlsph::ComputeDamage(const int i, const Matrix3d strain, const Matrix3d
 	}
 
 	damage[i] = MIN(damage[i], 1.0);
-	//damage[i] = MIN(damage[i], 0.99);
 	
 }
 
@@ -2836,36 +2789,9 @@ void PairTlsph::UpdateDegradation() {
 	} // end loop over i
 }
 
-
-void PairTlsph:: AdjustStressForZeroForceBC(const Matrix3d sigma, const Vector3d sU, Matrix3d &sigmaBC) {
-  Vector3d sV, sW, sigman;
-  Matrix3d P;
-  //cout << "Creating mirror particle i=" << tag[i] << " and j=" << tag[j] << endl;
-  
-  P = CreateOrthonormalBasisFromOneVector(sU);
-
-  sigmaBC = P.transpose() * sigma * P; // We transform sigmaBC to the surface basis
-  
-  
-  // sigmaBC.[1, 0, 0] == [0 0 0] if there is no stress on the boundary!
-  sigmaBC.col(0).setZero();
-  sigmaBC.row(0).setZero();
-  
-  sigmaBC = P * sigmaBC * P.transpose();
-
-  // Check if sigmaBC * surfaceNormalNormi = 0:
-  sigman = sigmaBC * sU;
-  if (sigman.norm() > 1.0e-5){
-    cout << "Here is sigman :" << endl << sigman << endl;
-    cout << "Here is P.transpose() * sigmaBC * P :" << endl << P.transpose() * sigmaBC * P << endl;
-    cout << "Here is P.transpose() * sU :" << endl << P.transpose() * sU << endl;
-    cout << "Here is P :" << endl << P << endl;
-  }
-}
-
 double PairTlsph::CalculateScale(const float degradation, const int itype) {
   if (failureModel[itype].integration_point_wise == true) {
-    double start = 0.9;
+    double start = 0.9; // Arbitrary value that seems to work
     if (degradation <= start) {
       return 1.0;
     }

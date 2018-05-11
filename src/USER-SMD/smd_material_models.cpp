@@ -27,7 +27,7 @@
 #include <stdio.h>
 
 #include <Eigen/Eigen>
-#include "smd_flowstress.h"
+#include "smd_material_models.h"
 
 using namespace LAMMPS_NS::MathSpecial;
 using namespace SMD_Math;
