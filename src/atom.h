@@ -93,7 +93,13 @@ class Atom : protected Pointers {
   double *duChem;
   double *dpdTheta;
   int nspecies_dpd;
-  int *ssaAIR; // Shardlow Splitting Algorithm Active Interaction Region number
+
+  // USER-MESO package
+
+  double **cc, **cc_flux;        // cc = chemical concentration
+  double *edpd_temp,*edpd_flux;  // temperature and heat flux
+  double *edpd_cv;               // heat capacity
+  int cc_species;
 
   // molecular info
 
@@ -138,7 +144,7 @@ class Atom : protected Pointers {
   int vfrac_flag,spin_flag,eradius_flag,ervel_flag,erforce_flag;
   int cs_flag,csforce_flag,vforce_flag,ervelforce_flag,etag_flag;
   int rho_flag,e_flag,cv_flag,vest_flag;
-  int dpd_flag;
+  int dpd_flag,edpd_flag,tdpd_flag;
 
   // USER-SMD package
 
@@ -181,7 +187,8 @@ class Atom : protected Pointers {
   int nextra_store;
 
   int map_style;                  // style of atom map: 0=none, 1=array, 2=hash
-  int map_user;                   // user selected style = same 0,1,2
+  int map_user;                   // user requested map style:
+                                  // 0 = no request, 1=array, 2=hash, 3=yes
   tagint map_tag_max;             // max atom ID that map() is setup for
 
   // spatial sorting of atoms
@@ -223,7 +230,7 @@ class Atom : protected Pointers {
 
   void deallocate_topology();
 
-  void data_atoms(int, char *, tagint, int, int, double *);
+  void data_atoms(int, char *, tagint, tagint, int, int, double *);
   void data_vels(int, char *, tagint);
   void data_bonds(int, char *, int *, tagint, int);
   void data_angles(int, char *, int *, tagint, int);
@@ -255,8 +262,8 @@ class Atom : protected Pointers {
   void update_callback(int);
 
   int find_custom(const char *, int &);
-  int add_custom(const char *, int);
-  void remove_custom(int, int);
+  virtual int add_custom(const char *, int);
+  virtual void remove_custom(int, int);
 
   virtual void sync_modify(ExecutionSpace, unsigned int, unsigned int) {}
 
@@ -471,31 +478,6 @@ E: Invalid atom ID in Bodies section of data file
 Atom IDs must be positive integers and within range of defined
 atoms.
 
-E: Cannot set mass for this atom style
-
-This atom style does not support mass settings for each atom type.
-Instead they are defined on a per-atom basis in the data file.
-
-E: Invalid mass line in data file
-
-Self-explanatory.
-
-E: Invalid type for mass set
-
-Mass command must set a type from 1-N where N is the number of atom
-types.
-
-E: Invalid mass value
-
-Self-explanatory.
-
-E: All masses are not set
-
-For atom styles that define masses for each atom type, all masses must
-be set in the data file or by the mass command before running a
-simulation.  They must also be set before using the velocity
-command.
-
 E: Reuse of molecule template ID
 
 The template IDs must be unique.
@@ -515,5 +497,30 @@ E: Too many atom sorting bins
 
 This is likely due to an immense simulation box that has blown up
 to a large size.
+
+U: Cannot set mass for this atom style
+
+This atom style does not support mass settings for each atom type.
+Instead they are defined on a per-atom basis in the data file.
+
+U: Invalid mass line in data file
+
+Self-explanatory.
+
+U: Invalid type for mass set
+
+Mass command must set a type from 1-N where N is the number of atom
+types.
+
+U: Invalid mass value
+
+Self-explanatory.
+
+U: All masses are not set
+
+For atom styles that define masses for each atom type, all masses must
+be set in the data file or by the mass command before running a
+simulation.  They must also be set before using the velocity
+command.
 
 */

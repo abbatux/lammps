@@ -35,7 +35,7 @@
 // NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 // SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //
-// Questions? Contact  H. Carter Edwards (hcedwar@sandia.gov)
+// Questions? Contact Christian R. Trott (crtrott@sandia.gov)
 //
 // ************************************************************************
 //@HEADER
@@ -156,6 +156,8 @@ struct LayoutStride {
       for ( int r = 0 ; r < ARRAY_LAYOUT_MAX_RANK ; ++r ) {
         tmp.dimension[r] = 0 ;
         tmp.stride[r]    = 0 ;
+      }
+      for ( int r = 0 ; r < rank ; ++r ) {
         check_input &= ~int( 1 << order[r] );
       }
       if ( 0 == check_input ) {

@@ -35,7 +35,7 @@
 // NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 // SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //
-// Questions? Contact  H. Carter Edwards (hcedwar@sandia.gov)
+// Questions? Contact Christian R. Trott (crtrott@sandia.gov)
 //
 // ************************************************************************
 //@HEADER
@@ -138,7 +138,16 @@ int main(int argc, char *argv[])
 #endif
 
 #ifdef KOKKOS_ENABLE_OPENMP
-  Kokkos::OpenMP::initialize( threads_count );
+  int num_threads = 0;
+  #pragma omp parallel
+  {
+    #pragma omp atomic
+    ++num_threads;
+  }
+  if( num_threads > 3 ) {
+    num_threads = std::max(4, num_threads/4);
+  }
+  Kokkos::OpenMP::initialize( num_threads );
   num_errors += G2L::run_openmp(num_ids,num_find_iterations);
   Kokkos::OpenMP::finalize();
 #endif

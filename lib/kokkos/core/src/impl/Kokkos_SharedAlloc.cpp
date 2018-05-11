@@ -35,7 +35,7 @@
 // NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 // SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //
-// Questions? Contact  H. Carter Edwards (hcedwar@sandia.gov)
+// Questions? Contact Christian R. Trott (crtrott@sandia.gov)
 //
 // ************************************************************************
 //@HEADER
@@ -46,26 +46,7 @@
 namespace Kokkos {
 namespace Impl {
 
-int SharedAllocationRecord< void , void >::s_tracking_enabled = 1 ;
-
-void SharedAllocationRecord< void , void >::tracking_claim_and_disable()
-{
-  // A host thread claim and disable tracking flag
-
-  while ( ! Kokkos::atomic_compare_exchange_strong( & s_tracking_enabled, 1, 0 ) );
-}
-
-void SharedAllocationRecord< void , void >::tracking_release_and_enable()
-{
-  // The host thread that claimed and disabled the tracking flag
-  // now release and enable tracking.
-
-  if ( ! Kokkos::atomic_compare_exchange_strong( & s_tracking_enabled, 0, 1 ) ){
-    Kokkos::Impl::throw_runtime_exception("Kokkos::Impl::SharedAllocationRecord<>::tracking_release_and_enable FAILED, this host process thread did not hold the lock" );
-  }
-}
-
-//----------------------------------------------------------------------------
+__thread int SharedAllocationRecord<void, void>::t_tracking_enabled = 1;
 
 bool
 SharedAllocationRecord< void , void >::
@@ -306,7 +287,7 @@ print_host_accessible_records( std::ostream & s
               , reinterpret_cast<uintptr_t>( r->m_dealloc )
               , r->m_alloc_ptr->m_label
               );
-      std::cout << buffer ;
+      s << buffer ;
       r = r->m_next ;
     } while ( r != root );
   }
@@ -334,7 +315,7 @@ print_host_accessible_records( std::ostream & s
       else {
         snprintf( buffer , 256 , "%s [ 0 + 0 ]\n" , space_name );
       }
-      std::cout << buffer ;
+      s << buffer ;
       r = r->m_next ;
     } while ( r != root );
   }

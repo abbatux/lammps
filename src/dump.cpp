@@ -22,11 +22,12 @@
 #include "domain.h"
 #include "group.h"
 #include "output.h"
-#include "memory.h"
-#include "error.h"
 #include "force.h"
 #include "modify.h"
 #include "fix.h"
+#include "compute.h"
+#include "memory.h"
+#include "error.h"
 
 using namespace LAMMPS_NS;
 
@@ -78,6 +79,9 @@ Dump::Dump(LAMMPS *lmp, int narg, char **arg) : Pointers(lmp)
   format_bigint_user = NULL;
   format_column_user = NULL;
 
+  refreshflag = 0;
+  refresh = NULL;
+
   clearstep = 0;
   sort_flag = 0;
   append_flag = 0;
@@ -85,6 +89,7 @@ Dump::Dump(LAMMPS *lmp, int narg, char **arg) : Pointers(lmp)
   buffer_flag = 0;
   padflag = 0;
   pbcflag = 0;
+  delay_flag = 0;
 
   maxbuf = maxids = maxsort = maxproc = 0;
   buf = bufsort = NULL;
@@ -159,6 +164,8 @@ Dump::~Dump()
   delete [] format_float_user;
   delete [] format_int_user;
   delete [] format_bigint_user;
+
+  delete [] refresh;
 
   // format_column_user is deallocated by child classes that use it
 
@@ -238,7 +245,7 @@ void Dump::init()
     int gcmcflag = 0;
     for (int i = 0; i < modify->nfix; i++)
       if ((strcmp(modify->fix[i]->style,"gcmc") == 0))
-	gcmcflag = 1;
+        gcmcflag = 1;
 
     if (sortcol == 0 && atom->tag_consecutive() && !gcmcflag) {
       tagint *tag = atom->tag;
@@ -277,6 +284,16 @@ void Dump::init()
     }
   }
 
+  // search for refresh compute specified by dump_modify refresh
+
+  if (refreshflag) {
+    int icompute;
+    for (icompute = 0; icompute < modify->ncompute; icompute++)
+      if (strcmp(refresh,modify->compute[icompute]->id) == 0) break;
+    if (icompute < modify->ncompute) irefresh = icompute;
+    else error->all(FLERR,"Dump could not find refresh compute ID");
+  }
+
   // preallocation for PBC copies if requested
 
   if (pbcflag && atom->nlocal > maxpbc) pbc_allocate();
@@ -303,6 +320,10 @@ void Dump::write()
 {
   imageint *imagehold;
   double **xhold,**vhold;
+
+  // if timestep < delaystep, just return
+
+  if (delay_flag && update->ntimestep < delaystep) return;
 
   // if file per timestep, open new file
 
@@ -477,6 +498,11 @@ void Dump::write()
     atom->v = vhold;
     atom->image = imagehold;
   }
+
+  // trigger post-dump refresh by specified compute
+  // currently used for incremental dump files
+
+  if (refreshflag) modify->compute[irefresh]->refresh();
 
   // if file per timestep, close file if I am filewriter
 
@@ -876,6 +902,13 @@ void Dump::modify_params(int narg, char **arg)
         error->all(FLERR,"Dump_modify buffer yes not allowed for this style");
       iarg += 2;
 
+    } else if (strcmp(arg[iarg],"delay") == 0) {
+      if (iarg+2 > narg) error->all(FLERR,"Illegal dump_modify command");
+      delaystep = force->bnumeric(FLERR,arg[iarg+1]);
+      if (delaystep >= 0) delay_flag = 1;
+      else delay_flag = 0;
+      iarg += 2;
+
     } else if (strcmp(arg[iarg],"every") == 0) {
       if (iarg+2 > narg) error->all(FLERR,"Illegal dump_modify command");
       int idump;
@@ -898,7 +931,7 @@ void Dump::modify_params(int narg, char **arg)
     } else if (strcmp(arg[iarg],"fileper") == 0) {
       if (iarg+2 > narg) error->all(FLERR,"Illegal dump_modify command");
       if (!multiproc)
-	error->all(FLERR,"Cannot use dump_modify fileper "
+        error->all(FLERR,"Cannot use dump_modify fileper "
                    "without % in dump file name");
       int nper = force->inumeric(FLERR,arg[iarg+1]);
       if (nper <= 0) error->all(FLERR,"Illegal dump_modify command");
@@ -973,7 +1006,7 @@ void Dump::modify_params(int narg, char **arg)
     } else if (strcmp(arg[iarg],"nfile") == 0) {
       if (iarg+2 > narg) error->all(FLERR,"Illegal dump_modify command");
       if (!multiproc)
-	error->all(FLERR,"Cannot use dump_modify nfile "
+        error->all(FLERR,"Cannot use dump_modify nfile "
                    "without % in dump file name");
       int nfile = force->inumeric(FLERR,arg[iarg+1]);
       if (nfile <= 0) error->all(FLERR,"Illegal dump_modify command");
