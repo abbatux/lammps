@@ -1,15 +1,4 @@
 /* ----------------------------------------------------------------------
- *
- *                    *** Smooth Mach Dynamics ***
- *
- * This file is part of the USER-SMD package for LAMMPS.
- * Copyright (2014) Georg C. Ganzenmueller, georg.ganzenmueller@emi.fhg.de
- * Fraunhofer Ernst-Mach Institute for High-Speed Dynamics, EMI,
- * Eckerstrasse 4, D-79104 Freiburg i.Br, Germany.
- *
- * ----------------------------------------------------------------------- */
-
-/* ----------------------------------------------------------------------
  LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
  http://lammps.sandia.gov, Sandia National Laboratories
  Steve Plimpton, sjplimp@sandia.gov
@@ -21,6 +10,11 @@
 
  See the README file in the top-level LAMMPS directory.
  ------------------------------------------------------------------------- */
+
+/* ----------------------------------------------------------------------
+   Contributing author: A. de Vaucorbeil, alban.devaucorbeil@monash.edu
+                        Copyright (C) 2018
+------------------------------------------------------------------------- */
 
 #include <string.h>
 #include "compute_smd_tlsph_surface_normal.h"
