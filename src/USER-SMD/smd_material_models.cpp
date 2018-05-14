@@ -558,7 +558,7 @@ double GTNStrength(const double G, FlowStress flowstress, const double Q1, const
 	  f += FN * plastic_strain_increment ; // 0.39894228 = 1/sqrt(2*PI)
 	else
 	  if (f < FN)
-	    f += FN * 0.39894228 * inverse_sN * exp(-0.5 * inverse_sN * (ep - epsN)) * plastic_strain_increment; // 0.39894228 = 1/sqrt(2*PI)
+	    f += FN * 0.39894228 * inverse_sN * exp(-0.5 * inverse_sN * inverse_sN * (ep - epsN) * (ep - epsN)) * plastic_strain_increment; // 0.39894228 = 1/sqrt(2*PI)
       }
       if (f <= fcr) damage_increment = Q1*f - damage;
       else {
