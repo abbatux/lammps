@@ -61,7 +61,8 @@ FixSMD_TLSPH_ReferenceConfiguration::FixSMD_TLSPH_ReferenceConfiguration(LAMMPS 
 
 	if (atom->map_style == 0)
 		error->all(FLERR, "Pair tlsph with partner list requires an atom map, see atom_modify");
-
+	if (narg < 4) error->all(FLERR,"Illegal fix addforce command");
+	boundary_threshold = force->numeric(FLERR, arg[3]);
 	maxpartner = 1;
 	npartner = NULL;
 	partner = NULL;
@@ -363,7 +364,7 @@ void FixSMD_TLSPH_ReferenceConfiguration::setup(int vflag) {
 	  sNormal[i] = K0inv * sNormal[i];
 	  
 	  sNormalNormi = sNormal[i].norm();
-	  if (sNormalNormi > 0.75) sNormal[i] /= sNormalNormi;
+	  if (sNormalNormi > boundary_threshold) sNormal[i] /= sNormalNormi;
 	  else sNormal[i].setZero();
 	}
 
