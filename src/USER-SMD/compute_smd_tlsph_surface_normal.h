@@ -11,6 +11,11 @@
    See the README file in the top-level LAMMPS directory.
 ------------------------------------------------------------------------- */
 
+/* ----------------------------------------------------------------------
+   Contributing author: A. de Vaucorbeil, alban.devaucorbeil@monash.edu
+                        Copyright (C) 2018
+------------------------------------------------------------------------- */
+
 #ifdef COMPUTE_CLASS
 
 ComputeStyle(smd/tlsph/surface/normal, ComputeSMDTLSPHSurfaceNormal)
