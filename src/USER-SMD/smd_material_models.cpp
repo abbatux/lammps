@@ -485,7 +485,7 @@ double GTNStrength(const double G, FlowStress flowstress, const double Q1, const
 
       dx = -F/Fprime;
       x += dx;
-      //if (i > 1) if (abs(dx) > error and (J2 - x*yieldStress_undamaged) < 0.0) printf("%d - %d - F = %.10e, x = %f, J2 = %.10e, yieldStress_undamaged = %.10e, ep = %.10e, f = %.10e, triax = %.10e\n", tag, i, F, x, J2, yieldStress_undamaged, ep, f, triax);
+      if (i > 10)  printf("Loop1: %d - %d - F = %.10e, x = %f, J2 = %.10e, yieldStress_undamaged = %.10e, ep = %.10e, f = %.10e, triax = %.10e\n", tag, i, F, x, J2, yieldStress_undamaged, ep, f, triax);
       i++;
     }
 
@@ -510,7 +510,8 @@ double GTNStrength(const double G, FlowStress flowstress, const double Q1, const
       plastic_strain_increment = 0.0;
     } else {
 
-      while(abs(dx) > error) {
+      plastic_strain_increment_old = plastic_strain_increment + 1.0; // arbitrary value
+      while(abs(dx) > 1e-12 && abs(dx/plastic_strain_increment) > error) {
 	j++;
 	yieldStress = x * flowstress.evaluate(ep + plastic_strain_increment);
 	F = plastic_strain_increment - (J2 - yieldStress) * beta;
@@ -520,8 +521,9 @@ double GTNStrength(const double G, FlowStress flowstress, const double Q1, const
 	if (plastic_strain_increment < 0.0) {
 	  plastic_strain_increment = 0.5*plastic_strain_increment_old;
 	}
-	dx = (plastic_strain_increment - plastic_strain_increment_old) / plastic_strain_increment;
-	if (output == 1) printf("%d - %d - plastic_strain_increment = %.10e, dx = %f, J2 = %f, yieldStress = %f, ep = %.10e, F = %.10e, Fprime = %.10e\n", tag, j, plastic_strain_increment, dx, J2, yieldStress, ep, F, Fprime);
+	dx = plastic_strain_increment - plastic_strain_increment_old;
+	if (j>10) output = 1;
+	if (output == 1) printf("Loop2: %d - %d - plastic_strain_increment = %.10e, dx = %f, J2 = %f, yieldStress = %f, ep = %.10e, F = %.10e, Fprime = %.10e\n", tag, j, plastic_strain_increment, dx, J2, yieldStress, ep, F, Fprime);
       }
       yieldStress_undamaged = flowstress.evaluate(ep + plastic_strain_increment);
       yieldStress = x * yieldStress_undamaged;
