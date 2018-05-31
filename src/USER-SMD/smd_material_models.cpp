@@ -472,7 +472,7 @@ double GTNStrength(const double G, FlowStress flowstress, const double Q1, const
 
     double Q1fQ2triax = damage * Q2triax;
 
-    double x = 1.0; // x = yieldStress / yieldStress_undamaged
+    x = MIN(1.0, x);
     double dx = 1.0; // dx = x_{n+1} - x_{n} initiated at a value higher than the accepted error margin.
     double error = 0.001;
     double Fprime, Q2triaxx;
@@ -485,7 +485,7 @@ double GTNStrength(const double G, FlowStress flowstress, const double Q1, const
 
       dx = -F/Fprime;
       x += dx;
-      if (i > 10)  printf("Loop1: %d - %d - F = %.10e, x = %f, J2 = %.10e, yieldStress_undamaged = %.10e, ep = %.10e, f = %.10e, triax = %.10e\n", tag, i, F, x, J2, yieldStress_undamaged, ep, f, triax);
+      if (i>5) printf("Loop1: %d - %d - F = %.10e, x = %f, J2 = %.10e, yieldStress_undamaged = %.10e, ep = %.10e, Q1f = %.10e, triax = %.10e\n", tag, i, F, x, J2, yieldStress_undamaged, ep, Q1f, triax);
       i++;
     }
 
