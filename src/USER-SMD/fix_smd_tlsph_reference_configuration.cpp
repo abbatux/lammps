@@ -767,3 +767,4 @@ bool FixSMD_TLSPH_ReferenceConfiguration::crack_exclude(int i, int j) {
 	//return 1;
 }
 
+

@@ -21,7 +21,6 @@
 
  See the README file in the top-level LAMMPS directory.
  ------------------------------------------------------------------------- */
-
 #include "group.h"
 #include <math.h>
 #include <float.h>
@@ -167,7 +166,7 @@ void PairTlsph::PreCompute() {
 	int periodic = (domain->xperiodic || domain->yperiodic || domain->zperiodic);
 	bool status;
 	Matrix3d F0;
-	double surfaceNormalNormi, dv_norm;
+	double dv_norm;
 
 	dtCFL = 1.0e22;
 	eye.setIdentity();
@@ -493,7 +492,6 @@ void PairTlsph::ComputeForces(int eflag, int vflag) {
 	double r, hg_mag, wf, wfd, h, r0, r0Sq, voli, volj, r_plus_h, over_r_plus_h;
 	double delVdotDelR, deltaE, mu_ij, hg_err, gamma_dot_dx, delta, scale, rmassij;
 	double softening_strain, shepardWeight;
-	double surfaceNormalNormi;
 	char str[128];
 	Vector3d fi, fj, dx0, dx, dv, f_stress, f_hg, dxp_i, dxp_j, gamma, g, gamma_i, gamma_j, x0i, x0j, wfddx;
 	Vector3d xi, xj, vi, vj, f_visc, sumForces, f_spring;
@@ -507,7 +505,8 @@ void PairTlsph::ComputeForces(int eflag, int vflag) {
 	float **energy_per_bond = ((FixSMD_TLSPH_ReferenceConfiguration *) modify->fix[ifix_tlsph])->energy_per_bond;
 	Vector3d **partnerx0 = ((FixSMD_TLSPH_ReferenceConfiguration *) modify->fix[ifix_tlsph])->partnerx0;
         double **partnervol = ((FixSMD_TLSPH_ReferenceConfiguration *) modify->fix[ifix_tlsph])->partnervol;
-	Matrix3d eye;
+	Vector3d *sNormal = ((FixSMD_TLSPH_ReferenceConfiguration *) modify->fix[ifix_tlsph])->sNormal;
+	Matrix3d eye, sigmaBC_i;
 	Matrix3d *K0 = ((FixSMD_TLSPH_ReferenceConfiguration *) modify->fix[ifix_tlsph])->K0;
 	eye.setIdentity();
 
@@ -554,11 +553,11 @@ void PairTlsph::ComputeForces(int eflag, int vflag) {
 			  continue;
 			}
 
-			if (mol[j] < 0) {
-				continue; // Particle j is not a valid SPH particle (anymore). Skip all interactions with this particle.
-			}
+			//if (mol[j] < 0) {
+			//	continue; // Particle j is not a valid SPH particle (anymore). Skip all interactions with this particle.
+			//}
 
-			if (mol[i] != mol[j]) {
+			if ((mol[i] != mol[j]) && (damage[i]<1.0)) {
 				continue;
 			}
 
@@ -614,9 +613,23 @@ void PairTlsph::ComputeForces(int eflag, int vflag) {
 			// What is required is to build a basis with surfaceNormal as one of the vectors:
 
 			f_stress = -(voli * volj * scale) * (PK1[j] + PK1[i]) * (K0[i] * g);
+			if (scale > 0.0) {
+			  AdjustStressForZeroForceBC(PK1[i], dx0, sigmaBC_i);
+			  f_stress -= (voli * volj * (1 - scale)) * (2*sigmaBC_i) * (K0[i] * g);
+			}
 
 			energy_per_bond[i][jj] = f_stress.dot(dx); // THIS IS NOT THE ENERGY PER BOND, I AM USING THIS VARIABLE TO STORE THIS VALUE TEMPORARILY
-			
+			if (sNormal[i].norm() > 0.75) {
+			  if (sNormal[i].dot(dx0) <= -0.5*pow(volj, 1.0/3.0)) {
+			    Matrix3d P = CreateOrthonormalBasisFromOneVector(sNormal[i]);
+			    Vector3d sU = P.col(0);
+			    Vector3d sV = P.col(1);
+			    Vector3d sW = P.col(2);
+			    AdjustStressForZeroForceBC(PK1[i], sU, sigmaBC_i);
+			    f_stress -= voli * volj * (2* sigmaBC_i) * K0[i] * (g.dot(sV)*sV + g.dot(sW)*sW);
+			    f_stress += voli * volj * (2* sigmaBC_i) * K0[i] * g.dot(sU)*sU;
+			  }
+			}
 			/*
 			 * artificial viscosity
 			 */
@@ -2813,5 +2826,65 @@ double PairTlsph::CalculateScale(const float degradation, const int itype) {
     return 0.5 + 0.5 * cos( M_PI * (degradation - start) / (1.0 - start) );
   } else {
     return 1.0 - degradation;
+  }
+}
+
+Matrix3d PairTlsph::CreateOrthonormalBasisFromOneVector(Vector3d sU) {
+  Matrix3d P;
+  Vector3d sV, sW;
+  double sU_Norm;
+  
+  // Make sure that sU has a norm of one:
+  sU_Norm = sU.norm();
+  if (sU_Norm != 1.0) {
+    sU /= sU_Norm;
+  }
+  
+  if (abs(float(sU[1])) > 1.0e-15) {
+    sV[0] = 0.0;
+    sV[1] = - sU[2];
+    sV[2] = sU[1];
+  } else if (abs(float(sU[2])) > 1.0e-15) {
+    sV[0] = sU[2];
+    sV[1] = 0.0;
+    sV[2] = -sU[0];
+  } else {
+    sV[0] = 0.0;
+    sV[1] = 1.0;
+    sV[2] = 0.0;
+  }
+  
+  sV /= sV.norm();
+  sW = sU.cross(sV);
+  //sW /= sW.norm(); This can be skipped since sU and sV are orthogonal and both unitary.
+  
+  P.col(0) = sU;
+  P.col(1) = sV;
+  P.col(2) = sW;
+  
+  return P;
+}
+
+void PairTlsph::AdjustStressForZeroForceBC(const Matrix3d sigma, const Vector3d sU, Matrix3d &sigmaBC) {
+  Vector3d sV, sW, sigman;
+  Matrix3d P;
+  //cout << "Creating mirror particle i=" << tag[i] << " and j=" << tag[j] << endl;
+
+  P = CreateOrthonormalBasisFromOneVector(sU);
+
+  sigmaBC = P.transpose() * sigma * P; // We transform sigmaBC to the surface basis
+
+  sigmaBC.col(0).setZero();
+  sigmaBC.row(0).setZero();
+
+  sigmaBC = P * sigmaBC * P.transpose();
+
+  // Check if sigmaBC * surfaceNormalNormi = 0:
+  sigman = sigmaBC * sU;
+  if (sigman.norm() > 1.0e-5){
+    cout << "Here is sigman :" << endl << sigman << endl;
+    cout << "Here is P.transpose() * sigmaBC * P :" << endl << P.transpose() * sigmaBC * P << endl;
+    cout << "Here is P.transpose() * sU :" << endl << P.transpose() * sU << endl;
+    cout << "Here is P :" << endl << P << endl;
   }
 }

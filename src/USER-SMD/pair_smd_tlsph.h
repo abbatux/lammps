@@ -72,7 +72,8 @@ public:
 	void ComputeDamage(const int i, const Eigen::Matrix3d strain, const Eigen::Matrix3d sigmaFinal, Eigen::Matrix3d &sigma_damaged, double plastic_strain_increment);
 	void UpdateDegradation();
 	double CalculateScale(const float degradation, const int itype);
-
+	Matrix3d CreateOrthonormalBasisFromOneVector(Vector3d sU);
+	void AdjustStressForZeroForceBC(const Matrix3d sigma, const Vector3d sU, Matrix3d &sigmaBC);
 protected:
 	void allocate();
 	char *suffix;
