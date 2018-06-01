@@ -493,7 +493,7 @@ void PairTlsph::ComputeForces(int eflag, int vflag) {
 	double delVdotDelR, deltaE, mu_ij, hg_err, gamma_dot_dx, delta, scale, rmassij;
 	double softening_strain, shepardWeight;
 	char str[128];
-	Vector3d fi, fj, dx0, dx, dv, f_stress, f_hg, dxp_i, dxp_j, gamma, g, gamma_i, gamma_j, x0i, x0j, wfddx;
+	Vector3d fi, fj, dx0, dx, dv, f_stress, f_hg, dxp_i, dxp_j, gamma, g, gamma_i, gamma_j, x0i, x0j, wfddx, f_stressbc, fbc;
 	Vector3d xi, xj, vi, vj, f_visc, sumForces, f_spring;
 	int periodic = (domain->xperiodic || domain->yperiodic || domain->zperiodic);
 
@@ -545,7 +545,7 @@ void PairTlsph::ComputeForces(int eflag, int vflag) {
 			vi(idim) = v[i][idim];
 		}
 		
-
+		fbc.setZero();
 		for (jj = 0; jj < jnum; jj++) {
 			j = atom->map(partner[i][jj]);
 			if (j < 0) { //			// check if lost a partner without first breaking bond
@@ -611,25 +611,36 @@ void PairTlsph::ComputeForces(int eflag, int vflag) {
 			 */
 			
 			// What is required is to build a basis with surfaceNormal as one of the vectors:
+			if (failureModel[itype].failure_coupling == false)
+			  f_stress = -(voli * volj) * scale * (PK1[j]*CalculateScale(damage[j], itype) + PK1[i]*CalculateScale(damage[i], itype)) * g;
+			else
+			  f_stress = -(voli * volj) * scale * (PK1[j] + PK1[i]) * g;
+			
+			// if (scale > 0.0) {
+			//   AdjustStressForZeroForceBC(PK1[i], dx0, sigmaBC_i);
+			//   f_stress -= (voli * volj * (1 - scale)) * (sigmaBC_i + PK1[i]) * (K0[i] * g); //= 0!
+			// }
 
-			f_stress = -(voli * volj * scale) * (PK1[j] + PK1[i]) * (K0[i] * g);
-			if (scale > 0.0) {
-			  AdjustStressForZeroForceBC(PK1[i], dx0, sigmaBC_i);
-			  f_stress -= (voli * volj * (1 - scale)) * (2*sigmaBC_i) * (K0[i] * g);
-			}
-
+			//if ((tag[i] == 1842) || (tag[i] == 2562))
+			//  printf("Particle %d: sN=[%f %f %f]\n",tag[i], sNormal[i][0], sNormal[i][1], sNormal[i][2]);
+			  
+			// if (sNormal[i].norm() > 0.75) {
+			//   //if (sNormal[i].dot(dx0) <= -0.5*pow(volj, 1.0/3.0))
+			//   //{
+			//   Matrix3d P = CreateOrthonormalBasisFromOneVector(sNormal[i]);
+			//   Vector3d sU = P.col(0);
+			//   Vector3d sV = P.col(1);
+			//   Vector3d sW = P.col(2);
+			//   //AdjustStressForZeroForceBC(PK1[i], sU, sigmaBC_i);
+			//   f_stress -= voli * volj * (PK1[i]) * (g.dot(sV)*sV + g.dot(sW)*sW);
+			//   //Vector3d f_stressbc;
+			//   f_stress += voli * volj * (PK1[i]) * g.dot(sU)*sU; //=0!!
+			//   //f_stressbc = f_stressbc.dot(sU)*sU;
+			//   //f_stress += voli * volj * scale * (PK1[i]) * g;
+			//   //f_stress += f_stressbc;
+			//   //}
+			// }
 			energy_per_bond[i][jj] = f_stress.dot(dx); // THIS IS NOT THE ENERGY PER BOND, I AM USING THIS VARIABLE TO STORE THIS VALUE TEMPORARILY
-			if (sNormal[i].norm() > 0.75) {
-			  if (sNormal[i].dot(dx0) <= -0.5*pow(volj, 1.0/3.0)) {
-			    Matrix3d P = CreateOrthonormalBasisFromOneVector(sNormal[i]);
-			    Vector3d sU = P.col(0);
-			    Vector3d sV = P.col(1);
-			    Vector3d sW = P.col(2);
-			    AdjustStressForZeroForceBC(PK1[i], sU, sigmaBC_i);
-			    f_stress -= voli * volj * (2* sigmaBC_i) * K0[i] * (g.dot(sV)*sV + g.dot(sW)*sW);
-			    f_stress += voli * volj * (2* sigmaBC_i) * K0[i] * g.dot(sU)*sU;
-			  }
-			}
 			/*
 			 * artificial viscosity
 			 */
@@ -697,6 +708,7 @@ void PairTlsph::ComputeForces(int eflag, int vflag) {
 			f[i][0] += sumForces(0);
 			f[i][1] += sumForces(1);
 			f[i][2] += sumForces(2);
+			fbc += f_stressbc;
 			de[i] += deltaE;
 
 			// tally atomistic stress tensor
@@ -725,6 +737,9 @@ void PairTlsph::ComputeForces(int eflag, int vflag) {
 
 		} // end loop over jj neighbors of i
 
+		
+		//if ((tag[i] == 4002) || (tag[i] == 4014))
+		//  printf("Particle %d: fbc = [%.10e %.10e %.10e], sU=[%f %f %f]\n",tag[i], fbc[0], fbc[1], fbc[2], sNormal[i][0], sNormal[i][1], sNormal[i][2]);
 		if (shepardWeight != 0.0) {
 			hourglass_error[i] /= shepardWeight;
 		}
@@ -768,6 +783,7 @@ void PairTlsph::AssembleStress() {
 	Matrix3d sigma_rate, eye, sigmaInitial, sigmaFinal, T, T_damaged, Jaumann_rate, sigma_rate_check;
 	Matrix3d d_dev, sigmaInitial_dev, sigmaFinal_dev, sigma_dev_rate, strain, deltaSigma;
 	Vector3d vi;
+	Matrix3d *K0 = ((FixSMD_TLSPH_ReferenceConfiguration *) modify->fix[ifix_tlsph])->K0;
 
 	eye.setIdentity();
 	//dtCFL = 1.0e22;
@@ -891,7 +907,7 @@ void PairTlsph::AssembleStress() {
 				/*
 				 * pre-multiply stress tensor with shape matrix to save computation in force loop
 				 */
-				//PK1[i] = PK1[i] * K[i];
+				PK1[i] = PK1[i] * K[i];
 
 				/*
 				 * compute stable time step according to Pronto 2d
