@@ -237,11 +237,11 @@ void PairTlsph::PreCompute() {
 				}
 
 
-				if (mol[j] < 0) { // particle has failed. do not include it for computing any property
-					continue;
-				}
+				//if (mol[j] < 0) { // particle has failed. do not include it for computing any property
+				//	continue;
+				//}
 
-				if (mol[i] != mol[j]) {
+				if (abs(mol[i]) != abs(mol[j])) {
 					continue;
 				}
 				/*if (failureModel[itype].integration_point_wise){ // check if the particles are fully damaged. If so, the bond is broken. This is important when the list of neighbors is updated.
@@ -348,7 +348,7 @@ void PairTlsph::PreCompute() {
 				  cout << "Here is Fincr[" << tag[i] << "]:" << endl << Fincr[i] << endl;
 				  cout << "Here is K[" << tag[i] << "]:" << endl << K[i] << endl;
 					error->message(FLERR, "Polar decomposition of deformation gradient failed.\n");
-					mol[i] = -1;
+					mol[i] = -mol[i];
 				} else {
 					Fincr[i] = R[i] * U;
 				}
@@ -378,10 +378,10 @@ void PairTlsph::PreCompute() {
 			 * make sure F stays within some limits
 			 */
 
-			if ((numNeighsRefConfig[i] == 0)) {
+			if ((numNeighsRefConfig[i] == 0) || damage[i] >= 1.0) {
 			  printf("deleting particle [%d] because nn = %d\n", tag[i], numNeighsRefConfig[i]);
 			  dtCFL = MIN(dtCFL, dt); //Keep the same (small) time step when a particule breaks.		       
-			  mol[i] = -1;
+			  mol[i] = -mol[i];
 			}
 			/*if ((detF[i] < DETF_MIN) || (detF[i] > DETF_MAX) || (numNeighsRefConfig[i] == 0)) {
 			 	printf("deleting particle [%d] because det(F)=%f is outside stable range %f -- %f \n", tag[i],
@@ -580,11 +580,11 @@ void PairTlsph::ComputeForces(int eflag, int vflag) {
 			  continue;
 			}
 
-			if (mol[j] < 0) {
-				continue; // Particle j is not a valid SPH particle (anymore). Skip all interactions with this particle.
-			}
+			//if (mol[j] < 0) {
+			//	continue; // Particle j is not a valid SPH particle (anymore). Skip all interactions with this particle.
+			//}
 
-			if ((mol[i] != mol[j])) {
+			if ((abs(mol[i]) != abs(mol[j]))) {
 				continue;
 			}
 
@@ -2744,11 +2744,11 @@ void PairTlsph::UpdateDegradation() {
 			  continue;
 			}
 
-			if (mol[j] < 0) {
-				continue; // Particle j is not a valid SPH particle (anymore). Skip all interactions with this particle.
-			}
+			//if (mol[j] < 0) {
+			//	continue; // Particle j is not a valid SPH particle (anymore). Skip all interactions with this particle.
+			//}
 
-			if (mol[i] != mol[j]) {
+			if (abs(mol[i]) != abs(mol[j])) {
 				continue;
 			}
 
