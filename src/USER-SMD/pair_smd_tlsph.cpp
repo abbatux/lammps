@@ -259,6 +259,11 @@ void PairTlsph::PreCompute() {
 
 				dx0 = x0j - x0i;
 				dx = xj - xi;
+				if (damage[j] < 0.99) partnerx0[i][jj] = dx; //I am using this to store dx.
+				else dx = partnerx0[i][jj];
+				if (isnan(dx[0]) || isnan(dx[1]) || isnan(dx[2])) {
+				  printf("x[%d] - x[%d] = [%f %f %f] - [%f %f %f], di = %f, dj = %f\n", tag[j], tag[i], xj[0], xj[1], xj[2], xi[0], xi[1], xi[2], damage[i], damage[j]);
+				}
 				r = dx.norm(); // current distance
 
 				if (periodic)
@@ -273,6 +278,10 @@ void PairTlsph::PreCompute() {
 				// distance vectors in current and reference configuration, velocity difference
 				dv = vj - vi;
 				dvint = vintj - vinti;
+				if (damage[j] >= 0.99) {
+				  dv.setZero();
+				  dvint.setZero();
+				}
 				dv_norm = dv.norm();
 				if (dv_norm > vij_max[i]) vij_max[i] = dv_norm;
 
@@ -283,8 +292,11 @@ void PairTlsph::PreCompute() {
 				if (failureModel[itype].failure_none == true) {
 				  scale = 1.0;
 				} else {
-				  scale = CalculateScale(degradation_ij[i][jj], itype);
+				  //scale = CalculateScale(degradation_ij[i][jj], itype);
+				  //scale = (1.0 - damage[j])*(1-damage[i]);
+				  scale = 1.0;
 				}
+				//scale = 1.0 - damage[j];
 				wf = wf_list[i][jj] * scale;
 				wfd = wfd_list[i][jj] * scale;
 				g = (wfd / r0) * dx0;
@@ -299,6 +311,9 @@ void PairTlsph::PreCompute() {
 				Fincr[i].noalias() += volj * Ftmp;
 				shepardWeight += volj * wf;
 				smoothVelDifference[i].noalias() += volj * wf * dvint;
+				if (tag[j] == 1159 && damage[j] > 0.0) {
+				  printf("Ftmp[%d][%d] = %f %f %f %f %f %f %f %f %f damage[%d]=%f\n", tag[i], tag[j],Ftmp(0,0),Ftmp(0,1),Ftmp(0,2),Ftmp(1,0),Ftmp(1,1),Ftmp(1,2),Ftmp(2,0),Ftmp(2,1),Ftmp(2,2), tag[j], damage[j]);
+				}
 								
 				numNeighsRefConfig[i]++;
 			} // end loop over j
@@ -322,6 +337,8 @@ void PairTlsph::PreCompute() {
 			} else {
 				status = PolDec(Fincr[i], R[i], U, false); // polar decomposition of the deformation gradient, F = R * U
 				if (!status) {
+				  cout << "Here is Fincr[" << tag[i] << "]:" << endl << Fincr[i] << endl;
+				  cout << "Here is K[" << tag[i] << "]:" << endl << K[i] << endl;
 					error->message(FLERR, "Polar decomposition of deformation gradient failed.\n");
 					mol[i] = -1;
 				} else {
@@ -545,7 +562,6 @@ void PairTlsph::ComputeForces(int eflag, int vflag) {
 			vi(idim) = v[i][idim];
 		}
 		
-		fbc.setZero();
 		for (jj = 0; jj < jnum; jj++) {
 			j = atom->map(partner[i][jj]);
 			if (j < 0) { //			// check if lost a partner without first breaking bond
@@ -553,11 +569,11 @@ void PairTlsph::ComputeForces(int eflag, int vflag) {
 			  continue;
 			}
 
-			//if (mol[j] < 0) {
-			//	continue; // Particle j is not a valid SPH particle (anymore). Skip all interactions with this particle.
-			//}
+			if (mol[j] < 0) {
+				continue; // Particle j is not a valid SPH particle (anymore). Skip all interactions with this particle.
+			}
 
-			if ((mol[i] != mol[j]) && (damage[i]<1.0)) {
+			if ((mol[i] != mol[j])) {
 				continue;
 			}
 
@@ -609,37 +625,12 @@ void PairTlsph::ComputeForces(int eflag, int vflag) {
 			/*
 			 * force contribution -- note that the kernel gradient correction has been absorbed into PK1
 			 */
-			
-			// What is required is to build a basis with surfaceNormal as one of the vectors:
-			if (failureModel[itype].failure_coupling == false)
-			  f_stress = -(voli * volj) * scale * (PK1[j]*CalculateScale(damage[j], itype) + PK1[i]*CalculateScale(damage[i], itype)) * g;
-			else
-			  f_stress = -(voli * volj) * scale * (PK1[j] + PK1[i]) * g;
-			
-			// if (scale > 0.0) {
-			//   AdjustStressForZeroForceBC(PK1[i], dx0, sigmaBC_i);
-			//   f_stress -= (voli * volj * (1 - scale)) * (sigmaBC_i + PK1[i]) * (K0[i] * g); //= 0!
-			// }
-
-			//if ((tag[i] == 1842) || (tag[i] == 2562))
-			//  printf("Particle %d: sN=[%f %f %f]\n",tag[i], sNormal[i][0], sNormal[i][1], sNormal[i][2]);
-			  
-			// if (sNormal[i].norm() > 0.75) {
-			//   //if (sNormal[i].dot(dx0) <= -0.5*pow(volj, 1.0/3.0))
-			//   //{
-			//   Matrix3d P = CreateOrthonormalBasisFromOneVector(sNormal[i]);
-			//   Vector3d sU = P.col(0);
-			//   Vector3d sV = P.col(1);
-			//   Vector3d sW = P.col(2);
-			//   //AdjustStressForZeroForceBC(PK1[i], sU, sigmaBC_i);
-			//   f_stress -= voli * volj * (PK1[i]) * (g.dot(sV)*sV + g.dot(sW)*sW);
-			//   //Vector3d f_stressbc;
-			//   f_stress += voli * volj * (PK1[i]) * g.dot(sU)*sU; //=0!!
-			//   //f_stressbc = f_stressbc.dot(sU)*sU;
-			//   //f_stress += voli * volj * scale * (PK1[i]) * g;
-			//   //f_stress += f_stressbc;
-			//   //}
-			// }
+			f_stress = -(voli * volj) * (PK1[j]*(1.0-damage[i]) + PK1[i]*(1.0-damage[j])) * g;
+			if (isnan(f_stress[0]) || isnan(f_stress[1]) || isnan(f_stress[2])) {
+			  printf("f_stress[%d][%d] = [%f %f %f], di = %f, dj = %f\n", tag[i], tag[j], f_stress[0], f_stress[1], f_stress[2], damage[i], damage[j]);
+			  cout << "Here is PK1["<< tag[i] <<"]:" << endl << PK1[i] << endl;
+			  cout << "Here is PK1["<< tag[j] <<"]:" << endl << PK1[j] << endl;
+			}
 			energy_per_bond[i][jj] = f_stress.dot(dx); // THIS IS NOT THE ENERGY PER BOND, I AM USING THIS VARIABLE TO STORE THIS VALUE TEMPORARILY
 			/*
 			 * artificial viscosity
@@ -708,7 +699,6 @@ void PairTlsph::ComputeForces(int eflag, int vflag) {
 			f[i][0] += sumForces(0);
 			f[i][1] += sumForces(1);
 			f[i][2] += sumForces(2);
-			fbc += f_stressbc;
 			de[i] += deltaE;
 
 			// tally atomistic stress tensor
@@ -839,6 +829,9 @@ void PairTlsph::AssembleStress() {
 
 				// keep a rolling average of the plastic strain rate over the last 100 or so timesteps
 				eff_plastic_strain[i] += plastic_strain_increment;
+				if (eff_plastic_strain[i] < 0.0) {
+				  printf("eff_plastic_strain[%d] = %f, plastic_strain_increment = %f\n", atom->tag[i], eff_plastic_strain[i], plastic_strain_increment);
+				}
 
 				// compute a characteristic time over which to average the plastic strain
 				double tav = 1000 * radius[i] / (Lookup[SIGNAL_VELOCITY][itype]);
@@ -908,6 +901,17 @@ void PairTlsph::AssembleStress() {
 				 * pre-multiply stress tensor with shape matrix to save computation in force loop
 				 */
 				PK1[i] = PK1[i] * K[i];
+				if (atom->tag[i] == 1160) {
+				  if (isnan(PK1[i](0, 0))) {
+				    cout << "Here is PK1["<< atom->tag[i] <<"]:" << endl << PK1[i] << endl;
+				    cout << "Here is K["<< atom->tag[i] <<"]:" << endl << K[i] << endl;
+				    cout << "Here is detF["<< atom->tag[i] <<"]:" << endl << detF[i] << endl;
+				    cout << "Here is T["<< atom->tag[i] <<"]:" << endl << T << endl;
+				    cout << "Here is FincrInv["<< atom->tag[i] <<"]:" << endl << FincrInv[i] << endl;
+				    cout << "pFinal = " << pFinal << endl;
+				    cout << "Here is sigmaFinal_dev = " << endl << sigmaFinal_dev << endl;
+				  }
+				}
 
 				/*
 				 * compute stable time step according to Pronto 2d
@@ -2468,7 +2472,7 @@ void PairTlsph::ComputeStressDeviator(const int i, const double mass_specific_en
 	}
 	else
 	  coupling = false;
-	  d = damage_init[i];
+	  d = damage[i];
 	
 	switch (strengthModel[itype]) {
 	case STRENGTH_LINEAR:
@@ -2593,7 +2597,8 @@ void PairTlsph::ComputeDamage(const int i, const Matrix3d strain, const Matrix3d
 	//  stress_damaged = (1.0 - damage[i]) * (-pressure * eye + Deviator(stress));
         //}
 
-	stress_damaged = stress;
+	//stress_damaged = stress;
+	stress_damaged = -pressure * eye + (1.0 - damage[i]) * Deviator(stress);
 	// Then calculate updated damage onset value:
 
 	if (failureModel[itype].failure_max_principal_stress) {
@@ -2622,7 +2627,7 @@ void PairTlsph::ComputeDamage(const int i, const Matrix3d strain, const Matrix3d
 	    damage[i] += damage_increment;
 	  } else {
 	    damage_init[i] += damage_increment;
-	    if (damage_init[i] >= 1.0) damage[i] = 1.0;
+	    if (damage_init[i] >= 1.0) damage[i] = (damage_init[i]-1.0)*10;
 	  }
 	} else if (failureModel[itype].failure_gtn) {
 	  /*
@@ -2649,7 +2654,7 @@ void PairTlsph::ComputeDamage(const int i, const Matrix3d strain, const Matrix3d
 	  }
 	}
 
-	damage[i] = MIN(damage[i], 1.0);
+	damage[i] = MIN(damage[i], 0.99);
 	
 }
 

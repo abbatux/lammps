@@ -348,6 +348,14 @@ void LinearPlasticStrength(const double G, const double yieldStress, const Matri
 		sigma_dev_rate__ = sigmaFinal_dev__ - sigmaInitial_dev;
 		//printf("yielding has occured.\n");
 	}
+	if (plastic_strain_increment < 0.0)
+	  printf("J2 = %f, yieldstress = %f, Gd = %f, plastic_strain_increment=%f\n", J2, yieldStress, Gd, plastic_strain_increment);
+	if (isnan(sigmaFinal_dev__(0 ,0))){
+	  cout << "Here is sigmaFinal_dev: " << endl << sigmaFinal_dev__ << endl;
+	  cout << "Here is sigmaInitial_dev: " << endl << sigmaInitial_dev << endl;
+	  cout << "Here is d_dev: " << endl << d_dev << endl;
+	  printf("J2 = %f, yieldstress = %f, Gd = %f, plastic_strain_increment=%f\n", J2, yieldStress, Gd, plastic_strain_increment);
+	}
 }
 
 /* ----------------------------------------------------------------------
@@ -382,8 +390,11 @@ void JohnsonCookStrength(const double G, const double cp, const double espec, co
 	//printf("current temperature delta is %f, TH=%f\n", deltaT, TH);
 	
 	yieldStress = (A + B * pow(ep, a)) * pow(1.0 + epdot_ratio, C); // * (1.0 - pow(TH, M));
+	if (isnan(yieldStress)){
+	  printf("yieldStress = %f, ep = %f, epdot_ratio = %f, epdot = %f, epdot0 = %f\n", yieldStress,ep,epdot_ratio, epdot, epdot0);
+	}
 	
-	LinearPlasticStrength(G, yieldStress, sigmaInitial_dev, d_dev, dt, sigmaFinal_dev__, sigma_dev_rate__, plastic_strain_increment, damage);
+	LinearPlasticStrength(G, yieldStress, sigmaInitial_dev, d_dev, dt, sigmaFinal_dev__, sigma_dev_rate__, plastic_strain_increment, 0.0);
 }
 
 /* ----------------------------------------------------------------------
