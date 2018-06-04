@@ -201,6 +201,9 @@ void PairTlsph::PreCompute() {
 			if (mol[i] < 0) { // valid SPH particle have mol > 0
 				continue;
 			}
+			if (damage[i] >= 1.0) {
+			  continue;
+			}
 
 			// initialize aveage mass density
 			h = 2.0 * radius[i];
@@ -259,8 +262,11 @@ void PairTlsph::PreCompute() {
 
 				dx0 = x0j - x0i;
 				dx = xj - xi;
-				if (damage[j] < 0.99) partnerx0[i][jj] = dx; //I am using this to store dx.
-				else dx = partnerx0[i][jj];
+
+				if (failureModel[itype].integration_point_wise == true) {
+				  if (damage[j] < 1.0) partnerx0[i][jj] = dx; //I am using this to store dx.
+				  else dx = partnerx0[i][jj];
+				}
 				if (isnan(dx[0]) || isnan(dx[1]) || isnan(dx[2])) {
 				  printf("x[%d] - x[%d] = [%f %f %f] - [%f %f %f], di = %f, dj = %f\n", tag[j], tag[i], xj[0], xj[1], xj[2], xi[0], xi[1], xi[2], damage[i], damage[j]);
 				}
@@ -278,9 +284,11 @@ void PairTlsph::PreCompute() {
 				// distance vectors in current and reference configuration, velocity difference
 				dv = vj - vi;
 				dvint = vintj - vinti;
-				if (damage[j] >= 0.99) {
-				  dv.setZero();
-				  dvint.setZero();
+				if (failureModel[itype].integration_point_wise == true) {
+				  if (damage[j] >= 1.0) {
+				    dv.setZero();
+				    dvint.setZero();
+				  }
 				}
 				dv_norm = dv.norm();
 				if (dv_norm > vij_max[i]) vij_max[i] = dv_norm;
@@ -392,7 +400,7 @@ void PairTlsph::PreCompute() {
 			 	//error->one(FLERR, "");
 				}*/
 
-			if (mol[i] < 0) {
+			if (mol[i] < 0 || damage[i]>=1.0) {
 				D[i].setZero();
 				Fdot[i].setZero();
 				Fincr[i].setIdentity();
@@ -545,6 +553,9 @@ void PairTlsph::ComputeForces(int eflag, int vflag) {
 		if (mol[i] < 0) {
 			continue; // Particle i is not a valid SPH particle (anymore). Skip all interactions with this particle.
 		}
+		if (damage[i] >= 1.0) {
+		  continue;
+		}
 
 		itype = type[i];
 		jnum = npartner[i];
@@ -602,6 +613,12 @@ void PairTlsph::ComputeForces(int eflag, int vflag) {
 			// distance vectors in current and reference configuration, velocity difference
 			dx = xj - xi;
 			dv = vj - vi;
+			if (failureModel[itype].integration_point_wise == true) {
+			  if (damage[j] < 1.0) partnerx0[i][jj] = dx; //I am using this to store dx.
+			  else dx = partnerx0[i][jj];
+
+			  if (damage[j] >= 1.0) dv.setZero();
+			}
 			r = dx.norm(); // current distance
 			
 			// scale the interaction according to the damage variable
@@ -784,7 +801,7 @@ void PairTlsph::AssembleStress() {
 
 		itype = type[i];
 		if (setflag[itype][itype] == 1) {
-			if (mol[i] > 0) { // only do the following if particle has not failed -- mol < 0 means particle has failed
+			if (mol[i] > 0 && damage[i] < 1.0) { // only do the following if particle has not failed -- mol < 0 means particle has failed
 
 				/*
 				 * initial stress state: given by the unrotateted Cauchy stress.
@@ -2654,7 +2671,7 @@ void PairTlsph::ComputeDamage(const int i, const Matrix3d strain, const Matrix3d
 	  }
 	}
 
-	damage[i] = MIN(damage[i], 0.99);
+	damage[i] = MIN(damage[i], 1.0);
 	
 }
 
@@ -2692,6 +2709,9 @@ void PairTlsph::UpdateDegradation() {
 
 		if (mol[i] < 0) {
 			continue; // Particle i is not a valid SPH particle (anymore). Skip all interactions with this particle.
+		}
+		if (damage[i] >= 1.0) {
+		  continue;
 		}
 
 		itype = type[i];
@@ -2785,32 +2805,11 @@ void PairTlsph::UpdateDegradation() {
 			}
 
 			if (failureModel[itype].integration_point_wise) {
-			  degradation_ij[i][jj] = 1 - (1 - damage[i]) * (1 - damage[j]);
+			  degradation_ij[i][jj] = 0.0; //1 - (1 - damage[i]) * (1 - damage[j]);
 			  if (degradation_ij[i][jj] >= 1.0) { // delete interaction if fully damaged
 			    //printf("Link between %d and %d destroyed due to complete degradation with damage[i] = %f and damage[j] = %f.\n", tag[i], partner[i][jj], damage[i], damage[j]);
 			    degradation_ij[i][jj] = 1.0;
 			  }
-			  /*
-			  if ((damage[i] == 1.0) && (damage[j]==1.0)) {
-			    strain1d = (r - r0) / r0;
-
-			    if (energy_per_bond[i][jj] > 0.0) { // f_stress.dot(dx) > 0.0 if the link i-jj is in tension, only then we apply degradation
-			      if (strain1d > 0.0) {
-				
-				// check if damage_onset is already defined
-				softening_strain = 0.01;
-				
-				degradation_ij[i][jj] += 0.5 * (eff_plastic_strain_rate[i] + eff_plastic_strain_rate[j]) * update->dt / softening_strain;
-				
-			      }
-			    }
-			      
-			      
-			    if (degradation_ij[i][jj] >= 1.0) { // delete interaction if fully damaged
-			      printf("Link between %d and %d destroyed due to complete degradation.\n", tag[i], tag[jj]);
-			      degradation_ij[i][jj] = 1.0;
-			    }
-			    }*/
 			}
 			
 			if (degradation_ij[i][jj] < 1.0) {
@@ -2818,7 +2817,7 @@ void PairTlsph::UpdateDegradation() {
 			}
 		} // end loop over jj neighbors of i
 		
-		if (numNeighbors == 0) {
+		if (numNeighbors == 0 || damage[i] >= 1.0) {
 		  //printf("Deleting particle [%d] because damage = %f\n", tag[i], damage[i]);
 		  //dtCFL = MIN(dtCFL, update->dt);
 		  //mol[i] = -1;
