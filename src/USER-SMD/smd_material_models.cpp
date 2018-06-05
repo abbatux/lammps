@@ -297,13 +297,13 @@ void LinearStrength(const double mu, const Matrix3d sigmaInitial_dev, const Matr
  input: dt: time-step
  output:  sigmaFinal_dev, sigmaFinal_dev_rate__: final stress deviator and its rate.
  ------------------------------------------------------------------------- */
-void LinearPlasticStrength(const double G, const double yieldStress, const Matrix3d sigmaInitial_dev, const Matrix3d d_dev,
+void LinearPlasticStrength(const double G, double yieldStress, const Matrix3d sigmaInitial_dev, const Matrix3d d_dev,
 			   const double dt, Matrix3d &sigmaFinal_dev__, Matrix3d &sigma_dev_rate__, double &plastic_strain_increment, const double damage) {
 
 	Matrix3d sigmaTrial_dev, dev_rate;
 	double J2;
-	double Gd = (1 - damage) * G;
-
+	double Gd = G * (1.0 - damage);
+	yieldStress *= (1.0 - damage);
 	/*
 	 * deviatoric rate of unrotated stress
 	 */
@@ -348,14 +348,7 @@ void LinearPlasticStrength(const double G, const double yieldStress, const Matri
 		sigma_dev_rate__ = sigmaFinal_dev__ - sigmaInitial_dev;
 		//printf("yielding has occured.\n");
 	}
-	if (plastic_strain_increment < 0.0)
-	  printf("J2 = %f, yieldstress = %f, Gd = %f, plastic_strain_increment=%f\n", J2, yieldStress, Gd, plastic_strain_increment);
-	if (isnan(sigmaFinal_dev__(0 ,0))){
-	  cout << "Here is sigmaFinal_dev: " << endl << sigmaFinal_dev__ << endl;
-	  cout << "Here is sigmaInitial_dev: " << endl << sigmaInitial_dev << endl;
-	  cout << "Here is d_dev: " << endl << d_dev << endl;
-	  printf("J2 = %f, yieldstress = %f, Gd = %f, plastic_strain_increment=%f\n", J2, yieldStress, Gd, plastic_strain_increment);
-	}
+	
 }
 
 /* ----------------------------------------------------------------------
@@ -394,7 +387,7 @@ void JohnsonCookStrength(const double G, const double cp, const double espec, co
 	  printf("yieldStress = %f, ep = %f, epdot_ratio = %f, epdot = %f, epdot0 = %f\n", yieldStress,ep,epdot_ratio, epdot, epdot0);
 	}
 	
-	LinearPlasticStrength(G, yieldStress, sigmaInitial_dev, d_dev, dt, sigmaFinal_dev__, sigma_dev_rate__, plastic_strain_increment, 0.0);
+	LinearPlasticStrength(G, yieldStress, sigmaInitial_dev, d_dev, dt, sigmaFinal_dev__, sigma_dev_rate__, plastic_strain_increment, damage);
 }
 
 /* ----------------------------------------------------------------------
@@ -426,7 +419,6 @@ double GTNStrength(const double G, FlowStress flowstress, const double Q1, const
   else {
     f = fcr + (damage - fcrQ1)/(1 - fcrQ1) * (fF - fcr);
   }
-  if (coupling == true) Gd *= (1-f);
 
   damage_increment = 0.0;
 

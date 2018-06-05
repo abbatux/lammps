@@ -143,7 +143,7 @@ void PerfectGasEOS(const double gamma, const double vol, const double mass, cons
  */
 void LinearStrength(const double mu, const Matrix3d sigmaInitial_dev, const Matrix3d d_dev, const double dt,
 		Matrix3d &sigmaFinal_dev__, Matrix3d &sigma_dev_rate__);
-void LinearPlasticStrength(const double G, const double yieldStress, const Matrix3d sigmaInitial_dev, const Matrix3d d_dev,
+void LinearPlasticStrength(const double G, double yieldStress, const Matrix3d sigmaInitial_dev, const Matrix3d d_dev,
 			   const double dt, Matrix3d &sigmaFinal_dev__, Matrix3d &sigma_dev_rate__, double &plastic_strain_increment, const double damage);
 void JohnsonCookStrength(const double G, const double cp, const double espec, const double A, const double B, const double a,
 		const double C, const double epdot0, const double T0, const double Tmelt, const double M, const double dt, const double ep,

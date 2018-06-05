@@ -2533,8 +2533,8 @@ void PairTlsph::ComputeDamage(const int i, const Matrix3d strain, const Matrix3d
 	//  stress_damaged = (1.0 - damage[i]) * (-pressure * eye + Deviator(stress));
         //}
 
-	//stress_damaged = stress;
-	stress_damaged = -pressure * eye + (1.0 - damage[i]) * Deviator(stress);
+	stress_damaged = stress;
+
 	// Then calculate updated damage onset value:
 
 	if (failureModel[itype].failure_max_principal_stress) {
