@@ -159,7 +159,7 @@ void PairTlsph::PreCompute() {
 	float **degradation_ij = ((FixSMD_TLSPH_ReferenceConfiguration *) modify->fix[ifix_tlsph])->degradation_ij;
 	Vector3d **partnerx0 = ((FixSMD_TLSPH_ReferenceConfiguration *) modify->fix[ifix_tlsph])->partnerx0;
 	double **partnervol = ((FixSMD_TLSPH_ReferenceConfiguration *) modify->fix[ifix_tlsph])->partnervol;
-	double r, r0, r0Sq, wf, wfd, h, irad, voli, volj, scale, shepardWeight, inverseShepardWeight;
+	double r, r0, r0Sq, wf, wfd, h, irad, voli, volj, shepardWeight, inverseShepardWeight;
 	Vector3d dx, dx0, dx0mirror, dv, g;
 	Matrix3d Ktmp, Ftmp, Fdottmp, L, U, eye;
 	Vector3d vi, vj, vinti, vintj, xi, xj, x0i, x0j, dvint;
@@ -174,20 +174,6 @@ void PairTlsph::PreCompute() {
 		vij_max[i] = 0.0;
 
 		itype = type[i];
-		/*if ((damage[i] >= 1.0) && (mol[i] >= 0)) {
-		  printf("deleting particle [%d] because damage = %f\n", tag[i], damage[i]);
-		  mol[i] = -1;
-		  D[i].setZero();
-		  Fdot[i].setZero();
-		  Fincr[i].setIdentity();
-		  smoothVelDifference[i].setZero();
-		  detF[i] = 1.0;
-		  K[i].setIdentity();
-
-		  vint[i][0] = 0.0;
-		  vint[i][1] = 0.0;
-		  vint[i][2] = 0.0;
-		  }*/
 		
 		if (setflag[itype][itype] == 1) {
 
@@ -200,9 +186,6 @@ void PairTlsph::PreCompute() {
 
 			if (mol[i] < 0) { // valid SPH particle have mol > 0
 				continue;
-			}
-			if (damage[i] >= 1.0) {
-			  continue;
 			}
 
 			// initialize aveage mass density
@@ -236,21 +219,9 @@ void PairTlsph::PreCompute() {
 				  continue;
 				}
 
-
-				//if (mol[j] < 0) { // particle has failed. do not include it for computing any property
-				//	continue;
-				//}
-
 				if (abs(mol[i]) != abs(mol[j])) {
 					continue;
 				}
-				/*if (failureModel[itype].integration_point_wise){ // check if the particles are fully damaged. If so, the bond is broken. This is important when the list of neighbors is updated.
-				  if ((damage[i] == 1) || (damage[j] == 1)) {
-				    degradation_ij[i][jj] = 1;
-                                    partner[i][jj] = 0;
-				    continue;
-				  }
-				  }*/
 
 				// initialize Eigen data structures from LAMMPS data structures
 				for (idim = 0; idim < 3; idim++) {
@@ -293,20 +264,8 @@ void PairTlsph::PreCompute() {
 				dv_norm = dv.norm();
 				if (dv_norm > vij_max[i]) vij_max[i] = dv_norm;
 
-		   
-                                
-
-				// scale the interaction according to the damage variable
-				if (failureModel[itype].failure_none == true) {
-				  scale = 1.0;
-				} else {
-				  //scale = CalculateScale(degradation_ij[i][jj], itype);
-				  //scale = (1.0 - damage[j])*(1-damage[i]);
-				  scale = 1.0;
-				}
-				//scale = 1.0 - damage[j];
-				wf = wf_list[i][jj] * scale;
-				wfd = wfd_list[i][jj] * scale;
+				wf = wf_list[i][jj];
+				wfd = wfd_list[i][jj];
 				g = (wfd / r0) * dx0;
 
 				/* build matrices */
@@ -319,9 +278,6 @@ void PairTlsph::PreCompute() {
 				Fincr[i].noalias() += volj * Ftmp;
 				shepardWeight += volj * wf;
 				smoothVelDifference[i].noalias() += volj * wf * dvint;
-				if (tag[j] == 1159 && damage[j] > 0.0) {
-				  printf("Ftmp[%d][%d] = %f %f %f %f %f %f %f %f %f damage[%d]=%f\n", tag[i], tag[j],Ftmp(0,0),Ftmp(0,1),Ftmp(0,2),Ftmp(1,0),Ftmp(1,1),Ftmp(1,2),Ftmp(2,0),Ftmp(2,1),Ftmp(2,2), tag[j], damage[j]);
-				}
 								
 				numNeighsRefConfig[i]++;
 			} // end loop over j
@@ -378,29 +334,13 @@ void PairTlsph::PreCompute() {
 			 * make sure F stays within some limits
 			 */
 
-			if ((numNeighsRefConfig[i] == 0) || damage[i] >= 1.0) {
+			if (numNeighsRefConfig[i] == 0) {
 			  printf("deleting particle [%d] because nn = %d\n", tag[i], numNeighsRefConfig[i]);
 			  dtCFL = MIN(dtCFL, dt); //Keep the same (small) time step when a particule breaks.		       
 			  mol[i] = -mol[i];
 			}
-			/*if ((detF[i] < DETF_MIN) || (detF[i] > DETF_MAX) || (numNeighsRefConfig[i] == 0)) {
-			 	printf("deleting particle [%d] because det(F)=%f is outside stable range %f -- %f \n", tag[i],
-			 			Fincr[i].determinant(),
-			 			DETF_MIN, DETF_MAX);
-			 	printf("nn = %d, damage=%f\n", numNeighsRefConfig[i], damage[i]);
-			 	cout << "Here is matrix F:" << endl << Fincr[i] << endl;
-			 	cout << "Here is matrix F-1:" << endl << FincrInv[i] << endl;
-			 	cout << "Here is matrix K-1:" << endl << K[i] << endl;
-			 	cout << "Here is matrix K:" << endl << K[i].inverse() << endl;
-			 	cout << "Here is det of K" << endl << (K[i].inverse()).determinant() << endl;
-			 	cout << "Here is matrix R:" << endl << R[i] << endl;
-			 	cout << "Here is det of R" << endl << R[i].determinant() << endl;
-			 	cout << "Here is matrix U:" << endl << U << endl;
-			 	mol[i] = -1;
-			 	//error->one(FLERR, "");
-				}*/
 
-			if (mol[i] < 0 || damage[i]>=1.0) {
+			if (mol[i] < 0) {
 				D[i].setZero();
 				Fdot[i].setZero();
 				Fincr[i].setIdentity();
@@ -530,9 +470,7 @@ void PairTlsph::ComputeForces(int eflag, int vflag) {
 	float **energy_per_bond = ((FixSMD_TLSPH_ReferenceConfiguration *) modify->fix[ifix_tlsph])->energy_per_bond;
 	Vector3d **partnerx0 = ((FixSMD_TLSPH_ReferenceConfiguration *) modify->fix[ifix_tlsph])->partnerx0;
         double **partnervol = ((FixSMD_TLSPH_ReferenceConfiguration *) modify->fix[ifix_tlsph])->partnervol;
-	Vector3d *sNormal = ((FixSMD_TLSPH_ReferenceConfiguration *) modify->fix[ifix_tlsph])->sNormal;
 	Matrix3d eye, sigmaBC_i;
-	Matrix3d *K0 = ((FixSMD_TLSPH_ReferenceConfiguration *) modify->fix[ifix_tlsph])->K0;
 	eye.setIdentity();
 
 	if (eflag || vflag)
@@ -552,9 +490,6 @@ void PairTlsph::ComputeForces(int eflag, int vflag) {
 		
 		if (mol[i] < 0) {
 			continue; // Particle i is not a valid SPH particle (anymore). Skip all interactions with this particle.
-		}
-		if (damage[i] >= 1.0) {
-		  continue;
 		}
 
 		itype = type[i];
@@ -643,11 +578,7 @@ void PairTlsph::ComputeForces(int eflag, int vflag) {
 			 * force contribution -- note that the kernel gradient correction has been absorbed into PK1
 			 */
 			f_stress = -(voli * volj) * (PK1[j]*(1.0-damage[i]) + PK1[i]*(1.0-damage[j])) * g;
-			if (isnan(f_stress[0]) || isnan(f_stress[1]) || isnan(f_stress[2])) {
-			  printf("f_stress[%d][%d] = [%f %f %f], di = %f, dj = %f\n", tag[i], tag[j], f_stress[0], f_stress[1], f_stress[2], damage[i], damage[j]);
-			  cout << "Here is PK1["<< tag[i] <<"]:" << endl << PK1[i] << endl;
-			  cout << "Here is PK1["<< tag[j] <<"]:" << endl << PK1[j] << endl;
-			}
+
 			energy_per_bond[i][jj] = f_stress.dot(dx); // THIS IS NOT THE ENERGY PER BOND, I AM USING THIS VARIABLE TO STORE THIS VALUE TEMPORARILY
 			/*
 			 * artificial viscosity
@@ -751,9 +682,9 @@ void PairTlsph::ComputeForces(int eflag, int vflag) {
 			hourglass_error[i] /= shepardWeight;
 		}
 		double deltat_1 = sqrt(2 * radius[i] * rmass[i]/ sqrt( f[i][0]*f[i][0] + f[i][1]*f[i][1] + f[i][2]*f[i][2] ));
-		if (particle_dt[i] > deltat_1) {
-		  printf("particle_dt[%d] > deltat_1 with f = [%f %f %f]\n", tag[i], f[i][0], f[i][1], f[i][2]);
-		}
+		// if (particle_dt[i] > deltat_1) {
+		//   printf("particle_dt[%d] > deltat_1 with f = [%f %f %f]\n", tag[i], f[i][0], f[i][1], f[i][2]);
+		// }
 		particle_dt[i] = MIN(particle_dt[i], deltat_1); // Monaghan deltat_1 
 		dtCFL = MIN(dtCFL, particle_dt[i]);
 
@@ -790,7 +721,6 @@ void PairTlsph::AssembleStress() {
 	Matrix3d sigma_rate, eye, sigmaInitial, sigmaFinal, T, T_damaged, Jaumann_rate, sigma_rate_check;
 	Matrix3d d_dev, sigmaInitial_dev, sigmaFinal_dev, sigma_dev_rate, strain, deltaSigma;
 	Vector3d vi;
-	Matrix3d *K0 = ((FixSMD_TLSPH_ReferenceConfiguration *) modify->fix[ifix_tlsph])->K0;
 
 	eye.setIdentity();
 	//dtCFL = 1.0e22;
@@ -801,7 +731,7 @@ void PairTlsph::AssembleStress() {
 
 		itype = type[i];
 		if (setflag[itype][itype] == 1) {
-			if (mol[i] > 0 && damage[i] < 1.0) { // only do the following if particle has not failed -- mol < 0 means particle has failed
+			if (mol[i] > 0) { // only do the following if particle has not failed -- mol < 0 means particle has failed
 
 				/*
 				 * initial stress state: given by the unrotateted Cauchy stress.
@@ -918,17 +848,6 @@ void PairTlsph::AssembleStress() {
 				 * pre-multiply stress tensor with shape matrix to save computation in force loop
 				 */
 				PK1[i] = PK1[i] * K[i];
-				if (atom->tag[i] == 1160) {
-				  if (isnan(PK1[i](0, 0))) {
-				    cout << "Here is PK1["<< atom->tag[i] <<"]:" << endl << PK1[i] << endl;
-				    cout << "Here is K["<< atom->tag[i] <<"]:" << endl << K[i] << endl;
-				    cout << "Here is detF["<< atom->tag[i] <<"]:" << endl << detF[i] << endl;
-				    cout << "Here is T["<< atom->tag[i] <<"]:" << endl << T << endl;
-				    cout << "Here is FincrInv["<< atom->tag[i] <<"]:" << endl << FincrInv[i] << endl;
-				    cout << "pFinal = " << pFinal << endl;
-				    cout << "Here is sigmaFinal_dev = " << endl << sigmaFinal_dev << endl;
-				  }
-				}
 
 				/*
 				 * compute stable time step according to Pronto 2d
@@ -2707,11 +2626,10 @@ void PairTlsph::UpdateDegradation() {
 
 	for (i = 0; i < nlocal; i++) {
 
+		int numNeighbors = 0;
+		
 		if (mol[i] < 0) {
 			continue; // Particle i is not a valid SPH particle (anymore). Skip all interactions with this particle.
-		}
-		if (damage[i] >= 1.0) {
-		  continue;
 		}
 
 		itype = type[i];
@@ -2732,8 +2650,6 @@ void PairTlsph::UpdateDegradation() {
 		    xi(idim) = x[i][idim];
 		  }
 		}
-
-		int numNeighbors = 0;
 		
 		for (jj = 0; jj < jnum; jj++) {
 			if (degradation_ij[i][jj] >= 1.0)
@@ -2806,6 +2722,9 @@ void PairTlsph::UpdateDegradation() {
 
 			if (failureModel[itype].integration_point_wise) {
 			  degradation_ij[i][jj] = 0.0; //1 - (1 - damage[i]) * (1 - damage[j]);
+
+			  if (damage[i] >= 1.0) degradation_ij[i][jj] = 1.0;
+
 			  if (degradation_ij[i][jj] >= 1.0) { // delete interaction if fully damaged
 			    //printf("Link between %d and %d destroyed due to complete degradation with damage[i] = %f and damage[j] = %f.\n", tag[i], partner[i][jj], damage[i], damage[j]);
 			    degradation_ij[i][jj] = 1.0;
@@ -2817,10 +2736,10 @@ void PairTlsph::UpdateDegradation() {
 			}
 		} // end loop over jj neighbors of i
 		
-		if (numNeighbors == 0 || damage[i] >= 1.0) {
-		  //printf("Deleting particle [%d] because damage = %f\n", tag[i], damage[i]);
+		if (numNeighbors == 0) {
+		  printf("Deleting particle [%d] because damage = %f\n", tag[i], damage[i]);
 		  //dtCFL = MIN(dtCFL, update->dt);
-		  //mol[i] = -1;
+		  mol[i] = -mol[i];
 		  vint[i][0] = 0.0;
 		  vint[i][1] = 0.0;
 		  vint[i][2] = 0.0;
