@@ -157,7 +157,7 @@ void PairTlsph::PreCompute() {
 	float **wfd_list = ((FixSMD_TLSPH_ReferenceConfiguration *) modify->fix[ifix_tlsph])->wfd_list;
 	float **wf_list = ((FixSMD_TLSPH_ReferenceConfiguration *) modify->fix[ifix_tlsph])->wf_list;
 	float **degradation_ij = ((FixSMD_TLSPH_ReferenceConfiguration *) modify->fix[ifix_tlsph])->degradation_ij;
-	Vector3d **partnerx0 = ((FixSMD_TLSPH_ReferenceConfiguration *) modify->fix[ifix_tlsph])->partnerx0;
+	Vector3d **partnerdx = ((FixSMD_TLSPH_ReferenceConfiguration *) modify->fix[ifix_tlsph])->partnerdx;
 	double **partnervol = ((FixSMD_TLSPH_ReferenceConfiguration *) modify->fix[ifix_tlsph])->partnervol;
 	double r, r0, r0Sq, wf, wfd, h, irad, voli, volj, shepardWeight, inverseShepardWeight;
 	Vector3d dx, dx0, dx0mirror, dv, g;
@@ -235,8 +235,8 @@ void PairTlsph::PreCompute() {
 				dx = xj - xi;
 
 				if (failureModel[itype].integration_point_wise == true) {
-				  if (damage[j] < 1.0) partnerx0[i][jj] = dx; //I am using this to store dx.
-				  else dx = partnerx0[i][jj];
+				  if (damage[j] < 1.0) partnerdx[i][jj] = dx; //I am using this to store dx.
+				  else dx = partnerdx[i][jj];
 				}
 				if (isnan(dx[0]) || isnan(dx[1]) || isnan(dx[2])) {
 				  printf("x[%d] - x[%d] = [%f %f %f] - [%f %f %f], di = %f, dj = %f\n", tag[j], tag[i], xj[0], xj[1], xj[2], xi[0], xi[1], xi[2], damage[i], damage[j]);
@@ -468,7 +468,7 @@ void PairTlsph::ComputeForces(int eflag, int vflag) {
 	float **wf_list = ((FixSMD_TLSPH_ReferenceConfiguration *) modify->fix[ifix_tlsph])->wf_list;
 	float **degradation_ij = ((FixSMD_TLSPH_ReferenceConfiguration *) modify->fix[ifix_tlsph])->degradation_ij;
 	float **energy_per_bond = ((FixSMD_TLSPH_ReferenceConfiguration *) modify->fix[ifix_tlsph])->energy_per_bond;
-	Vector3d **partnerx0 = ((FixSMD_TLSPH_ReferenceConfiguration *) modify->fix[ifix_tlsph])->partnerx0;
+	Vector3d **partnerdx = ((FixSMD_TLSPH_ReferenceConfiguration *) modify->fix[ifix_tlsph])->partnerdx;
         double **partnervol = ((FixSMD_TLSPH_ReferenceConfiguration *) modify->fix[ifix_tlsph])->partnervol;
 	Matrix3d eye, sigmaBC_i;
 	eye.setIdentity();
@@ -549,8 +549,8 @@ void PairTlsph::ComputeForces(int eflag, int vflag) {
 			dx = xj - xi;
 			dv = vj - vi;
 			if (failureModel[itype].integration_point_wise == true) {
-			  if (damage[j] < 1.0) partnerx0[i][jj] = dx; //I am using this to store dx.
-			  else dx = partnerx0[i][jj];
+			  if (damage[j] < 1.0) partnerdx[i][jj] = dx; //I am using this to store dx.
+			  else dx = partnerdx[i][jj];
 
 			  if (damage[j] >= 1.0) dv.setZero();
 			}
@@ -2575,7 +2575,7 @@ void PairTlsph::UpdateDegradation() {
 	int *npartner = ((FixSMD_TLSPH_ReferenceConfiguration *) modify->fix[ifix_tlsph])->npartner;
 	float **degradation_ij = ((FixSMD_TLSPH_ReferenceConfiguration *) modify->fix[ifix_tlsph])->degradation_ij;
 	float **energy_per_bond = ((FixSMD_TLSPH_ReferenceConfiguration *) modify->fix[ifix_tlsph])->energy_per_bond;
-        Vector3d **partnerx0 = ((FixSMD_TLSPH_ReferenceConfiguration *) modify->fix[ifix_tlsph])->partnerx0;
+        Vector3d **partnerdx = ((FixSMD_TLSPH_ReferenceConfiguration *) modify->fix[ifix_tlsph])->partnerdx;
         double **partnervol = ((FixSMD_TLSPH_ReferenceConfiguration *) modify->fix[ifix_tlsph])->partnervol;
 
 	for (i = 0; i < nlocal; i++) {
