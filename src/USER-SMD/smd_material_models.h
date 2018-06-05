@@ -153,7 +153,7 @@ double GTNStrength(const double G, FlowStress flowstress, const double Q1, const
 		   const double fcr, const double fF, const double FN, const double inverse_sN, const double epsN, const double Komega,
 		   const double dt, const double damage, const double ep, const Matrix3d sigmaInitial_dev, const Matrix3d d_dev,
 		   const double pInitial, double &pFinal, Matrix3d &sigmaFinal_dev__, Matrix3d &sigma_dev_rate__,
-		   double &plastic_strain_increment, const bool coupling, const int tag);
+		   double &plastic_strain_increment, const int tag);
 
 /*
  * Damage models
