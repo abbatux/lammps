@@ -444,9 +444,6 @@ double GTNStrength(const double G, FlowStress flowstress, const double Q1, const
   if (pFinal != 0.0 && J2 != 0.0) {
     triax = pFinal / (J2 + 0.01 * fabs(pFinal)); // have softening in denominator to avoid divison by zero
   }
-  if (triax > 3.0) {
-    triax = 3.0;
-  }
 
   Q1f = damage; // In reality it is Q1 * void function (f*) which is equal to damage
   Q1fSq = damage * damage;
