@@ -268,10 +268,11 @@ void PairTlsph::PreCompute() {
 				wfd = wfd_list[i][jj];
 				g = (wfd / r0) * dx0;
 
-				/* build matrices */
-				Ktmp = -g * dx0.transpose();
-				Fdottmp = -dv * g.transpose();
-				Ftmp = -(dx - dx0) * g.transpose();
+				/* build matrices */;
+				//printf("damage[j]/((float)npartner[j]) = %f\n",1.0 - damage[j]/((float)npartner[j]));
+				Ktmp = -g * dx0.transpose()* (1.0 - damage[j]*0.5);
+				Fdottmp = -dv * g.transpose()* (1.0 - damage[j]);
+				Ftmp = -(dx - dx0) * g.transpose()* (1.0 - damage[j]*0.5);
 
 				K[i].noalias() += volj * Ktmp;
 				Fdot[i].noalias() += volj * Fdottmp;
@@ -847,7 +848,7 @@ void PairTlsph::AssembleStress() {
 				/*
 				 * pre-multiply stress tensor with shape matrix to save computation in force loop
 				 */
-				PK1[i] = PK1[i] * K[i];
+				PK1[i] = PK1[i] * K[i].transpose();
 
 				/*
 				 * compute stable time step according to Pronto 2d
