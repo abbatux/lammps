@@ -127,7 +127,6 @@ PairTlsph::~PairTlsph() {
 		delete[] vij_max;
 
 		delete[] failureModel;
-		delete[] boundary_threshold;
 	}
 }
 
@@ -950,7 +949,6 @@ void PairTlsph::settings(int narg, char **arg) {
 	update_method = UPDATE_NONE;
 
 	int iarg = 0;
-	boundary_threshold = (char *) "0.75";
 
 	while (true) {
 
@@ -975,14 +973,6 @@ void PairTlsph::settings(int narg, char **arg) {
 
 			update_method = UPDATE_PAIRWISE_RATIO;
 			update_threshold = force->numeric(FLERR, arg[iarg]);
-
-		} else if (strcmp(arg[iarg], "*BOUNDARY_THRESHOLD") == 0) {
-			iarg++;
-			if (iarg == narg) {
-				error->all(FLERR, "expected number following *BOUNDARY_THRESHOLD keyword");
-			}
-
-			boundary_threshold = strdup(arg[iarg]);
 
 		} else {
 			char msg[128];
@@ -2061,12 +2051,11 @@ void PairTlsph::init_style() {
 		error->all(FLERR, "Pair style tlsph requires its particles to be part of a group named tlsph. This group does not exist.");
 
 	if (fix_tlsph_reference_configuration == NULL) {
-		char **fixarg = new char*[4];
+		char **fixarg = new char*[3];
 		fixarg[0] = (char *) "SMD_TLSPH_NEIGHBORS";
 		fixarg[1] = (char *) "tlsph";
 		fixarg[2] = (char *) "SMD_TLSPH_NEIGHBORS";
-		fixarg[3] = boundary_threshold;
-		modify->add_fix(4, fixarg);
+		modify->add_fix(3, fixarg);
 		delete[] fixarg;
 		fix_tlsph_reference_configuration = (FixSMD_TLSPH_ReferenceConfiguration *) modify->fix[modify->nfix - 1];
 		fix_tlsph_reference_configuration->pair = this;

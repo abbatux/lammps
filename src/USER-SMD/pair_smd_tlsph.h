@@ -105,7 +105,6 @@ protected:
 	int updateFlag;
 	double update_threshold; // updateFlage is set to one if the relative displacement of a pair exceeds update_threshold
 	double cut_comm;
-	char * boundary_threshold;
 
 	enum {
 		UPDATE_NONE = 5000, UPDATE_CONSTANT_THRESHOLD = 5001, UPDATE_PAIRWISE_RATIO = 5002,

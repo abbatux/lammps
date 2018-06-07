@@ -61,8 +61,7 @@ FixSMD_TLSPH_ReferenceConfiguration::FixSMD_TLSPH_ReferenceConfiguration(LAMMPS 
 
 	if (atom->map_style == 0)
 		error->all(FLERR, "Pair tlsph with partner list requires an atom map, see atom_modify");
-	if (narg < 4) error->all(FLERR,"Illegal fix addforce command");
-	boundary_threshold = force->numeric(FLERR, arg[3]);
+
 	maxpartner = 1;
 	npartner = NULL;
 	partner = NULL;
@@ -72,8 +71,6 @@ FixSMD_TLSPH_ReferenceConfiguration::FixSMD_TLSPH_ReferenceConfiguration(LAMMPS 
 	degradation_ij = NULL;
 	partnerdx = NULL;
 	partnervol = NULL;
-	K0 = NULL;
-	sNormal = NULL;
 	grow_arrays(atom->nmax);
 	atom->add_callback(0);
 
@@ -103,8 +100,6 @@ FixSMD_TLSPH_ReferenceConfiguration::~FixSMD_TLSPH_ReferenceConfiguration() {
 	memory->destroy(energy_per_bond);
 	memory->destroy(partnerdx);
 	memory->destroy(partnervol);
-	memory->destroy(K0);
-	memory->destroy(sNormal);
 }
 
 /* ---------------------------------------------------------------------- */
@@ -235,11 +230,8 @@ void FixSMD_TLSPH_ReferenceConfiguration::setup(int vflag) {
 	ilist = list->ilist;
 	numneigh = list->numneigh;
 	firstneigh = list->firstneigh;
+	Vector3d x0i, x0j;
 
-	Matrix3d K0inv;
-	Vector3d x0i, x0j, dxmirror;
-	double sNormalNormi;
-	
 	// zero npartner for all current atoms
 	for (i = 0; i < nlocal; i++)
 		npartner[i] = 0;
@@ -284,8 +276,6 @@ void FixSMD_TLSPH_ReferenceConfiguration::setup(int vflag) {
 
 	for (i = 0; i < nlocal; i++) {
 		npartner[i] = 0;
-		K0[i].setZero();
-		sNormal[i].setZero();
 
 		for (jj = 0; jj < maxpartner; jj++) {
 			wfd_list[i][jj] = 0.0;
@@ -320,15 +310,6 @@ void FixSMD_TLSPH_ReferenceConfiguration::setup(int vflag) {
 
 			if (r < h) {
 				spiky_kernel_and_derivative(h, r, domain->dimension, wf, wfd);
-				if (mol[i] == mol[j]) {
-				  K0[i].noalias() -=  vfrac[j] * (wfd / r) * dx * dx.transpose();
-				  sNormal[i].noalias() -= vfrac[j] * wfd * dx;
-				
-				  if (j < nlocal) {
-				    K0[j].noalias() -=  vfrac[i] * (wfd / r) * dx * dx.transpose();
-				    sNormal[j].noalias() += vfrac[i] * wfd * dx;
-				  }
-				}
 
 				if (INSERT_PREDEFINED_CRACKS) {
 				  if (!crack_exclude(i, j))
@@ -356,66 +337,6 @@ void FixSMD_TLSPH_ReferenceConfiguration::setup(int vflag) {
 		}
 	}
 
-	for (ii = 0; ii < inum; ii++) {
-	  i = ilist[ii];
-	  K0inv = K0[i];
-	  pseudo_inverse_SVD(K0inv);
-
-	  sNormal[i] = K0inv * sNormal[i];
-	  
-	  sNormalNormi = sNormal[i].norm();
-	  if (sNormalNormi > boundary_threshold) sNormal[i] /= sNormalNormi;
-	  else sNormal[i].setZero();
-	}
-
-	for (ii = 0; ii < inum; ii++) {
-	  i = ilist[ii];
-	  jlist = firstneigh[i];
-	  jnum = numneigh[i];
-	  
-	  for (jj = 0; jj < jnum; jj++) {
-	    j = jlist[jj];
-	    j &= NEIGHMASK;
-	    
-	    if (mol[i] != mol[j]) continue;
-	    
-	    dx(0) = x0[j][0] - x0[i][0];
-	    dx(1) = x0[j][1] - x0[i][1];
-	    dx(2) = x0[j][2] - x0[i][2];
-	    r = dx.norm();
-	    h = radius[i] + radius[j];
-	    
-	    if (INSERT_PREDEFINED_CRACKS) {
-	      if (!crack_exclude(i, j))
-		continue;
-	    }
-	    
-	    if (r < h) {
-	      
-	      if (sNormal[i].norm() > 0.75) {
-		if (sNormal[i].dot(dx) <= -0.5*pow(vfrac[j], 1.0/3.0)) {
-		  spiky_kernel_and_derivative(h, r, domain->dimension, wf, wfd);
-		  dxmirror = dx - 2 * dx.dot(sNormal[i]) * sNormal[i];
-		  K0[i].noalias() -= vfrac[j] * (wfd / r) * dxmirror * dxmirror.transpose();
-		}
-	      }
-	      
-	      if (j < nlocal) {
-		if (sNormal[j].norm() > 0.75) {
-		  if (sNormal[j].dot(-dx) <= -0.5*pow(vfrac[i], 1.0/3.0)) {
-		    spiky_kernel_and_derivative(h, r, domain->dimension, wf, wfd);
-		    dxmirror = -dx + 2 * dx.dot(sNormal[j]) * sNormal[j];
-		    K0[j].noalias() -= vfrac[i] * (wfd / r) * dxmirror * dxmirror.transpose();
-		  }
-		}
-	      }
-	    }
-	  }
-	}
-
-	for (ii = 0; ii < inum; ii++) {
-	  pseudo_inverse_SVD(K0[ilist[ii]]);
-	}
 	
 	// count number of particles for which this group is active
 
@@ -467,8 +388,6 @@ double FixSMD_TLSPH_ReferenceConfiguration::memory_usage() {
 	bytes += nmax * maxpartner * sizeof(Vector3d); // partnerdx array
 	bytes += nmax * maxpartner * sizeof(double); // partnervol array
 	bytes += nmax * sizeof(int); // npartner array
-	bytes += nmax * sizeof(Matrix3d); // K0 array
-	bytes += nmax * maxpartner * sizeof(Vector3d); // sNormal array
 	return bytes;
 
 }
@@ -487,9 +406,6 @@ void FixSMD_TLSPH_ReferenceConfiguration::grow_arrays(int nmax) {
 	memory->grow(energy_per_bond, nmax, maxpartner, "tlsph_refconfig_neigh:damage_onset_strain");
 	memory->grow(partnerdx, nmax, maxpartner, "tlsph_refconfig_neigh:partnerdx");
 	memory->grow(partnervol, nmax, maxpartner, "tlsph_refconfig_neigh:partnervol");
-	memory->grow(K0, nmax, "tlsph_refconfig_neigh:K0");
-	memory->grow(sNormal, nmax, "tlsph_refconfig_neigh:sNormal");
-	
 }
 
 /* ----------------------------------------------------------------------
@@ -498,8 +414,6 @@ void FixSMD_TLSPH_ReferenceConfiguration::grow_arrays(int nmax) {
 
 void FixSMD_TLSPH_ReferenceConfiguration::copy_arrays(int i, int j, int delflag) {
 	npartner[j] = npartner[i];
-	K0[j] = K0[i];
-	sNormal[j] = sNormal[i];
 	for (int m = 0; m < npartner[j]; m++) {
 		partner[j][m] = partner[i][m];
 		wfd_list[j][m] = wfd_list[i][m];
@@ -534,18 +448,6 @@ int FixSMD_TLSPH_ReferenceConfiguration::pack_exchange(int i, double *buf) {
 		buf[m++] = partnerdx[i][n][2];
 		buf[m++] = partnervol[i][n];
 	}
-	buf[m++] = K0[i](0, 0);
-	buf[m++] = K0[i](0, 1);
-	buf[m++] = K0[i](0, 2);
-	buf[m++] = K0[i](1, 0);
-	buf[m++] = K0[i](1, 1);
-	buf[m++] = K0[i](1, 2);
-	buf[m++] = K0[i](2, 0);
-	buf[m++] = K0[i](2, 1);
-	buf[m++] = K0[i](2, 2);
-	buf[m++] = sNormal[i](0);
-	buf[m++] = sNormal[i](1);
-	buf[m++] = sNormal[i](2);
 	return m;
 
 }
@@ -579,18 +481,6 @@ int FixSMD_TLSPH_ReferenceConfiguration::unpack_exchange(int nlocal, double *buf
 		partnerdx[nlocal][n][2] = static_cast<double>(buf[m++]);
 		partnervol[nlocal][n] = static_cast<double>(buf[m++]);
 	}
-	K0[nlocal](0, 0) = buf[m++];
-	K0[nlocal](0, 1) = buf[m++];
-	K0[nlocal](0, 2) = buf[m++];
-	K0[nlocal](1, 0) = buf[m++];
-	K0[nlocal](1, 1) = buf[m++];
-	K0[nlocal](1, 2) = buf[m++];
-	K0[nlocal](2, 0) = buf[m++];
-	K0[nlocal](2, 1) = buf[m++];
-	K0[nlocal](2, 2) = buf[m++];
-	sNormal[nlocal](0) = buf[m++];
-	sNormal[nlocal](1) = buf[m++];
-	sNormal[nlocal](2) = buf[m++];
 	return m;
 }
 
@@ -613,17 +503,6 @@ int FixSMD_TLSPH_ReferenceConfiguration::pack_restart(int i, double *buf) {
 		buf[m++] = partnerdx[i][n][2];
 		buf[m++] = partnervol[i][n];
 	}
-	buf[m++] = K0[i](0, 0);
-	buf[m++] = K0[i](0, 1);
-	buf[m++] = K0[i](0, 2);
-	buf[m++] = K0[i](1, 0);
-	buf[m++] = K0[i](1, 1);
-	buf[m++] = K0[i](1, 2);
-	buf[m++] = K0[i](2, 0);
-	buf[m++] = K0[i](2, 1);
-	buf[m++] = sNormal[i](0);
-	buf[m++] = sNormal[i](1);
-	buf[m++] = sNormal[i](2);
 	return m;
 }
 
