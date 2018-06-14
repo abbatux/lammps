@@ -2573,6 +2573,13 @@ void PairTlsph::UpdateDegradation() {
 		int numNeighbors = 0;
 		
 		if (mol[i] < 0) {
+                        vint[i][0] = 0.0;
+                        vint[i][1] = 0.0;
+			vint[i][2] = 0.0;
+			f[i][0] = 0.0;
+			f[i][1] = 0.0;
+			f[i][2] = 0.0;
+			smoothVelDifference[i].setZero();
 			continue; // Particle i is not a valid SPH particle (anymore). Skip all interactions with this particle.
 		}
 
@@ -2682,7 +2689,7 @@ void PairTlsph::UpdateDegradation() {
 		
 		if (numNeighbors == 0) {
 		  printf("Deleting particle [%d] because damage = %f\n", tag[i], damage[i]);
-		  //dtCFL = MIN(dtCFL, update->dt);
+		  dtCFL = MIN(dtCFL, update->dt);
 		  mol[i] = -mol[i];
 		  vint[i][0] = 0.0;
 		  vint[i][1] = 0.0;
