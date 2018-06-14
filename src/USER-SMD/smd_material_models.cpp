@@ -659,11 +659,10 @@ double JohnsonCookDamageIncrement(const double p, const Matrix3d Sdev, const dou
 	  triax = 3.0;
 	}
 	// Johnson-Cook failure strain, dependence on stress triaxiality
-	if (triax >= -1.0/3.0) {
-	  double jc_failure_strain = d1 + d2 * exp(d3 * triax);
-	  //printf("d1=%f, d2=%f, d3 = %f, triax = %f, jc_failure_strain = %f\n", d1, d2, d3, triax, jc_failure_strain);
-	  // include strain rate dependency if parameter d4 is defined and current plastic strain rate exceeds reference strain rate
-	  if (d4 > 0.0) { //
+	double jc_failure_strain = d1 + d2 * exp(d3 * triax);
+
+	// include strain rate dependency if parameter d4 is defined and current plastic strain rate exceeds reference strain rate
+	if (d4 > 0.0) { //
 	    if (epdot > epdot0) {
 	      double epdot_ratio = epdot / epdot0;
 	      jc_failure_strain *= (1.0 + d4 * log(epdot_ratio));
@@ -671,12 +670,8 @@ double JohnsonCookDamageIncrement(const double p, const Matrix3d Sdev, const dou
 	      //exit(1);
 	      
 	    }
-	  }
-	  return plastic_strain_increment/jc_failure_strain;
-	} else {
-	  return 0;
 	}
-
+	return plastic_strain_increment/jc_failure_strain;
 }
 
 /* ----------------------------------------------------------------------
