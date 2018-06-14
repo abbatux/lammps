@@ -278,8 +278,8 @@ void PairTlsph::PreCompute() {
 				Fincr[i].noalias() += volj * Ftmp;
 				shepardWeight += volj * wf;
 				smoothVelDifference[i].noalias() += volj * wf * dvint;
-								
-				numNeighsRefConfig[i]++;
+
+				if (damage[j]<1.0) numNeighsRefConfig[i]++;
 			} // end loop over j
 
 			// normalize average velocity field around an integration point
