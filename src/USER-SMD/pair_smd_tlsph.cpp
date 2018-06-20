@@ -2307,10 +2307,10 @@ void PairTlsph::ComputePressure(const int i, const double rho, const double mass
 	int *type = atom->type;
 	double dt = update->dt;
 	double *damage = atom->damage;
-	int itype;
+	int itype = type[i];
 	double f; //Void fraction.
 
-	if (failureModel[itype].failure_gtn) {
+	if (failureModel[itype].failure_gtn == true) {
 	  double f;
 	  double fcrQ1 = Lookup[GTN_Q1][itype]*Lookup[GTN_fcr][itype];
 	  if (damage[i] <= fcrQ1) f = damage[i] / Lookup[GTN_Q1][itype];
