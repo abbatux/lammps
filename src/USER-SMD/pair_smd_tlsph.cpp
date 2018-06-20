@@ -96,7 +96,7 @@ PairTlsph::PairTlsph(LAMMPS *lmp) :
 /* ---------------------------------------------------------------------- */
 
 PairTlsph::~PairTlsph() {
-	//printf("in PairTlsph::~PairTlsph()\n");
+	printf("in PairTlsph::~PairTlsph()\n");
 
 	if (allocated) {
 		memory->destroy(setflag);
@@ -158,7 +158,7 @@ void PairTlsph::PreCompute() {
 	float **degradation_ij = ((FixSMD_TLSPH_ReferenceConfiguration *) modify->fix[ifix_tlsph])->degradation_ij;
 	Vector3d **partnerdx = ((FixSMD_TLSPH_ReferenceConfiguration *) modify->fix[ifix_tlsph])->partnerdx;
 	double **partnervol = ((FixSMD_TLSPH_ReferenceConfiguration *) modify->fix[ifix_tlsph])->partnervol;
-	double r, r0, r0Sq, wf, wfd, h, irad, voli, volj, shepardWeight, inverseShepardWeight;
+	double r, r0, r0Sq, wf, wfd, h, irad, voli, volj, shepardWeight;
 	Vector3d dx, dx0, dx0mirror, dv, g;
 	Matrix3d Ktmp, Ftmp, Fdottmp, L, U, eye;
 	Vector3d vi, vj, vinti, vintj, xi, xj, x0i, x0j, dvint;
@@ -191,11 +191,12 @@ void PairTlsph::PreCompute() {
 			h = 2.0 * radius[i];
 			r0 = 0.0;
 			spiky_kernel_and_derivative(h, r0, domain->dimension, wf, wfd);
-			shepardWeight = wf * voli;
 
 			jnum = npartner[i];
 			irad = radius[i];
 			voli = vfrac[i];
+
+			shepardWeight = wf * voli;
 
 			// initialize Eigen data structures from LAMMPS data structures
 			for (idim = 0; idim < 3; idim++) {
@@ -284,8 +285,7 @@ void PairTlsph::PreCompute() {
 
 			// normalize average velocity field around an integration point
 			if (shepardWeight > 0.0) {
-			  inverseShepardWeight = 1/shepardWeight;
-			  smoothVelDifference[i] *= inverseShepardWeight;
+			  smoothVelDifference[i] /= shepardWeight;
 			} else {
 				smoothVelDifference[i].setZero();
 			}
@@ -2097,7 +2097,7 @@ double PairTlsph::memory_usage() {
  ------------------------------------------------------------------------- */
 
 void *PairTlsph::extract(const char *str, int &i) {
-//printf("in PairTlsph::extract\n");
+  //  printf("in PairTlsph::extract\n");
 	if (strcmp(str, "smd/tlsph/Fincr_ptr") == 0) {
 		return (void *) Fincr;
 	} else if (strcmp(str, "smd/tlsph/detF_ptr") == 0) {
@@ -2140,7 +2140,7 @@ int PairTlsph::pack_forward_comm(int n, int *list, double *buf, int pbc_flag, in
 	double *eff_plastic_strain = atom->eff_plastic_strain;
 	double *eff_plastic_strain_rate = atom->eff_plastic_strain_rate;
 
-//printf("in PairTlsph::pack_forward_comm\n");
+	//printf("in PairTlsph::pack_forward_comm\n");
 
 	m = 0;
 	for (i = 0; i < n; i++) {
@@ -2183,7 +2183,7 @@ void PairTlsph::unpack_forward_comm(int n, int first, double *buf) {
 	double *eff_plastic_strain = atom->eff_plastic_strain;
 	double *eff_plastic_strain_rate = atom->eff_plastic_strain_rate;
 
-//printf("in PairTlsph::unpack_forward_comm\n");
+	//printf("in PairTlsph::unpack_forward_comm\n");
 
 	m = 0;
 	last = first + n;
