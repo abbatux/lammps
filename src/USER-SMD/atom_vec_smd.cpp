@@ -52,7 +52,7 @@ AtomVecSMD::AtomVecSMD(LAMMPS *lmp) :
 	comm_f_only = 0;
 	size_forward = 7; // variables that are changed by time integration
 	size_reverse = 4; // f[3] + de
-	size_border = 32;
+	size_border = 39;
 	size_velocity = 6; // v + vest
 	size_data_atom = 13; // 7 + 3 x0 + 3 x
 	size_data_vel = 4;
@@ -102,7 +102,7 @@ void AtomVecSMD::grow(int n) {
 	if (nmax < 0 || nmax > MAXSMALLINT)
 		error->one(FLERR, "Per-processor system is too big");
 
-	//printf("in grow, nmax is now %d\n", nmax);
+	printf("in grow, nmax is now %d\n", nmax);
 
 	tag = memory->grow(atom->tag, nmax, "atom:tag");
 	type = memory->grow(atom->type, nmax, "atom:type");
@@ -466,7 +466,7 @@ int AtomVecSMD::pack_border_vel(int n, int *list, double *buf, int pbc_flag, int
 	int i, j, m;
 	double dx, dy, dz, dvx, dvy, dvz;
 
-	//printf("AtomVecSMD::pack_border_vel\n");
+	printf("AtomVecSMD::pack_border_vel\n");
 
 	m = 0;
 	if (pbc_flag == 0) {
@@ -504,6 +504,7 @@ int AtomVecSMD::pack_border_vel(int n, int *list, double *buf, int pbc_flag, int
 			buf[m++] = vest[j][1];
 			buf[m++] = vest[j][2]; // 37
 			buf[m++] = rho[j]; // 38
+			buf[m++] = damage[j]; // 39
 		}
 	} else {
 
@@ -552,6 +553,7 @@ int AtomVecSMD::pack_border_vel(int n, int *list, double *buf, int pbc_flag, int
 				buf[m++] = vest[j][1];
 				buf[m++] = vest[j][2]; // 37
 				buf[m++] = rho[j]; // 38
+				buf[m++] = damage[j]; // 39
 
 			}
 		} else {
@@ -604,6 +606,7 @@ int AtomVecSMD::pack_border_vel(int n, int *list, double *buf, int pbc_flag, int
 					buf[m++] = vest[j][2]; // 37
 				}
 				buf[m++] = rho[j]; // 38
+				buf[m++] = damage[j]; // 39
 
 			}
 		}
@@ -644,6 +647,7 @@ int AtomVecSMD::pack_border_hybrid(int n, int *list, double *buf) {
 			buf[m++] = tlsph_stress[j][k];
 		} // 26
 		buf[m++] = rho[j]; // 27
+		buf[m++] = damage[j]; // 28
 
 	}
 	return m;
@@ -659,7 +663,7 @@ void AtomVecSMD::unpack_border(int n, int first, double *buf) {
 
 void AtomVecSMD::unpack_border_vel(int n, int first, double *buf) {
 	int i, m, last;
-
+	printf("AtomVecSMD::unpack_border_vel\n");
 	m = 0;
 	last = first + n;
 	for (i = first; i < last; i++) {
@@ -698,6 +702,7 @@ void AtomVecSMD::unpack_border_vel(int n, int first, double *buf) {
 		vest[i][1] = buf[m++];
 		vest[i][2] = buf[m++]; // 37
 		rho[i] = buf[m++]; // 38
+		damage[i] = buf[m++]; // 39
 	}
 
 	if (atom->nextra_border)
@@ -732,6 +737,7 @@ int AtomVecSMD::unpack_border_hybrid(int n, int first, double *buf) {
 			tlsph_stress[i][k] = buf[m++];
 		} // 26
 		rho[i] = buf[m++]; // 27
+		damage[i] = buf[m++]; // 28
 	}
 	return m;
 }
