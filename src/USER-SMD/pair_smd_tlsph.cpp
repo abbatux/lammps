@@ -1960,7 +1960,7 @@ void PairTlsph::coeff(int narg, char **arg) {
 			}
 
 			if (iNextKwd - ioffset != 1 + 1) {
-			    sprintf(str, "expected 2 arguments following *COCKCROFT_LATHAM but got %d\n", iNextKwd - ioffset - 1);
+			    sprintf(str, "expected 1 arguments following *COCKCROFT_LATHAM but got %d\n", iNextKwd - ioffset - 1);
 			    error->all(FLERR, str);
 			}
 
