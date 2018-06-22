@@ -2308,23 +2308,11 @@ void PairTlsph::ComputePressure(const int i, const double rho, const double mass
 	double dt = update->dt;
 	double *damage = atom->damage;
 	int itype = type[i];
-	double f; //Void fraction.
-
-	if (failureModel[itype].failure_gtn == true) {
-	  double f;
-	  double fcrQ1 = Lookup[GTN_Q1][itype]*Lookup[GTN_fcr][itype];
-	  if (damage[i] <= fcrQ1) f = damage[i] / Lookup[GTN_Q1][itype];
-	  else f = Lookup[GTN_fcr][itype] + (damage[i] - fcrQ1)/(1.0 - fcrQ1) * (Lookup[GTN_fF][itype] - Lookup[GTN_fcr][itype]);
-	} else {
-	  f = damage[i];
-	}
-
-	itype = type[i];
 
 	switch (eos[itype]) {
 	case EOS_LINEAR:
-	  if ((failureModel[itype].integration_point_wise == true) && (f > 0.0)){
-	    LinearEOSwithDamage(rho, Lookup[REFERENCE_DENSITY][itype], Lookup[BULK_MODULUS][itype], pInitial, dt, pFinal, p_rate, f);  
+	  if ((failureModel[itype].integration_point_wise == true) && (damage[i] > 0.0)){
+	    LinearEOSwithDamage(rho, Lookup[REFERENCE_DENSITY][itype], Lookup[BULK_MODULUS][itype], pInitial, dt, pFinal, p_rate, damage[i]);  
 	  } else {
 	    LinearEOS(Lookup[BULK_MODULUS][itype], pInitial, d_iso, dt, pFinal, p_rate);
 	  }
@@ -2336,13 +2324,13 @@ void PairTlsph::ComputePressure(const int i, const double rho, const double mass
 	case EOS_SHOCK:
 //  rho,  rho0,  e,  e0,  c0,  S,  Gamma,  pInitial,  dt,  &pFinal,  &p_rate);
 	  ShockEOS(rho, Lookup[REFERENCE_DENSITY][itype], mass_specific_energy, 0.0, Lookup[EOS_SHOCK_C0][itype],
-		   Lookup[EOS_SHOCK_S][itype], Lookup[EOS_SHOCK_GAMMA][itype], pInitial, dt, pFinal, p_rate, f);
+		   Lookup[EOS_SHOCK_S][itype], Lookup[EOS_SHOCK_GAMMA][itype], pInitial, dt, pFinal, p_rate, damage[i]);
 	    break;
 	case EOS_POLYNOMIAL:
 	  polynomialEOS(rho, Lookup[REFERENCE_DENSITY][itype], vol_specific_energy, Lookup[EOS_POLYNOMIAL_C0][itype],
 			Lookup[EOS_POLYNOMIAL_C1][itype], Lookup[EOS_POLYNOMIAL_C2][itype], Lookup[EOS_POLYNOMIAL_C3][itype],
 			Lookup[EOS_POLYNOMIAL_C4][itype], Lookup[EOS_POLYNOMIAL_C5][itype], Lookup[EOS_POLYNOMIAL_C6][itype], pInitial, dt,
-			pFinal, p_rate, f);
+			pFinal, p_rate, damage[i]);
 	    break;
 	default:
 		error->one(FLERR, "unknown EOS.");
