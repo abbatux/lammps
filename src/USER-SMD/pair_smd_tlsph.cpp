@@ -2535,7 +2535,12 @@ void PairTlsph::ComputeDamage(const int i, const Matrix3d strain, const Matrix3d
 							Lookup[FAILURE_JC_EPDOT0][itype], eff_plastic_strain_rate[i], plastic_strain_increment);
 
 	  damage_init[i] += damage_increment[i];
-	  if (damage_init[i] >= 1.0) damage[i] = (damage_init[i]-1.0)*10;
+
+	  if (damage_init[i] >= 1.0) {
+	    double damage_old = damage[i];
+	    damage[i] = MIN((damage_init[i]-1.0)*10, 1.0);
+	    damage_increment[i] = damage[i] - damage_old;
+	  }
 
 	} else if (failureModel[itype].failure_gtn) {
 
@@ -2552,7 +2557,12 @@ void PairTlsph::ComputeDamage(const int i, const Matrix3d strain, const Matrix3d
 	   */
 	  damage_increment[i] = CockcroftLathamDamageIncrement(stress, Lookup[CL_W][itype], plastic_strain_increment);
 	  damage_init[i] += damage_increment[i];
-	  if (damage_init[i] >= 1.0) damage[i] = (damage_init[i]-1.0)*10;
+
+	  if (damage_init[i] >= 1.0) {
+	    double damage_old = damage[i];
+	    damage[i] = MIN((damage_init[i]-1.0)*10, 1.0);
+	    damage_increment[i] = damage[i] - damage_old;
+	  }
 	}
 
 	damage[i] = MIN(damage[i], 1.0);
@@ -2600,6 +2610,7 @@ void PairTlsph::UpdateDegradation() {
 			f[i][1] = 0.0;
 			f[i][2] = 0.0;
 			smoothVelDifference[i].setZero();
+			damage_increment[i] = 0.0;
 			continue; // Particle i is not a valid SPH particle (anymore). Skip all interactions with this particle.
 		}
 
