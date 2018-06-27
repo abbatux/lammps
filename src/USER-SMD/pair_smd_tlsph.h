@@ -97,6 +97,7 @@ protected:
 	double *vij_max;
 	double *hourglass_error;
 	int *numNeighsRefConfig;
+	double *damage_increment;
 
 	int nmax; // max number of atoms on this proc
 	double hMin; // minimum kernel radius for two particles

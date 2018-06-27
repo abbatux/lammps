@@ -82,12 +82,13 @@ PairTlsph::PairTlsph(LAMMPS *lmp) :
 	Lookup = NULL;
 	particle_dt = NULL;
 	vij_max = NULL;
+	damage_increment = NULL;
 
 	updateFlag = 0;
 	first = true;
 	dtCFL = 0.0; // initialize dtCFL so it is set to safe value if extracted on zero-th timestep
 
-	comm_forward = 22; // this pair style communicates 20 doubles to ghost atoms : PK1 tensor + F tensor + shepardWeight
+	comm_forward = 23; // this pair style communicates 20 doubles to ghost atoms : PK1 tensor + F tensor + shepardWeight + damage_increment
 	fix_tlsph_reference_configuration = NULL;
 
 	cut_comm = MAX(neighbor->cutneighmax, comm->cutghostuser); // cutoff radius within which ghost atoms are communicated.
@@ -125,6 +126,7 @@ PairTlsph::~PairTlsph() {
 		delete[] hourglass_error;
 		delete[] particle_dt;
 		delete[] vij_max;
+		delete[] damage_increment;
 
 		delete[] failureModel;
 	}
@@ -235,8 +237,11 @@ void PairTlsph::PreCompute() {
 				dx = xj - xi;
 
 				if (failureModel[itype].integration_point_wise == true) {
-				  if (damage[j] < 1.0) partnerdx[i][jj] = dx; //I am using this to store dx.
-				  else dx = partnerdx[i][jj];
+				  if (damage[j] == 0.0) partnerdx[i][jj].setZero(); //I am using this to store dx.
+				  else {
+				      partnerdx[i][jj] += damage_increment[j]*(xj - xi + dt*(vi - vj));
+				      dx = (1-damage[j])*dx + partnerdx[i][jj];
+				    }
 				}
 				if (isnan(dx[0]) || isnan(dx[1]) || isnan(dx[2])) {
 				  printf("x[%d] - x[%d] = [%f %f %f] - [%f %f %f], di = %f, dj = %f\n", tag[j], tag[i], xj[0], xj[1], xj[2], xi[0], xi[1], xi[2], damage[i], damage[j]);
@@ -259,6 +264,10 @@ void PairTlsph::PreCompute() {
 				  if (damage[j] >= 1.0) {
 				    dv.setZero();
 				    dvint.setZero();
+				  }
+				  else if (damage[j] > 0.0) {
+				    dv *= (1-damage[j]);
+				    dvint *= (1-damage[j]);				    
 				  }
 				}
 				dv_norm = dv.norm();
@@ -392,6 +401,8 @@ void PairTlsph::compute(int eflag, int vflag) {
 		particle_dt = new double[nmax];
 		delete[] vij_max;
 		vij_max = new double[nmax];
+		delete[] damage_increment;
+		damage_increment = new double[nmax];		
 	}
 
 	if (first) { // return on first call, because reference connectivity lists still needs to be built. Also zero quantities which are otherwise undefined.
@@ -407,6 +418,7 @@ void PairTlsph::compute(int eflag, int vflag) {
 			hourglass_error[i] = 0.0;
 			particle_dt[i] = 0.0;
 			vij_max[i] = 0.0;
+			damage_increment[i] = 0.0;
 		}
 
 		return;
@@ -549,10 +561,11 @@ void PairTlsph::ComputeForces(int eflag, int vflag) {
 			dx = xj - xi;
 			dv = vj - vi;
 			if (failureModel[itype].integration_point_wise == true) {
-			  if (damage[j] < 1.0) partnerdx[i][jj] = dx; //I am using this to store dx.
-			  else dx = partnerdx[i][jj];
-
-			  if (damage[j] >= 1.0) dv.setZero();
+			  if (damage[j] > 0.0) {
+			    dx = (1-damage[j])*dx + partnerdx[i][jj];
+			    if (damage[j] >= 1.0) dv.setZero();
+			    else dv *= (1-damage[j]);
+			  }
 			}
 			r = dx.norm(); // current distance
 			
@@ -2126,6 +2139,8 @@ void *PairTlsph::extract(const char *str, int &i) {
 		return (void *) particle_dt;
 	} else if (strcmp(str, "smd/tlsph/rotation_ptr") == 0) {
 		return (void *) R;
+	} else if (strcmp(str, "smd/tlsph/damage_increment") == 0) {
+		return (void *) damage_increment;
 	}
 
 	return NULL;
@@ -2169,6 +2184,7 @@ int PairTlsph::pack_forward_comm(int n, int *list, double *buf, int pbc_flag, in
 		buf[m++] = damage[j]; //20
 		buf[m++] = eff_plastic_strain[j]; //21
 		buf[m++] = eff_plastic_strain_rate[j]; //22
+		buf[m++] = damage_increment[j]; //23
 
 	}
 	return m;
@@ -2211,8 +2227,9 @@ void PairTlsph::unpack_forward_comm(int n, int first, double *buf) {
 
 		mol[i] = static_cast<int>(buf[m++]);
 		damage[i] = buf[m++];
-		eff_plastic_strain[i] = buf[m++]; //22
-		eff_plastic_strain_rate[i] = buf[m++]; //23
+		eff_plastic_strain[i] = buf[m++]; //21
+		eff_plastic_strain_rate[i] = buf[m++]; //22
+		damage_increment[i] = buf[m++]; //23
 	}
 }
 
@@ -2388,10 +2405,11 @@ void PairTlsph::ComputeStressDeviator(const int i, const double mass_specific_en
 		break;
 	case STRENGTH_LINEAR_PLASTIC:
 		if (failureModel[itype].failure_gtn) {
-		  damage[i] += GTNStrength(Lookup[SHEAR_MODULUS][itype], flowstress, Lookup[GTN_Q1][itype],
+		  damage_increment[i] =  GTNStrength(Lookup[SHEAR_MODULUS][itype], flowstress, Lookup[GTN_Q1][itype],
 					   Lookup[GTN_Q2][itype], Lookup[GTN_fcr][itype], Lookup[GTN_fF][itype], Lookup[GTN_FN][itype], Lookup[GTN_inverse_sN][itype],
 					   Lookup[GTN_epsN][itype], Lookup[GTN_Komega][itype], dt, damage[i], eff_plastic_strain[i], sigmaInitial_dev, d_dev,
 					   pInitial, pFinal, sigmaFinal_dev, sigma_dev_rate, plastic_strain_increment, atom->tag[i]);
+		  damage[i] += damage_increment[i];
 		} else {
 		  yieldStress = flowstress.evaluate(eff_plastic_strain[i]);
 		  LinearPlasticStrength(Lookup[SHEAR_MODULUS][itype], yieldStress, sigmaInitial_dev, d_dev, dt, sigmaFinal_dev,
@@ -2400,10 +2418,11 @@ void PairTlsph::ComputeStressDeviator(const int i, const double mass_specific_en
 		break;
 	case STRENGTH_LUDWICK_HOLLOMON:
 		if (failureModel[itype].failure_gtn == true) {
-		  damage[i] += GTNStrength(Lookup[SHEAR_MODULUS][itype], flowstress, Lookup[GTN_Q1][itype],
+		  damage_increment[i] =  GTNStrength(Lookup[SHEAR_MODULUS][itype], flowstress, Lookup[GTN_Q1][itype],
 					   Lookup[GTN_Q2][itype], Lookup[GTN_fcr][itype], Lookup[GTN_fF][itype], Lookup[GTN_FN][itype], Lookup[GTN_inverse_sN][itype],
 					   Lookup[GTN_epsN][itype], Lookup[GTN_Komega][itype], dt, damage[i], eff_plastic_strain[i], sigmaInitial_dev, d_dev,
 					   pInitial, pFinal, sigmaFinal_dev, sigma_dev_rate, plastic_strain_increment, atom->tag[i]);
+		  damage[i] += damage_increment[i];
 		} else {
 		  yieldStress = flowstress.evaluate(eff_plastic_strain[i]);
 		  if (yieldStress != Lookup[LH_A][itype] + Lookup[LH_B][itype] * pow(eff_plastic_strain[i], Lookup[LH_n][itype]))
@@ -2414,10 +2433,11 @@ void PairTlsph::ComputeStressDeviator(const int i, const double mass_specific_en
 		break;
 	case STRENGTH_SWIFT:
 		if (failureModel[itype].failure_gtn) {
-		  damage[i] += GTNStrength(Lookup[SHEAR_MODULUS][itype], flowstress, Lookup[GTN_Q1][itype],
+		  damage_increment[i] =  GTNStrength(Lookup[SHEAR_MODULUS][itype], flowstress, Lookup[GTN_Q1][itype],
 					   Lookup[GTN_Q2][itype], Lookup[GTN_fcr][itype], Lookup[GTN_fF][itype], Lookup[GTN_FN][itype], Lookup[GTN_inverse_sN][itype],
 					   Lookup[GTN_epsN][itype], Lookup[GTN_Komega][itype], dt, damage[i], eff_plastic_strain[i], sigmaInitial_dev, d_dev,
 					   pInitial, pFinal, sigmaFinal_dev, sigma_dev_rate, plastic_strain_increment, atom->tag[i]);
+		  damage[i] += damage_increment[i];
 		} else { 
 		  yieldStress = flowstress.evaluate(eff_plastic_strain[i]); //Lookup[SWIFT_A][itype] + Lookup[SWIFT_B][itype] * pow(eff_plastic_strain[i] + Lookup[SWIFT_eps0][itype], Lookup[SWIFT_n][itype]);
 		  LinearPlasticStrength(Lookup[SHEAR_MODULUS][itype], yieldStress, sigmaInitial_dev, d_dev, dt, sigmaFinal_dev,
@@ -2426,10 +2446,11 @@ void PairTlsph::ComputeStressDeviator(const int i, const double mass_specific_en
 		break;
 	case STRENGTH_VOCE:
 		if (failureModel[itype].failure_gtn) {
-		  damage[i] += GTNStrength(Lookup[SHEAR_MODULUS][itype], flowstress, Lookup[GTN_Q1][itype],
+		  damage_increment[i] =  GTNStrength(Lookup[SHEAR_MODULUS][itype], flowstress, Lookup[GTN_Q1][itype],
 					   Lookup[GTN_Q2][itype], Lookup[GTN_fcr][itype], Lookup[GTN_fF][itype], Lookup[GTN_FN][itype], Lookup[GTN_inverse_sN][itype],
 					   Lookup[GTN_epsN][itype], Lookup[GTN_Komega][itype], dt, damage[i], eff_plastic_strain[i], sigmaInitial_dev, d_dev,
 					   pInitial, pFinal, sigmaFinal_dev, sigma_dev_rate, plastic_strain_increment, atom->tag[i]);
+		  damage[i] += damage_increment[i];
 		} else {
 		  yieldStress = flowstress.evaluate(eff_plastic_strain[i]);
 		/*yieldStress = Lookup[VOCE_A][itype] - Lookup[VOCE_Q1][itype] * exp(-Lookup[VOCE_n1][itype] * eff_plastic_strain[i])
@@ -2469,7 +2490,6 @@ void PairTlsph::ComputeDamage(const int i, const Matrix3d strain, const Matrix3d
 	double *radius = atom->radius;
 	double *damage = atom->damage;
 	double *damage_init = atom->damage_init;
-	double damage_increment;
 	int *type = atom->type;
 	int itype = type[i];
 	double jc_failure_strain;
@@ -2510,11 +2530,11 @@ void PairTlsph::ComputeDamage(const int i, const Matrix3d strain, const Matrix3d
 			//damage[i] = (eff_plastic_strain[i] - Lookup[FAILURE_MAX_PLASTIC_STRAIN_THRESHOLD][itype]) / damage_gap;
 		}
 	} else if (failureModel[itype].failure_johnson_cook) {
-	  damage_increment = JohnsonCookDamageIncrement(pressure, stress_deviator, Lookup[FAILURE_JC_D1][itype],
+	  damage_increment[i] = JohnsonCookDamageIncrement(pressure, stress_deviator, Lookup[FAILURE_JC_D1][itype],
 							Lookup[FAILURE_JC_D2][itype], Lookup[FAILURE_JC_D3][itype], Lookup[FAILURE_JC_D4][itype],
 							Lookup[FAILURE_JC_EPDOT0][itype], eff_plastic_strain_rate[i], plastic_strain_increment);
 
-	  damage_init[i] += damage_increment;
+	  damage_init[i] += damage_increment[i];
 	  if (damage_init[i] >= 1.0) damage[i] = (damage_init[i]-1.0)*10;
 
 	} else if (failureModel[itype].failure_gtn) {
@@ -2530,8 +2550,8 @@ void PairTlsph::ComputeDamage(const int i, const Matrix3d strain, const Matrix3d
 	  /*
 	   * Cockcroft - Latham damage :
 	   */
-	  damage_increment = CockcroftLathamDamageIncrement(stress, Lookup[CL_W][itype], plastic_strain_increment);
-	  damage_init[i] += damage_increment;
+	  damage_increment[i] = CockcroftLathamDamageIncrement(stress, Lookup[CL_W][itype], plastic_strain_increment);
+	  damage_init[i] += damage_increment[i];
 	  if (damage_init[i] >= 1.0) damage[i] = (damage_init[i]-1.0)*10;
 	}
 
