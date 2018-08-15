@@ -237,10 +237,12 @@ void PairTlsph::PreCompute() {
 				dx = xj - xi;
 
 				if (failureModel[itype].integration_point_wise == true) {
-				  if (damage[j] == 0.0) partnerdx[i][jj].setZero(); //I am using this to store dx.
-				  else {
-				      partnerdx[i][jj] += damage_increment[j]*(xj - xi + dt*(vi - vj));
-				      dx = (1-damage[j])*dx + partnerdx[i][jj];
+				  //Vector3d dx_prev = xj - xi + dt*(vi - vj);
+				  //if (damage[j] == 0.0) partnerdx[i][jj].setZero(); //I am using this to store dx.
+				  //else {
+				  if (damage[j] > 0.0) {
+				    //partnerdx[i][jj] += damage_increment[j] * dx_prev;
+				    dx = (1-damage[j])*dx + partnerdx[i][jj];
 				    }
 				}
 				if (isnan(dx[0]) || isnan(dx[1]) || isnan(dx[2])) {
@@ -565,6 +567,10 @@ void PairTlsph::ComputeForces(int eflag, int vflag) {
 			    dx = (1-damage[j])*dx + partnerdx[i][jj];
 			    if (damage[j] >= 1.0) dv.setZero();
 			    else dv *= (1-damage[j]);
+			    
+			    if (tag[i] == 796 && damage_increment[j] > 0.0) {
+			      printf("Step %d UPDATE_DEGRADATION, i = %d, j = %d, damage[j] = %.10e, damage_increment[j] = %.10e, dx = [%.10e %.10e %.10e] xi = [%.10e %.10e %.10e] xj = [%.10e %.10e %.10e]\n", update->ntimestep, tag[i], tag[j], damage[j], damage_increment[j], dx(0), dx(1), dx(2), xi(0), xi(1), xi(2), xj(0), xj(1), xj(2));
+			    }
 			  }
 			}
 			r = dx.norm(); // current distance
@@ -2626,7 +2632,7 @@ void PairTlsph::UpdateDegradation() {
 		// initialize aveage mass density
 		h = 2.0 * radius[i];
 		r = 0.0;
-		if (failureModel[itype].failure_max_pairwise_strain) {
+		if (failureModel[itype].failure_max_pairwise_strain || failureModel[itype].integration_point_wise) {
 		  for (idim = 0; idim < 3; idim++) {
 		    x0i(idim) = x0[i][idim];
 		    xi(idim) = x[i][idim];
@@ -2703,6 +2709,21 @@ void PairTlsph::UpdateDegradation() {
 			}
 
 			if (failureModel[itype].integration_point_wise) {
+			  for (idim = 0; idim < 3; idim++) {
+			    xj(idim) = x[j][idim];
+			  }
+
+			  // distance vectors in current and reference configuration, velocity difference
+			  dx = xj - xi;
+
+			  //Vector3d partnerdx_increment;
+			  if (damage[j] == 0.0) partnerdx[i][jj].setZero(); //I am using this to store dx.
+			  else {
+			    partnerdx[i][jj] += damage_increment[j] * dx;
+			    //partnerdx_increment = damage_increment[j] * dx;
+			    dx = (1-damage[j])*dx + partnerdx[i][jj];
+			  }
+
 			  degradation_ij[i][jj] = 0.0; //1 - (1 - damage[i]) * (1 - damage[j]);
 
 			  if (damage[i] >= 1.0) degradation_ij[i][jj] = 1.0;
