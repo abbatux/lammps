@@ -567,10 +567,6 @@ void PairTlsph::ComputeForces(int eflag, int vflag) {
 			    dx = (1-damage[j])*dx + partnerdx[i][jj];
 			    if (damage[j] >= 1.0) dv.setZero();
 			    else dv *= (1-damage[j]);
-			    
-			    if (tag[i] == 796 && damage_increment[j] > 0.0) {
-			      printf("Step %d UPDATE_DEGRADATION, i = %d, j = %d, damage[j] = %.10e, damage_increment[j] = %.10e, dx = [%.10e %.10e %.10e] xi = [%.10e %.10e %.10e] xj = [%.10e %.10e %.10e]\n", update->ntimestep, tag[i], tag[j], damage[j], damage_increment[j], dx(0), dx(1), dx(2), xi(0), xi(1), xi(2), xj(0), xj(1), xj(2));
-			    }
 			  }
 			}
 			r = dx.norm(); // current distance
@@ -659,6 +655,10 @@ void PairTlsph::ComputeForces(int eflag, int vflag) {
 			// sum stress, viscous, and hourglass forces
 			sumForces = f_stress + f_visc + f_hg; // + f_spring;
 
+
+			if ((tag[i] == 20752 && tag[j] == 20751)||(tag[i] == 20752 && tag[j] == 21166)||(tag[i] == 20751 && tag[j] == 20752)||(tag[i] == 21166 && tag[j] == 20752)) {
+			  printf("Step %d - sumForces[%d][%d] = [%.10e %.10e %.10e] f_stress = [%.10e %.10e %.10e] f_visc = [%.10e %.10e %.10e] f_hg = [%.10e %.10e %.10e] dx = [%.10e %.10e %.10e] xi = [%.10e %.10e %.10e] xj = [%.10e %.10e %.10e]\n",update->ntimestep, tag[i], tag[j], sumForces(0), sumForces(1), sumForces(2), f_stress(0), f_stress(1), f_stress(2), f_visc(0), f_visc(1), f_visc(2), f_hg(0), f_hg(1), f_hg(2), dx(0), dx(1), dx(2), xi(0), xi(1), xi(2), xj(0), xj(1), xj(2));
+			}
 			// energy rate -- project velocity onto force vector
 			deltaE = 0.5 * sumForces.dot(dv);
 
@@ -695,8 +695,8 @@ void PairTlsph::ComputeForces(int eflag, int vflag) {
 		} // end loop over jj neighbors of i
 
 		
-		//if ((tag[i] == 4002) || (tag[i] == 4014))
-		//  printf("Particle %d: fbc = [%.10e %.10e %.10e], sU=[%f %f %f]\n",tag[i], fbc[0], fbc[1], fbc[2], sNormal[i][0], sNormal[i][1], sNormal[i][2]);
+		if (tag[i] == 20752)
+		  printf("Step %d, COMPUTE_FORCES Particle %d: f = [%.10e %.10e %.10e]\n",update->ntimestep, tag[i], f[i][0], f[i][1], f[i][2]);
 		if (shepardWeight != 0.0) {
 			hourglass_error[i] /= shepardWeight;
 		}
