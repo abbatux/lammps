@@ -705,6 +705,9 @@ void PairTlsph::ComputeForces(int eflag, int vflag) {
 		//   printf("particle_dt[%d] > deltat_1 with f = [%f %f %f]\n", tag[i], f[i][0], f[i][1], f[i][2]);
 		// }
 		particle_dt[i] = MIN(particle_dt[i], deltat_1); // Monaghan deltat_1 
+
+		double deltat_2 = sqrt(rmass[i]/ (Lookup[YOUNGS_MODULUS][itype] * 2 * radius[i])); // Make sure that oscillations due to elasticity are well captured. // This needs to be calculated once and for all.
+		particle_dt[i] = MIN(particle_dt[i], deltat_2);
 		dtCFL = MIN(dtCFL, particle_dt[i]);
 
 	} // end loop over i
