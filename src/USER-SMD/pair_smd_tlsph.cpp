@@ -2419,6 +2419,12 @@ void PairTlsph::ComputeStressDeviator(const int i, const double mass_specific_en
 					   Lookup[GTN_epsN][itype], Lookup[GTN_Komega][itype], dt, damage[i], eff_plastic_strain[i], sigmaInitial_dev, d_dev,
 					   pInitial, pFinal, sigmaFinal_dev, sigma_dev_rate, plastic_strain_increment, atom->tag[i]);
 		  damage[i] += damage_increment[i];
+
+		  double deltat_damage;
+
+		  if (damage_increment[i] > 0.0) deltat_damage = dt / (100 * damage_increment[i]);
+		  particle_dt[i] = MIN(particle_dt[i], deltat_damage);
+
 		} else {
 		  yieldStress = flowstress.evaluate(eff_plastic_strain[i]);
 		  LinearPlasticStrength(Lookup[SHEAR_MODULUS][itype], yieldStress, sigmaInitial_dev, d_dev, dt, sigmaFinal_dev,
@@ -2499,6 +2505,7 @@ void PairTlsph::ComputeDamage(const int i, const Matrix3d strain, const Matrix3d
 	double *radius = atom->radius;
 	double *damage = atom->damage;
 	double *damage_init = atom->damage_init;
+	double dt = update->dt;
 	int *type = atom->type;
 	int itype = type[i];
 	double jc_failure_strain;
@@ -2544,12 +2551,19 @@ void PairTlsph::ComputeDamage(const int i, const Matrix3d strain, const Matrix3d
 							Lookup[FAILURE_JC_EPDOT0][itype], eff_plastic_strain_rate[i], plastic_strain_increment);
 
 	  damage_init[i] += damage_increment[i];
+	  
+	  double deltat_damage;
 
 	  if (damage_init[i] >= 1.0) {
+	    if (damage_increment[i] > 0.0) deltat_damage = dt / (100 * damage_increment[i]);
 	    double damage_old = damage[i];
 	    damage[i] = MIN((damage_init[i]-1.0)*10, 1.0);
 	    damage_increment[i] = damage[i] - damage_old;
+	  } else {
+	    if (damage_increment[i] > 0.0) deltat_damage = dt / (10 * damage_increment[i]);
 	  }
+
+	  particle_dt[i] = MIN(particle_dt[i], deltat_damage);
 
 	} else if (failureModel[itype].failure_gtn) {
 
@@ -2567,11 +2581,18 @@ void PairTlsph::ComputeDamage(const int i, const Matrix3d strain, const Matrix3d
 	  damage_increment[i] = CockcroftLathamDamageIncrement(stress, Lookup[CL_W][itype], plastic_strain_increment);
 	  damage_init[i] += damage_increment[i];
 
+	  double deltat_damage;
+
 	  if (damage_init[i] >= 1.0) {
+	    if (damage_increment[i] > 0.0) deltat_damage = dt / (100 * damage_increment[i]);
 	    double damage_old = damage[i];
 	    damage[i] = MIN((damage_init[i]-1.0)*10, 1.0);
 	    damage_increment[i] = damage[i] - damage_old;
+	  } else {
+	    if (damage_increment[i] > 0.0) deltat_damage = dt / (10 * damage_increment[i]);
 	  }
+
+	  particle_dt[i] = MIN(particle_dt[i], deltat_damage);
 	}
 
 	damage[i] = MIN(damage[i], 1.0);
