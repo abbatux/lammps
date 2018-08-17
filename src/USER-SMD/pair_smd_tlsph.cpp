@@ -656,7 +656,7 @@ void PairTlsph::ComputeForces(int eflag, int vflag) {
 			sumForces = f_stress + f_visc + f_hg; // + f_spring;
 
 
-			if ((tag[i] == 20752 && tag[j] == 20751)||(tag[i] == 20752 && tag[j] == 21166)||(tag[i] == 20751 && tag[j] == 20752)||(tag[i] == 21166 && tag[j] == 20752)) {
+			if ((tag[i] == 18268 && tag[j] == 18267)||(tag[i] == 18267 && tag[j] == 18268)) {
 			  printf("Step %d - sumForces[%d][%d] = [%.10e %.10e %.10e] f_stress = [%.10e %.10e %.10e] f_visc = [%.10e %.10e %.10e] f_hg = [%.10e %.10e %.10e] dx = [%.10e %.10e %.10e] xi = [%.10e %.10e %.10e] xj = [%.10e %.10e %.10e]\n",update->ntimestep, tag[i], tag[j], sumForces(0), sumForces(1), sumForces(2), f_stress(0), f_stress(1), f_stress(2), f_visc(0), f_visc(1), f_visc(2), f_hg(0), f_hg(1), f_hg(2), dx(0), dx(1), dx(2), xi(0), xi(1), xi(2), xj(0), xj(1), xj(2));
 			}
 			// energy rate -- project velocity onto force vector
@@ -695,7 +695,7 @@ void PairTlsph::ComputeForces(int eflag, int vflag) {
 		} // end loop over jj neighbors of i
 
 		
-		if (tag[i] == 20752)
+		if (tag[i] == 18268)
 		  printf("Step %d, COMPUTE_FORCES Particle %d: f = [%.10e %.10e %.10e]\n",update->ntimestep, tag[i], f[i][0], f[i][1], f[i][2]);
 		if (shepardWeight != 0.0) {
 			hourglass_error[i] /= shepardWeight;

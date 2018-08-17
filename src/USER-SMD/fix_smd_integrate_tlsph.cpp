@@ -161,7 +161,7 @@ void FixSMDIntegrateTlsph::initial_integrate(int vflag) {
                         v[i][1] += dtfm * f[i][1];
                         v[i][2] += dtfm * f[i][2];
 
-			if (atom->tag[i] == 20752)
+			if (atom->tag[i] == 18268)
 			  printf("Step %d INTEGRATION, Particle %d: f = [%.10e %.10e %.10e]\n",update->ntimestep, atom->tag[i], f[i][0], f[i][1], f[i][2]);
 
 			if (vlimit > 0.0) {
