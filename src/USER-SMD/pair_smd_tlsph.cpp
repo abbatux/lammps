@@ -592,7 +592,7 @@ void PairTlsph::ComputeForces(int eflag, int vflag) {
 			/*
 			 * force contribution -- note that the kernel gradient correction has been absorbed into PK1
 			 */
-			f_stress = -(voli * volj) * (PK1[j]*(1.0-damage[i]) + PK1[i]*(1.0-damage[j])) * g;
+			f_stress = -(voli * volj) * (PK1[j]*(1.0-damage[i])*(1.0-0.5*damage[i]) + PK1[i]*(1.0-damage[j])*(1.0-0.5*damage[j])) * g;
 
 			energy_per_bond[i][jj] = f_stress.dot(dx); // THIS IS NOT THE ENERGY PER BOND, I AM USING THIS VARIABLE TO STORE THIS VALUE TEMPORARILY
 			/*
