@@ -240,9 +240,9 @@ void PairTlsph::PreCompute() {
 				  //Vector3d dx_prev = xj - xi + dt*(vi - vj);
 				  //if (damage[j] == 0.0) partnerdx[i][jj].setZero(); //I am using this to store dx.
 				  //else {
-				  if (damage[j] > 0.0) {
+				  if (damage[j] >= 1.0) {
 				    //partnerdx[i][jj] += damage_increment[j] * dx_prev;
-				    dx = (1-damage[j])*dx + partnerdx[i][jj];
+				    dx = partnerdx[i][jj];
 				    }
 				}
 				if (isnan(dx[0]) || isnan(dx[1]) || isnan(dx[2])) {
@@ -267,10 +267,10 @@ void PairTlsph::PreCompute() {
 				    dv.setZero();
 				    dvint.setZero();
 				  }
-				  else if (damage[j] > 0.0) {
-				    dv *= (1-damage[j]);
-				    dvint *= (1-damage[j]);				    
-				  }
+				  // else if (damage[j] > 0.0) {
+				  //   dv *= (1-damage[j]);
+				  //   dvint *= (1-damage[j]);
+				  // }
 				}
 				dv_norm = dv.norm();
 				if (dv_norm > vij_max[i]) vij_max[i] = dv_norm;
@@ -282,8 +282,11 @@ void PairTlsph::PreCompute() {
 				/* build matrices */;
 				//printf("damage[j]/((float)npartner[j]) = %f\n",1.0 - damage[j]/((float)npartner[j]));
 				Ktmp = -g * dx0.transpose()* (1.0 - damage[j]*0.5);
-				Fdottmp = -dv * g.transpose()* (1.0 - damage[j]);
+				Fdottmp = -dv * g.transpose()* (1.0 - damage[j]*0.5);
 				Ftmp = -(dx - dx0) * g.transpose()* (1.0 - damage[j]*0.5);
+				if ((tag[i] == 396 && tag[j] == 390)||(tag[j] == 396 && tag[i] == 390)) {
+				  printf("Step %d PRE,  %d-%d: dx = [%.10e %.10e %.10e] dv = [%.10e %.10e %.10e] damage_i=%.10e damage_j=%.10e damage_increment_j = %.10e\n",update->ntimestep, tag[i], tag[j], dx(0), dx(1), dx(2), dv(0), dv(1), dv(2), damage[i], damage[j], damage_increment[j]);
+				}
 
 				K[i].noalias() += volj * Ktmp;
 				Fdot[i].noalias() += volj * Fdottmp;
@@ -563,10 +566,11 @@ void PairTlsph::ComputeForces(int eflag, int vflag) {
 			dx = xj - xi;
 			dv = vj - vi;
 			if (failureModel[itype].integration_point_wise == true) {
-			  if (damage[j] > 0.0) {
-			    dx = (1-damage[j])*dx + partnerdx[i][jj];
+			  if (damage[j] >= 1.0) {
+			//     dx = (1-damage[j])*dx + partnerdx[i][jj];
+			    dx = partnerdx[i][jj];
 			    if (damage[j] >= 1.0) dv.setZero();
-			    else dv *= (1-damage[j]);
+			    //else dv *= (1-damage[j]);
 			  }
 			}
 			r = dx.norm(); // current distance
@@ -592,7 +596,14 @@ void PairTlsph::ComputeForces(int eflag, int vflag) {
 			/*
 			 * force contribution -- note that the kernel gradient correction has been absorbed into PK1
 			 */
-			f_stress = -(voli * volj) * (PK1[j]*(1.0-damage[i])*(1.0-0.5*damage[i]) + PK1[i]*(1.0-damage[j])*(1.0-0.5*damage[j])) * g;
+			if (damage[j]<1.0) {
+			  f_stress = -(voli * volj) * (PK1[j]*(1.0-0.5*damage[i]) + PK1[i]*(1.0-0.5*damage[j])) * g;
+			} else {
+			  f_stress.setZero();
+			}
+			if ((tag[i] == 396 && tag[j] == 390)||(tag[j] == 396 && tag[i] == 390)) {
+			  printf("Step %d FORCE,  %d-%d: f_stress = [%.10e %.10e %.10e] damage_i=%.10e damage_j=%.10e\n",update->ntimestep, tag[i], tag[j], f_stress(0), f_stress(1), f_stress(2), damage[i], damage[j]);
+			}
 
 			energy_per_bond[i][jj] = f_stress.dot(dx); // THIS IS NOT THE ENERGY PER BOND, I AM USING THIS VARIABLE TO STORE THIS VALUE TEMPORARILY
 			/*
@@ -2734,11 +2745,15 @@ void PairTlsph::UpdateDegradation() {
 			  dx = xj - xi;
 
 			  //Vector3d partnerdx_increment;
-			  if (damage[j] == 0.0) partnerdx[i][jj].setZero(); //I am using this to store dx.
-			  else {
-			    partnerdx[i][jj] += damage_increment[j] * dx;
-			    //partnerdx_increment = damage_increment[j] * dx;
-			    dx = (1-damage[j])*dx + partnerdx[i][jj];
+			  // if (damage[j] == 0.0) partnerdx[i][jj].setZero(); //I am using this to store dx.
+			  // else {
+			  //   partnerdx[i][jj] += damage_increment[j] * dx;
+			  //   //partnerdx_increment = damage_increment[j] * dx;
+			  //   dx = (1-damage[j])*dx + partnerdx[i][jj];
+			  // }
+
+			  if (damage[j] >= 1.0 && damage_increment[j]>1e-10) {
+			    partnerdx[i][jj] = dx;
 			  }
 
 			  degradation_ij[i][jj] = 0.0; //1 - (1 - damage[i]) * (1 - damage[j]);
