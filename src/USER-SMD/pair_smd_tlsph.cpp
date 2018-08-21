@@ -288,9 +288,9 @@ void PairTlsph::PreCompute() {
 
 				/* build matrices */;
 				//printf("damage[j]/((float)npartner[j]) = %f\n",1.0 - damage[j]/((float)npartner[j]));
-				Ktmp = -g * dx0.transpose()* (1.0 - damage[j]*0.5);
-				Fdottmp = -dv * g.transpose()* (1.0 - damage[j]*0.5);
-				Ftmp = -(dx - dx0) * g.transpose()* (1.0 - damage[j]*0.5);
+				Ktmp = -g * dx0.transpose()* (1.0 - damage[j]);
+				Fdottmp = -dv * g.transpose()* (1.0 - damage[j]);
+				Ftmp = -(dx - dx0) * g.transpose()* (1.0 - damage[j]);
 				if ((tag[i] == 396 && tag[j] == 390)||(tag[j] == 396 && tag[i] == 390)) {
 				  printf("Step %d PRE,  %d-%d: dx = [%.10e %.10e %.10e] dv = [%.10e %.10e %.10e] damage_i=%.10e damage_j=%.10e damage_increment_j = %.10e\n",update->ntimestep, tag[i], tag[j], dx(0), dx(1), dx(2), dv(0), dv(1), dv(2), damage[i], damage[j], damage_increment[j]);
 				}
@@ -606,7 +606,7 @@ void PairTlsph::ComputeForces(int eflag, int vflag) {
 			 * force contribution -- note that the kernel gradient correction has been absorbed into PK1
 			 */
 			if (damage[j]<1.0) {
-			  f_stress = -(voli * volj) * (PK1[j]*(1.0-0.5*damage[i]) + PK1[i]*(1.0-0.5*damage[j])) * g;
+			  f_stress = -(voli * volj) * (PK1[j]*(1.0-damage[i]) + PK1[i]*(1.0-damage[j])) * g;
 			} else {
 			  f_stress.setZero();
 			}
