@@ -87,6 +87,7 @@ PairTlsph::PairTlsph(LAMMPS *lmp) :
 	updateFlag = 0;
 	first = true;
 	dtCFL = 0.0; // initialize dtCFL so it is set to safe value if extracted on zero-th timestep
+	rMin = NULL;
 
 	comm_forward = 23; // this pair style communicates 20 doubles to ghost atoms : PK1 tensor + F tensor + shepardWeight + damage_increment
 	fix_tlsph_reference_configuration = NULL;
@@ -127,6 +128,7 @@ PairTlsph::~PairTlsph() {
 		delete[] particle_dt;
 		delete[] vij_max;
 		delete[] damage_increment;
+		delete[] rMin;
 
 		delete[] failureModel;
 	}
@@ -170,6 +172,7 @@ void PairTlsph::PreCompute() {
 	double dv_norm;
 
 	dtCFL = 1.0e22;
+
 	eye.setIdentity();
 	for (i = 0; i < nlocal; i++) {
 		vij_max[i] = 0.0;
@@ -210,6 +213,9 @@ void PairTlsph::PreCompute() {
 			
 			//Matrix3d gradAbsX;
 			//gradAbsX.setZero();
+
+			rMin[i] = 1.0e22;
+
 			for (jj = 0; jj < jnum; jj++) {
 
 				if (degradation_ij[i][jj] >= 1.0) continue;
@@ -249,6 +255,7 @@ void PairTlsph::PreCompute() {
 				  printf("x[%d] - x[%d] = [%f %f %f] - [%f %f %f], di = %f, dj = %f\n", tag[j], tag[i], xj[0], xj[1], xj[2], xi[0], xi[1], xi[2], damage[i], damage[j]);
 				}
 				r = dx.norm(); // current distance
+				rMin[i] = MIN(r,rMin[i]);
 
 				if (periodic)
 					domain->minimum_image(dx0(0), dx0(1), dx0(2));
@@ -404,7 +411,9 @@ void PairTlsph::compute(int eflag, int vflag) {
 		delete[] vij_max;
 		vij_max = new double[nmax];
 		delete[] damage_increment;
-		damage_increment = new double[nmax];		
+		damage_increment = new double[nmax];
+		delete[] rMin;
+		rMin = new double[nmax];
 	}
 
 	if (first) { // return on first call, because reference connectivity lists still needs to be built. Also zero quantities which are otherwise undefined.
@@ -570,7 +579,7 @@ void PairTlsph::ComputeForces(int eflag, int vflag) {
 			  }
 			}
 			r = dx.norm(); // current distance
-			
+
 			// scale the interaction according to the damage variable
 			//scale = CalculateScale(degradation_ij[i][jj], r, r0);
 			if (failureModel[itype].failure_none == true) {
@@ -655,6 +664,10 @@ void PairTlsph::ComputeForces(int eflag, int vflag) {
 			// sum stress, viscous, and hourglass forces
 			sumForces = f_stress + f_visc + f_hg; // + f_spring;
 
+			// if ((tag[i] == 18268 && tag[j] == 18267)||(tag[i] == 18267 && tag[j] == 18268)||(tag[i] == 18268 && tag[j] == 18682)||(tag[i] == 18682 && tag[j] == 18268)) {
+			//   printf("Step %d - sumForces[%d][%d] = [%.10e %.10e %.10e] f_stress = [%.10e %.10e %.10e] f_visc = [%.10e %.10e %.10e] f_hg = [%.10e %.10e %.10e] dx = [%.10e %.10e %.10e] xi = [%.10e %.10e %.10e] xj = [%.10e %.10e %.10e]\n",update->ntimestep, tag[i], tag[j], sumForces(0), sumForces(1), sumForces(2), f_stress(0), f_stress(1), f_stress(2), f_visc(0), f_visc(1), f_visc(2), f_hg(0), f_hg(1), f_hg(2), dx(0), dx(1), dx(2), xi(0), xi(1), xi(2), xj(0), xj(1), xj(2));
+			// }
+
 			// energy rate -- project velocity onto force vector
 			deltaE = 0.5 * sumForces.dot(dv);
 
@@ -690,6 +703,9 @@ void PairTlsph::ComputeForces(int eflag, int vflag) {
 
 		} // end loop over jj neighbors of i
 		
+		// if (tag[i] == 18268)
+		//   printf("Step %d, COMPUTE_FORCES Particle %d: f = [%.10e %.10e %.10e]\n",update->ntimestep, tag[i], f[i][0], f[i][1], f[i][2]);
+
 		if (shepardWeight != 0.0) {
 			hourglass_error[i] /= shepardWeight;
 		}
@@ -895,7 +911,7 @@ void PairTlsph::AssembleStress() {
 				  vi(idim) = v[i][idim];
 				}
 				//double max_damage = max(0.0001, 1 - f);
-				particle_dt[i] = 2.0 * radius[i] / (p_wave_speed + vij_max[i]); //* max(0.0001, 1 - fx * vi.norm()*dt/radius[i]);
+				particle_dt[i] = rMin[i] / (p_wave_speed + vij_max[i]); //* max(0.0001, 1 - fx * vi.norm()*dt/radius[i]);
 				dtCFL = MIN(dtCFL, particle_dt[i]);
 
 			} else { // end if mol > 0
@@ -2143,6 +2159,8 @@ void *PairTlsph::extract(const char *str, int &i) {
 		return (void *) R;
 	} else if (strcmp(str, "smd/tlsph/damage_increment") == 0) {
 		return (void *) damage_increment;
+	} else if (strcmp(str, "smd/tlsph/rMin") == 0) {
+	  return (void *) rMin;
 	}
 
 	return NULL;
