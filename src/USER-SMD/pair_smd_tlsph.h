@@ -101,6 +101,7 @@ protected:
 
 	int nmax; // max number of atoms on this proc
 	double hMin; // minimum kernel radius for two particles
+        double* rMin;
 	double dtCFL;
 	double dtRelative; // relative velocity of two particles, divided by sound speed
 	int updateFlag;
