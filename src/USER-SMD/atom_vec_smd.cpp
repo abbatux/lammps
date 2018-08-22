@@ -102,7 +102,7 @@ void AtomVecSMD::grow(int n) {
 	if (nmax < 0 || nmax > MAXSMALLINT)
 		error->one(FLERR, "Per-processor system is too big");
 
-	printf("in grow, nmax is now %d\n", nmax);
+	//printf("in grow, nmax is now %d\n", nmax);
 
 	tag = memory->grow(atom->tag, nmax, "atom:tag");
 	type = memory->grow(atom->type, nmax, "atom:type");
@@ -399,7 +399,7 @@ int AtomVecSMD::unpack_comm_hybrid(int n, int first, double *buf) {
 int AtomVecSMD::pack_reverse(int n, int first, double *buf) {
 	int i, m, last;
 
-	printf("in pack_reverse\n");
+	//printf("in pack_reverse\n");
 
 	m = 0;
 	last = first + n;
@@ -466,7 +466,7 @@ int AtomVecSMD::pack_border_vel(int n, int *list, double *buf, int pbc_flag, int
 	int i, j, m;
 	double dx, dy, dz, dvx, dvy, dvz;
 
-	printf("AtomVecSMD::pack_border_vel\n");
+	//printf("AtomVecSMD::pack_border_vel\n");
 
 	m = 0;
 	if (pbc_flag == 0) {
@@ -663,7 +663,7 @@ void AtomVecSMD::unpack_border(int n, int first, double *buf) {
 
 void AtomVecSMD::unpack_border_vel(int n, int first, double *buf) {
 	int i, m, last;
-	printf("AtomVecSMD::unpack_border_vel\n");
+	//printf("AtomVecSMD::unpack_border_vel\n");
 	m = 0;
 	last = first + n;
 	for (i = first; i < last; i++) {
