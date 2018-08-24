@@ -162,7 +162,7 @@ void PairTlsph::PreCompute() {
 	float **degradation_ij = ((FixSMD_TLSPH_ReferenceConfiguration *) modify->fix[ifix_tlsph])->degradation_ij;
 	Vector3d **partnerdx = ((FixSMD_TLSPH_ReferenceConfiguration *) modify->fix[ifix_tlsph])->partnerdx;
 	double **partnervol = ((FixSMD_TLSPH_ReferenceConfiguration *) modify->fix[ifix_tlsph])->partnervol;
-	double r, r0, r0Sq, wf, wfd, h, irad, voli, volj, shepardWeight;
+	double r, r0, r0Sq, wf, wfd, h, irad, voli, volj, shepardWeight, scale;
 	Vector3d dx, dx0, dx0mirror, dv, g;
 	Matrix3d Ktmp, Ftmp, Fdottmp, L, U, eye;
 	Vector3d vi, vj, vinti, vintj, xi, xj, x0i, x0j, dvint;
@@ -282,6 +282,13 @@ void PairTlsph::PreCompute() {
 				dv_norm = dv.norm();
 				if (dv_norm > vij_max[i]) vij_max[i] = dv_norm;
 
+				if (failureModel[itype].failure_none == true) {
+				  scale = 1.0;
+				} else {
+				  scale = CalculateScale(MAX(damage[i], damage[j]), itype);
+				}
+				dv *= scale;
+
 				wf = wf_list[i][jj];
 				wfd = wfd_list[i][jj];
 				g = (wfd / r0) * dx0;
@@ -291,7 +298,7 @@ void PairTlsph::PreCompute() {
 				Ktmp = -g * dx0.transpose();
 				Fdottmp = -dv * g.transpose();
 				Ftmp = -(dx - dx0) * g.transpose();
-				if ((tag[i] == 396 && tag[j] == 390)||(tag[j] == 396 && tag[i] == 390)) {
+				if ((tag[i] == 1312 && tag[j] == 1297)||(tag[i] == 1297 && tag[j] == 1312)) {
 				  printf("Step %d PRE,  %d-%d: dx = [%.10e %.10e %.10e] dv = [%.10e %.10e %.10e] damage_i=%.10e damage_j=%.10e damage_increment_j = %.10e\n",update->ntimestep, tag[i], tag[j], dx(0), dx(1), dx(2), dv(0), dv(1), dv(2), damage[i], damage[j], damage_increment[j]);
 				}
 
@@ -589,7 +596,7 @@ void PairTlsph::ComputeForces(int eflag, int vflag) {
 			if (failureModel[itype].failure_none == true) {
 			  scale = 1.0;
 			} else {
-			  scale = CalculateScale(degradation_ij[i][jj], itype);
+			  scale = CalculateScale(MAX(damage[i], damage[j]), itype);
 			}
 
 			wf = wf_list[i][jj];
@@ -606,11 +613,11 @@ void PairTlsph::ComputeForces(int eflag, int vflag) {
 			 * force contribution -- note that the kernel gradient correction has been absorbed into PK1
 			 */
 			if (damage[i] < 1.0 && damage[j] < 1.0)
-			  f_stress = -(voli * volj) * (PK1[j] + PK1[i]) * g;
+			  f_stress = -(voli * volj) * (PK1[j] + PK1[i]) * g * scale;
 			else
 			  f_stress.setZero();
 
-			if ((tag[i] == 396 && tag[j] == 390)||(tag[j] == 396 && tag[i] == 390)) {
+			if ((tag[i] == 1312 && tag[j] == 1297)||(tag[i] == 1297 && tag[j] == 1312)) {
 			  printf("Step %d FORCE,  %d-%d: f_stress = [%.10e %.10e %.10e] damage_i=%.10e damage_j=%.10e\n",update->ntimestep, tag[i], tag[j], f_stress(0), f_stress(1), f_stress(2), damage[i], damage[j]);
 			}
 
@@ -2795,7 +2802,7 @@ void PairTlsph::UpdateDegradation() {
 
 double PairTlsph::CalculateScale(const float degradation, const int itype) {
   if (failureModel[itype].integration_point_wise == true) {
-    double start = 0.9; // Arbitrary value that seems to work
+    double start = 0.95; // Arbitrary value that seems to work
     if (degradation <= start) {
       return 1.0;
     }
