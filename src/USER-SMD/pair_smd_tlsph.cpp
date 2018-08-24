@@ -239,15 +239,30 @@ void PairTlsph::PreCompute() {
 					vintj(idim) = vint[j][idim];
 				}
 
+				// distance vectors in current and reference configuration, velocity difference
 				dx0 = x0j - x0i;
 				dx = xj - xi;
+				dv = vj - vi;
+				dvint = vintj - vinti;
 
 				if (failureModel[itype].integration_point_wise == true) {
-				  //Vector3d dx_prev = xj - xi + dt*(vi - vj);
-				  //if (damage[j] == 0.0) partnerdx[i][jj].setZero(); //I am using this to store dx.
-				  //else {
 				  if (damage[j] >= 1.0) {
-				    //partnerdx[i][jj] += damage_increment[j] * dx_prev;
+				    dv.setZero();
+				    dvint.setZero();
+				  }
+				}
+
+				if (failureModel[itype].failure_none == true) {
+				  scale = 1.0;
+				} else {
+				  scale = CalculateScale(MAX(damage[i], damage[j]), itype);
+				}
+
+				dv *= scale;
+
+				if (failureModel[itype].integration_point_wise == true) {
+				  if (damage[i] > 0.0 || damage[j] > 0.0) {
+				    partnerdx[i][jj] += dt * dv;
 				    dx = partnerdx[i][jj];
 				    }
 				}
@@ -266,28 +281,10 @@ void PairTlsph::PreCompute() {
 				r0 = sqrt(r0Sq);
 				volj = vfrac[j];
 
-				// distance vectors in current and reference configuration, velocity difference
-				dv = vj - vi;
-				dvint = vintj - vinti;
-				if (failureModel[itype].integration_point_wise == true) {
-				  if (damage[j] >= 1.0) {
-				    dv.setZero();
-				    dvint.setZero();
-				  }
-				  // else if (damage[j] > 0.0) {
-				  //   dv *= (1-damage[j]);
-				  //   dvint *= (1-damage[j]);
-				  // }
-				}
+
+
 				dv_norm = dv.norm();
 				if (dv_norm > vij_max[i]) vij_max[i] = dv_norm;
-
-				if (failureModel[itype].failure_none == true) {
-				  scale = 1.0;
-				} else {
-				  scale = CalculateScale(MAX(damage[i], damage[j]), itype);
-				}
-				dv *= scale;
 
 				wf = wf_list[i][jj];
 				wfd = wfd_list[i][jj];
@@ -599,6 +596,7 @@ void PairTlsph::ComputeForces(int eflag, int vflag) {
 			  scale = CalculateScale(MAX(damage[i], damage[j]), itype);
 			}
 
+			dv *= scale;
 			wf = wf_list[i][jj];
 			wfd = wfd_list[i][jj];
 
@@ -2757,15 +2755,7 @@ void PairTlsph::UpdateDegradation() {
 			  // distance vectors in current and reference configuration, velocity difference
 			  dx = xj - xi;
 
-			  //Vector3d partnerdx_increment;
-			  // if (damage[j] == 0.0) partnerdx[i][jj].setZero(); //I am using this to store dx.
-			  // else {
-			  //   partnerdx[i][jj] += damage_increment[j] * dx;
-			  //   //partnerdx_increment = damage_increment[j] * dx;
-			  //   dx = (1-damage[j])*dx + partnerdx[i][jj];
-			  // }
-
-			  if (damage[j] >= 1.0 && damage_increment[j]>1e-10) {
+			  if (damage[i] == 0.0 && damage[j] == 0.0) {
 			    partnerdx[i][jj] = dx;
 			  }
 
