@@ -2792,7 +2792,7 @@ void PairTlsph::UpdateDegradation() {
 
 double PairTlsph::CalculateScale(const float degradation, const int itype) {
   if (failureModel[itype].integration_point_wise == true) {
-    double start = 0.95; // Arbitrary value that seems to work
+    double start = 0.9; // Arbitrary value that seems to work
     if (degradation <= start) {
       return 1.0;
     }
