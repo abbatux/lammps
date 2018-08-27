@@ -252,20 +252,13 @@ void PairTlsph::PreCompute() {
 				  }
 				}
 
-				if (failureModel[itype].failure_none == true) {
-				  scale = 1.0;
-				} else {
-				  scale = CalculateScale(MAX(damage[i], damage[j]), itype);
-				}
-
-				dv *= scale;
-
 				if (failureModel[itype].integration_point_wise == true) {
 				  if (damage[i] > 0.0 || damage[j] > 0.0) {
 				    partnerdx[i][jj] += dt * dv;
 				    dx = partnerdx[i][jj];
 				    }
 				}
+
 				if (isnan(dx[0]) || isnan(dx[1]) || isnan(dx[2])) {
 				  printf("x[%d] - x[%d] = [%f %f %f] - [%f %f %f], di = %f, dj = %f\n", tag[j], tag[i], xj[0], xj[1], xj[2], xi[0], xi[1], xi[2], damage[i], damage[j]);
 				}
@@ -280,8 +273,6 @@ void PairTlsph::PreCompute() {
 
 				r0 = sqrt(r0Sq);
 				volj = vfrac[j];
-
-
 
 				dv_norm = dv.norm();
 				if (dv_norm > vij_max[i]) vij_max[i] = dv_norm;
@@ -593,7 +584,7 @@ void PairTlsph::ComputeForces(int eflag, int vflag) {
 			if (failureModel[itype].failure_none == true) {
 			  scale = 1.0;
 			} else {
-			  scale = CalculateScale(MAX(damage[i], damage[j]), itype);
+			  scale = 1.0;//CalculateScale(MAX(damage[i], damage[j]), itype);
 			}
 
 			dv *= scale;
@@ -611,7 +602,7 @@ void PairTlsph::ComputeForces(int eflag, int vflag) {
 			 * force contribution -- note that the kernel gradient correction has been absorbed into PK1
 			 */
 			if (damage[i] < 1.0 && damage[j] < 1.0)
-			  f_stress = -(voli * volj) * (PK1[j] + PK1[i]) * g * scale;
+			  f_stress = -(voli * volj) * (PK1[j]*(1-damage[i]) + PK1[i]*(1-damage[j])) * g;
 			else
 			  f_stress.setZero();
 
