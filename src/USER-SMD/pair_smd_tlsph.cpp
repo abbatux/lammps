@@ -242,8 +242,8 @@ void PairTlsph::PreCompute() {
 				// distance vectors in current and reference configuration, velocity difference
 				dx0 = x0j - x0i;
 				dx = xj - xi;
-				dv = vj - vi;
-				dvint = vintj - vinti;
+				dv = vj*(1-damage[i]) - vi*(1-damage[j]);
+				dvint = vintj*(1-damage[i]) - vinti*(1-damage[j]);
 
 				if (failureModel[itype].integration_point_wise == true) {
 				  if (damage[j] >= 1.0) {
@@ -286,7 +286,7 @@ void PairTlsph::PreCompute() {
 				Ktmp = -g * dx0.transpose();
 				Fdottmp = -dv * g.transpose();
 				Ftmp = -(dx - dx0) * g.transpose();
-				if ((tag[i] == 1312 && tag[j] == 1297)||(tag[i] == 1297 && tag[j] == 1312)) {
+				if ((tag[i] == 18268 && tag[j] == 17854)||(tag[i] == 17854 && tag[j] == 18268)||(tag[i] == 17853 && tag[j] == 17854)||(tag[i] == 17854 && tag[j] == 17853)||(tag[i] == 18268 && tag[j] == 18267)||(tag[i] == 18267 && tag[j] == 18268)||(tag[i] == 17854 && tag[j] == 17440)) {
 				  printf("Step %d PRE,  %d-%d: dx = [%.10e %.10e %.10e] dv = [%.10e %.10e %.10e] damage_i=%.10e damage_j=%.10e damage_increment_j = %.10e\n",update->ntimestep, tag[i], tag[j], dx(0), dx(1), dx(2), dv(0), dv(1), dv(2), damage[i], damage[j], damage_increment[j]);
 				}
 
@@ -568,7 +568,8 @@ void PairTlsph::ComputeForces(int eflag, int vflag) {
 
 			// distance vectors in current and reference configuration, velocity difference
 			dx = xj - xi;
-			dv = vj - vi;
+			dv = vj*(1-damage[i]) - vi*(1-damage[j]);
+
 			if (failureModel[itype].integration_point_wise == true) {
 			  if (damage[j] >= 1.0) {
 			//     dx = (1-damage[j])*dx + partnerdx[i][jj];
@@ -606,7 +607,7 @@ void PairTlsph::ComputeForces(int eflag, int vflag) {
 			else
 			  f_stress.setZero();
 
-			if ((tag[i] == 1312 && tag[j] == 1297)||(tag[i] == 1297 && tag[j] == 1312)) {
+			if ((tag[i] == 18268 && tag[j] == 17854)||(tag[i] == 17854 && tag[j] == 18268)||(tag[i] == 17853 && tag[j] == 17854)||(tag[i] == 17854 && tag[j] == 17853)||(tag[i] == 18268 && tag[j] == 18267)||(tag[i] == 18267 && tag[j] == 18268)||(tag[i] == 17854 && tag[j] == 17440)) {
 			  printf("Step %d FORCE,  %d-%d: f_stress = [%.10e %.10e %.10e] damage_i=%.10e damage_j=%.10e\n",update->ntimestep, tag[i], tag[j], f_stress(0), f_stress(1), f_stress(2), damage[i], damage[j]);
 			}
 
