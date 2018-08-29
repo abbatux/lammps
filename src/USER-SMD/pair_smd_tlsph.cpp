@@ -258,7 +258,8 @@ void PairTlsph::PreCompute() {
 				  scale = CalculateScale(MAX(damage[i], damage[j]), itype);
 				}
 
-				dv *= scale;
+				dv *= (1-damage[j]);
+				dvint *= (1-damage[j]);
 
 				if (failureModel[itype].integration_point_wise == true) {
 				  if (damage[i] > 0.0 || damage[j] > 0.0) {
@@ -295,15 +296,12 @@ void PairTlsph::PreCompute() {
 				Ktmp = -g * dx0.transpose();
 				Fdottmp = -dv * g.transpose();
 				Ftmp = -(dx - dx0) * g.transpose();
-				if ((tag[i] == 1312 && tag[j] == 1297)||(tag[i] == 1297 && tag[j] == 1312)) {
-				  printf("Step %d PRE,  %d-%d: dx = [%.10e %.10e %.10e] dv = [%.10e %.10e %.10e] damage_i=%.10e damage_j=%.10e damage_increment_j = %.10e\n",update->ntimestep, tag[i], tag[j], dx(0), dx(1), dx(2), dv(0), dv(1), dv(2), damage[i], damage[j], damage_increment[j]);
-				}
 
-				K[i].noalias() += volj * Ktmp;
-				Fdot[i].noalias() += volj * Fdottmp;
-				Fincr[i].noalias() += volj * Ftmp;
-				shepardWeight += volj * wf;
-				smoothVelDifference[i].noalias() += volj * wf * dvint;
+				K[i].noalias() += volj * Ktmp * (1-damage[j]*0.5);
+				Fdot[i].noalias() += volj * Fdottmp * (1-damage[j]*0.5);
+				Fincr[i].noalias() += volj * Ftmp * (1-damage[j]*0.5);
+				shepardWeight += volj * wf * (1-damage[j]*0.5);
+				smoothVelDifference[i].noalias() += volj * wf * dvint * (1-damage[j]*0.5);
 
 				if (damage[j]<1.0) numNeighsRefConfig[i]++;
 			} // end loop over j
@@ -578,6 +576,7 @@ void PairTlsph::ComputeForces(int eflag, int vflag) {
 			// distance vectors in current and reference configuration, velocity difference
 			dx = xj - xi;
 			dv = vj - vi;
+
 			if (failureModel[itype].integration_point_wise == true) {
 			  if (damage[j] >= 1.0) {
 			//     dx = (1-damage[j])*dx + partnerdx[i][jj];
@@ -593,10 +592,10 @@ void PairTlsph::ComputeForces(int eflag, int vflag) {
 			if (failureModel[itype].failure_none == true) {
 			  scale = 1.0;
 			} else {
-			  scale = CalculateScale(MAX(damage[i], damage[j]), itype);
+			  scale = 1.0;//CalculateScale(MAX(damage[i], damage[j]), itype);
 			}
 
-			dv *= scale;
+			dv *= (1-damage[j]);
 			wf = wf_list[i][jj];
 			wfd = wfd_list[i][jj];
 
@@ -611,13 +610,9 @@ void PairTlsph::ComputeForces(int eflag, int vflag) {
 			 * force contribution -- note that the kernel gradient correction has been absorbed into PK1
 			 */
 			if (damage[i] < 1.0 && damage[j] < 1.0)
-			  f_stress = -(voli * volj) * (PK1[j] + PK1[i]) * g * scale;
+			  f_stress = -(voli * volj) * (PK1[j]*(1-damage[i]) + PK1[i]*(1-damage[j])) * g * (1-damage[i]*0.5) * (1-damage[j]*0.5);
 			else
 			  f_stress.setZero();
-
-			if ((tag[i] == 1312 && tag[j] == 1297)||(tag[i] == 1297 && tag[j] == 1312)) {
-			  printf("Step %d FORCE,  %d-%d: f_stress = [%.10e %.10e %.10e] damage_i=%.10e damage_j=%.10e\n",update->ntimestep, tag[i], tag[j], f_stress(0), f_stress(1), f_stress(2), damage[i], damage[j]);
-			}
 
 			energy_per_bond[i][jj] = f_stress.dot(dx); // THIS IS NOT THE ENERGY PER BOND, I AM USING THIS VARIABLE TO STORE THIS VALUE TEMPORARILY
 			/*
@@ -2755,7 +2750,7 @@ void PairTlsph::UpdateDegradation() {
 			  // distance vectors in current and reference configuration, velocity difference
 			  dx = xj - xi;
 
-			  if (damage[i] == 0.0 && damage[j] == 0.0) {
+			  if (damage[j] == 0.0) {
 			    partnerdx[i][jj] = dx;
 			  }
 
@@ -2792,7 +2787,7 @@ void PairTlsph::UpdateDegradation() {
 
 double PairTlsph::CalculateScale(const float degradation, const int itype) {
   if (failureModel[itype].integration_point_wise == true) {
-    double start = 0.9; // Arbitrary value that seems to work
+    double start = 0; // Arbitrary value that seems to work
     if (degradation <= start) {
       return 1.0;
     }
