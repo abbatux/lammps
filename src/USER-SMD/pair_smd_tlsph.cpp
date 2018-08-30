@@ -256,7 +256,7 @@ void PairTlsph::PreCompute() {
 				dvint *= (1-damage[j]);
 
 				if (failureModel[itype].integration_point_wise == true) {
-				  if (damage[i] > 0.0 || damage[j] > 0.0) {
+				  if (damage[j] > 0.0) {
 				    partnerdx[i][jj] += dt * dv;
 				    dx = partnerdx[i][jj];
 				    }
@@ -291,7 +291,7 @@ void PairTlsph::PreCompute() {
 				Ftmp = -(dx - dx0) * g.transpose();
 
 				if (damage[j] > 0.0) {
-				  scale =  1-damage[j]/npartner[j];
+				  scale =  1.0-damage[j]/((double) npartner[j]);
 				} else {
 				  scale = 1.0;
 				}
@@ -609,10 +609,10 @@ void PairTlsph::ComputeForces(int eflag, int vflag) {
 			 */
 			if (damage[i] < 1.0 && damage[j] < 1.0) {
 
-			  if (damage[i] > 0.0) scale_i = 1-damage[i]/npartner[i];
+			  if (damage[i] > 0.0) scale_i = 1.0-damage[i]/((double) npartner[i]);
 			  else scale_i = 1.0;
 
-			  if (damage[j] > 0.0) scale_j = 1-damage[j]/npartner[j];
+			  if (damage[j] > 0.0) scale_j = 1.0-damage[j]/((double) npartner[j]);
 			  else scale_j = 1.0;
 
 			  f_stress = -(voli * volj) * (PK1[j]*(1-damage[i]) + PK1[i]*(1-damage[j])) * g * scale_i * scale_j;
