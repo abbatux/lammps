@@ -162,7 +162,7 @@ void PairTlsph::PreCompute() {
 	float **degradation_ij = ((FixSMD_TLSPH_ReferenceConfiguration *) modify->fix[ifix_tlsph])->degradation_ij;
 	Vector3d **partnerdx = ((FixSMD_TLSPH_ReferenceConfiguration *) modify->fix[ifix_tlsph])->partnerdx;
 	double **partnervol = ((FixSMD_TLSPH_ReferenceConfiguration *) modify->fix[ifix_tlsph])->partnervol;
-	double r, r0, r0Sq, wf, wfd, h, irad, voli, volj, shepardWeight;
+	double r, r0, r0Sq, wf, wfd, h, irad, voli, volj, shepardWeight, scale;
 	Vector3d dx, dx0, dx0mirror, dv, g;
 	Matrix3d Ktmp, Ftmp, Fdottmp, L, U, eye;
 	Vector3d vi, vj, vinti, vintj, xi, xj, x0i, x0j, dvint;
@@ -290,11 +290,16 @@ void PairTlsph::PreCompute() {
 				Fdottmp = -dv * g.transpose();
 				Ftmp = -(dx - dx0) * g.transpose();
 
-				K[i].noalias() += volj * Ktmp * (1-damage[j]*0.5);
-				Fdot[i].noalias() += volj * Fdottmp * (1-damage[j]*0.5);
-				Fincr[i].noalias() += volj * Ftmp * (1-damage[j]*0.5);
-				shepardWeight += volj * wf * (1-damage[j]*0.5);
-				smoothVelDifference[i].noalias() += volj * wf * dvint * (1-damage[j]*0.5);
+				if (damage[j] > 0.0) {
+				  scale =  1-damage[j]/npartner[j];
+				} else {
+				  scale = 1.0;
+				}
+				K[i].noalias() += volj * Ktmp * scale;
+				Fdot[i].noalias() += volj * Fdottmp * scale;
+				Fincr[i].noalias() += volj * Ftmp * scale;
+				shepardWeight += volj * wf * scale;
+				smoothVelDifference[i].noalias() += volj * wf * dvint * scale;
 
 				if (damage[j]<1.0) numNeighsRefConfig[i]++;
 			} // end loop over j
@@ -476,7 +481,7 @@ void PairTlsph::ComputeForces(int eflag, int vflag) {
 	int nlocal = atom->nlocal;
 	int i, j, jj, jnum, itype, idim;
 	double r, hg_mag, wf, wfd, h, r0, r0Sq, voli, volj, r_plus_h, over_r_plus_h;
-	double delVdotDelR, deltaE, mu_ij, hg_err, gamma_dot_dx, delta, scale, rmassij;
+	double delVdotDelR, deltaE, mu_ij, hg_err, gamma_dot_dx, delta, scale, scale_i, scale_j, rmassij;
 	double softening_strain, shepardWeight;
 	char str[128];
 	Vector3d fi, fj, dx0, dx, dv, f_stress, f_hg, dxp_i, dxp_j, gamma, g, gamma_i, gamma_j, x0i, x0j, wfddx, f_stressbc, fbc;
@@ -602,10 +607,19 @@ void PairTlsph::ComputeForces(int eflag, int vflag) {
 			/*
 			 * force contribution -- note that the kernel gradient correction has been absorbed into PK1
 			 */
-			if (damage[i] < 1.0 && damage[j] < 1.0)
-			  f_stress = -(voli * volj) * (PK1[j]*(1-damage[i]) + PK1[i]*(1-damage[j])) * g * (1-damage[i]*0.5) * (1-damage[j]*0.5);
-			else
+			if (damage[i] < 1.0 && damage[j] < 1.0) {
+
+			  if (damage[i] > 0.0) scale_i = 1-damage[i]/npartner[i];
+			  else scale_i = 1.0;
+
+			  if (damage[j] > 0.0) scale_j = 1-damage[j]/npartner[j];
+			  else scale_j = 1.0;
+
+			  f_stress = -(voli * volj) * (PK1[j]*(1-damage[i]) + PK1[i]*(1-damage[j])) * g * scale_i * scale_j;
+
+			} else {
 			  f_stress.setZero();
+			}
 
 			energy_per_bond[i][jj] = f_stress.dot(dx); // THIS IS NOT THE ENERGY PER BOND, I AM USING THIS VARIABLE TO STORE THIS VALUE TEMPORARILY
 			/*
