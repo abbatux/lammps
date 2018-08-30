@@ -89,7 +89,7 @@ PairTlsph::PairTlsph(LAMMPS *lmp) :
 	dtCFL = 0.0; // initialize dtCFL so it is set to safe value if extracted on zero-th timestep
 	rMin = NULL;
 
-	comm_forward = 23; // this pair style communicates 20 doubles to ghost atoms : PK1 tensor + F tensor + shepardWeight + damage_increment
+	comm_forward = 24; // this pair style communicates 20 doubles to ghost atoms : PK1 tensor + F tensor + shepardWeight + damage_increment
 	fix_tlsph_reference_configuration = NULL;
 
 	cut_comm = MAX(neighbor->cutneighmax, comm->cutghostuser); // cutoff radius within which ghost atoms are communicated.
@@ -295,11 +295,16 @@ void PairTlsph::PreCompute() {
 				} else {
 				  scale = 1.0;
 				}
+				if (update->ntimestep > 1 && npartner[j] == 0) printf("Step %d, npartner[%d] == %f\n", update->ntimestep, tag[j], npartner[j]);
 				K[i].noalias() += volj * Ktmp * scale;
 				Fdot[i].noalias() += volj * Fdottmp * scale;
 				Fincr[i].noalias() += volj * Ftmp * scale;
 				shepardWeight += volj * wf * scale;
 				smoothVelDifference[i].noalias() += volj * wf * dvint * scale;
+
+				if ((tag[i] == 18268 && tag[j] == 17854)||(tag[i] == 17854 && tag[j] == 18268)||(tag[i] == 17853 && tag[j] == 17854)||(tag[i] == 17854 && tag[j] == 17853)||(tag[i] == 18268 && tag[j] == 18267)||(tag[i] == 18267 && tag[j] == 18268)||(tag[i] == 17854 && tag[j] == 17440) || (tag[i] == 17025 && tag[j] == 17439) || (tag[i] == 17439 && tag[j] == 17025)) {
+				  printf("Step %d PRE,  %d-%d: dx = [%.10e %.10e %.10e] dv = [%.10e %.10e %.10e] damage_i=%.10e damage_j=%.10e damage_increment_j = %.10e\n",update->ntimestep, tag[i], tag[j], dx(0), dx(1), dx(2), dv(0), dv(1), dv(2), damage[i], damage[j], damage_increment[j]);
+				}
 
 				if (damage[j]<1.0) numNeighsRefConfig[i]++;
 			} // end loop over j
@@ -608,17 +613,19 @@ void PairTlsph::ComputeForces(int eflag, int vflag) {
 			 * force contribution -- note that the kernel gradient correction has been absorbed into PK1
 			 */
 			if (damage[i] < 1.0 && damage[j] < 1.0) {
-
-			  if (damage[i] > 0.0) scale_i = 1.0-damage[i]/((double) npartner[i]);
-			  else scale_i = 1.0;
-
-			  if (damage[j] > 0.0) scale_j = 1.0-damage[j]/((double) npartner[j]);
-			  else scale_j = 1.0;
+			  scale_i = 1.0;
+			  scale_j = 1.0;
+			  if (damage[i] > 0.0) scale_i -= damage[i]/((double) npartner[i]);
+			  if (damage[j] > 0.0) scale_j -= damage[j]/((double) npartner[j]);
 
 			  f_stress = -(voli * volj) * (PK1[j]*(1-damage[i]) + PK1[i]*(1-damage[j])) * g * scale_i * scale_j;
 
 			} else {
 			  f_stress.setZero();
+			}
+
+			if ((tag[i] == 18268 && tag[j] == 17854)||(tag[i] == 17854 && tag[j] == 18268)||(tag[i] == 17853 && tag[j] == 17854)||(tag[i] == 17854 && tag[j] == 17853)||(tag[i] == 18268 && tag[j] == 18267)||(tag[i] == 18267 && tag[j] == 18268)||(tag[i] == 17854 && tag[j] == 17440) || (tag[i] == 17025 && tag[j] == 17439) || (tag[i] == 17439 && tag[j] == 17025)) {
+			  printf("Step %d FORCE,  %d-%d: f_stress = [%.10e %.10e %.10e] damage_i=%.10e damage_j=%.10e\n",update->ntimestep, tag[i], tag[j], f_stress(0), f_stress(1), f_stress(2), damage[i], damage[j]);
 			}
 
 			energy_per_bond[i][jj] = f_stress.dot(dx); // THIS IS NOT THE ENERGY PER BOND, I AM USING THIS VARIABLE TO STORE THIS VALUE TEMPORARILY
@@ -2192,6 +2199,7 @@ int PairTlsph::pack_forward_comm(int n, int *list, double *buf, int pbc_flag, in
 	double *damage = atom->damage;
 	double *eff_plastic_strain = atom->eff_plastic_strain;
 	double *eff_plastic_strain_rate = atom->eff_plastic_strain_rate;
+	int *npartner = ((FixSMD_TLSPH_ReferenceConfiguration *) modify->fix[ifix_tlsph])->npartner;
 
 	//printf("in PairTlsph::pack_forward_comm\n");
 
@@ -2224,6 +2232,8 @@ int PairTlsph::pack_forward_comm(int n, int *list, double *buf, int pbc_flag, in
 		buf[m++] = eff_plastic_strain_rate[j]; //22
 		buf[m++] = damage_increment[j]; //23
 
+		buf[m++] = npartner[j]; //24
+
 	}
 	return m;
 }
@@ -2236,7 +2246,7 @@ void PairTlsph::unpack_forward_comm(int n, int first, double *buf) {
 	double *damage = atom->damage;
 	double *eff_plastic_strain = atom->eff_plastic_strain;
 	double *eff_plastic_strain_rate = atom->eff_plastic_strain_rate;
-
+	int *npartner = ((FixSMD_TLSPH_ReferenceConfiguration *) modify->fix[ifix_tlsph])->npartner;
 	//printf("in PairTlsph::unpack_forward_comm\n");
 
 	m = 0;
@@ -2268,6 +2278,8 @@ void PairTlsph::unpack_forward_comm(int n, int first, double *buf) {
 		eff_plastic_strain[i] = buf[m++]; //21
 		eff_plastic_strain_rate[i] = buf[m++]; //22
 		damage_increment[i] = buf[m++]; //23
+
+		npartner[i] = static_cast<int>(buf[m++]); //24
 	}
 }
 
