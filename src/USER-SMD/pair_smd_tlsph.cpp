@@ -302,9 +302,9 @@ void PairTlsph::PreCompute() {
 				shepardWeight += volj * wf * scale;
 				smoothVelDifference[i].noalias() += volj * wf * dvint * scale;
 
-				if ((tag[i] == 18268 && tag[j] == 17854)||(tag[i] == 17854 && tag[j] == 18268)||(tag[i] == 17853 && tag[j] == 17854)||(tag[i] == 17854 && tag[j] == 17853)||(tag[i] == 18268 && tag[j] == 18267)||(tag[i] == 18267 && tag[j] == 18268)||(tag[i] == 17854 && tag[j] == 17440) || (tag[i] == 17025 && tag[j] == 17439) || (tag[i] == 17439 && tag[j] == 17025)) {
-				  printf("Step %d PRE,  %d-%d: dx = [%.10e %.10e %.10e] dv = [%.10e %.10e %.10e] damage_i=%.10e damage_j=%.10e damage_increment_j = %.10e\n",update->ntimestep, tag[i], tag[j], dx(0), dx(1), dx(2), dv(0), dv(1), dv(2), damage[i], damage[j], damage_increment[j]);
-				}
+				// if ((tag[i] == 18268 && tag[j] == 17854)||(tag[i] == 17854 && tag[j] == 18268)||(tag[i] == 17853 && tag[j] == 17854)||(tag[i] == 17854 && tag[j] == 17853)||(tag[i] == 18268 && tag[j] == 18267)||(tag[i] == 18267 && tag[j] == 18268)||(tag[i] == 17854 && tag[j] == 17440) || (tag[i] == 17025 && tag[j] == 17439) || (tag[i] == 17439 && tag[j] == 17025)) {
+				//   printf("Step %d PRE,  %d-%d: dx = [%.10e %.10e %.10e] dv = [%.10e %.10e %.10e] damage_i=%.10e damage_j=%.10e damage_increment_j = %.10e\n",update->ntimestep, tag[i], tag[j], dx(0), dx(1), dx(2), dv(0), dv(1), dv(2), damage[i], damage[j], damage_increment[j]);
+				// }
 
 				if (damage[j]<1.0) numNeighsRefConfig[i]++;
 			} // end loop over j
@@ -624,9 +624,9 @@ void PairTlsph::ComputeForces(int eflag, int vflag) {
 			  f_stress.setZero();
 			}
 
-			if ((tag[i] == 18268 && tag[j] == 17854)||(tag[i] == 17854 && tag[j] == 18268)||(tag[i] == 17853 && tag[j] == 17854)||(tag[i] == 17854 && tag[j] == 17853)||(tag[i] == 18268 && tag[j] == 18267)||(tag[i] == 18267 && tag[j] == 18268)||(tag[i] == 17854 && tag[j] == 17440) || (tag[i] == 17025 && tag[j] == 17439) || (tag[i] == 17439 && tag[j] == 17025)) {
-			  printf("Step %d FORCE,  %d-%d: f_stress = [%.10e %.10e %.10e] damage_i=%.10e damage_j=%.10e\n",update->ntimestep, tag[i], tag[j], f_stress(0), f_stress(1), f_stress(2), damage[i], damage[j]);
-			}
+			// if ((tag[i] == 18268 && tag[j] == 17854)||(tag[i] == 17854 && tag[j] == 18268)||(tag[i] == 17853 && tag[j] == 17854)||(tag[i] == 17854 && tag[j] == 17853)||(tag[i] == 18268 && tag[j] == 18267)||(tag[i] == 18267 && tag[j] == 18268)||(tag[i] == 17854 && tag[j] == 17440) || (tag[i] == 17025 && tag[j] == 17439) || (tag[i] == 17439 && tag[j] == 17025)) {
+			//   printf("Step %d FORCE,  %d-%d: f_stress = [%.10e %.10e %.10e] damage_i=%.10e damage_j=%.10e\n",update->ntimestep, tag[i], tag[j], f_stress(0), f_stress(1), f_stress(2), damage[i], damage[j]);
+			// }
 
 			energy_per_bond[i][jj] = f_stress.dot(dx); // THIS IS NOT THE ENERGY PER BOND, I AM USING THIS VARIABLE TO STORE THIS VALUE TEMPORARILY
 			/*
