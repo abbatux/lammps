@@ -320,7 +320,7 @@ void FixSMD_TLSPH_ReferenceConfiguration::setup(int vflag) {
 				wfd_list[i][npartner[i]] = wfd;
 				wf_list[i][npartner[i]] = wf;
 
-				partnerdx[i][npartner[i]] = dx;
+				partnerdx[i][npartner[i]] = -dx;
 				partnervol[i][npartner[i]] = vfrac[j];
 				npartner[i]++;
 
