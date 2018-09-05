@@ -87,7 +87,7 @@ PairTlsph::PairTlsph(LAMMPS *lmp) :
 	updateFlag = 0;
 	first = true;
 	dtCFL = 0.0; // initialize dtCFL so it is set to safe value if extracted on zero-th timestep
-	rMin = NULL;
+	rSqMin = NULL;
 
 	comm_forward = 24; // this pair style communicates 20 doubles to ghost atoms : PK1 tensor + F tensor + shepardWeight + damage_increment
 	fix_tlsph_reference_configuration = NULL;
@@ -128,7 +128,7 @@ PairTlsph::~PairTlsph() {
 		delete[] particle_dt;
 		delete[] vij_max;
 		delete[] damage_increment;
-		delete[] rMin;
+		delete[] rSqMin;
 
 		delete[] failureModel;
 	}
@@ -161,7 +161,7 @@ void PairTlsph::PreCompute() {
 	float **wf_list = ((FixSMD_TLSPH_ReferenceConfiguration *) modify->fix[ifix_tlsph])->wf_list;
 	float **degradation_ij = ((FixSMD_TLSPH_ReferenceConfiguration *) modify->fix[ifix_tlsph])->degradation_ij;
 	Vector3d **partnerdx = ((FixSMD_TLSPH_ReferenceConfiguration *) modify->fix[ifix_tlsph])->partnerdx;
-	double r, r0, r0Sq, wf, wfd, h, irad, voli, volj, shepardWeight, scale;
+	double rSq, r0, r0Sq, wf, wfd, h, irad, voli, volj, shepardWeight, scale;
 	Vector3d dx, dx0, dx0mirror, dv, g;
 	Matrix3d Ktmp, Ftmp, Fdottmp, L, U, eye;
 	Vector3d vi, vj, vinti, vintj, xi, xj, x0i, x0j, dvint;
@@ -213,7 +213,7 @@ void PairTlsph::PreCompute() {
 			//Matrix3d gradAbsX;
 			//gradAbsX.setZero();
 
-			rMin[i] = 1.0e22;
+			rSqMin[i] = 1.0e22;
 
 			for (jj = 0; jj < jnum; jj++) {
 
@@ -264,8 +264,8 @@ void PairTlsph::PreCompute() {
 				if (isnan(dx[0]) || isnan(dx[1]) || isnan(dx[2])) {
 				  printf("x[%d] - x[%d] = [%f %f %f] - [%f %f %f], di = %f, dj = %f\n", tag[j], tag[i], xj[0], xj[1], xj[2], xi[0], xi[1], xi[2], damage[i], damage[j]);
 				}
-				r = dx.norm(); // current distance
-				rMin[i] = MIN(r,rMin[i]);
+				rSq = dx.squaredNorm(); // current distance
+				rSqMin[i] = MIN(rSq,rSqMin[i]);
 
 				if (periodic)
 					domain->minimum_image(dx0(0), dx0(1), dx0(2));
@@ -419,8 +419,8 @@ void PairTlsph::compute(int eflag, int vflag) {
 		vij_max = new double[nmax];
 		delete[] damage_increment;
 		damage_increment = new double[nmax];
-		delete[] rMin;
-		rMin = new double[nmax];
+		delete[] rSqMin;
+		rSqMin = new double[nmax];
 	}
 
 	if (first) { // return on first call, because reference connectivity lists still needs to be built. Also zero quantities which are otherwise undefined.
@@ -732,7 +732,7 @@ void PairTlsph::ComputeForces(int eflag, int vflag) {
 		if (shepardWeight != 0.0) {
 			hourglass_error[i] /= shepardWeight;
 		}
-		double deltat_1 = sqrt(rMin[i] * rmass[i]/ sqrt( f[i][0]*f[i][0] + f[i][1]*f[i][1] + f[i][2]*f[i][2] ));
+		double deltat_1 = sqrt(sqrt(rSqMin[i]) * rmass[i]/ sqrt( f[i][0]*f[i][0] + f[i][1]*f[i][1] + f[i][2]*f[i][2] ));
 		// if (particle_dt[i] > deltat_1) {
 		//   printf("particle_dt[%d] > deltat_1 with f = [%f %f %f]\n", tag[i], f[i][0], f[i][1], f[i][2]);
 		// }
@@ -934,7 +934,7 @@ void PairTlsph::AssembleStress() {
 				  vi(idim) = v[i][idim];
 				}
 				//double max_damage = max(0.0001, 1 - f);
-				particle_dt[i] = rMin[i] / (p_wave_speed + vij_max[i]); //* max(0.0001, 1 - fx * vi.norm()*dt/radius[i]);
+				particle_dt[i] = sqrt(rSqMin[i]) / (p_wave_speed + vij_max[i]); //* max(0.0001, 1 - fx * vi.norm()*dt/radius[i]);
 				dtCFL = MIN(dtCFL, particle_dt[i]);
 
 			} else { // end if mol > 0
@@ -2182,8 +2182,8 @@ void *PairTlsph::extract(const char *str, int &i) {
 		return (void *) R;
 	} else if (strcmp(str, "smd/tlsph/damage_increment") == 0) {
 		return (void *) damage_increment;
-	} else if (strcmp(str, "smd/tlsph/rMin") == 0) {
-	  return (void *) rMin;
+	} else if (strcmp(str, "smd/tlsph/rSqMin") == 0) {
+	  return (void *) rSqMin;
 	}
 
 	return NULL;
