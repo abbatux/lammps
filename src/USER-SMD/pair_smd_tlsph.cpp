@@ -270,7 +270,14 @@ void PairTlsph::PreCompute() {
 					domain->minimum_image(dx0(0), dx0(1), dx0(2));
 
 				h = irad + radius[j];
+
 				volj = vfrac[j];
+				if (damage[j] > 0.0) {
+				  scale =  1.0-degradation_ij[i][jj];
+				  volj *= scale;
+				} else {
+				  scale = 1.0;
+				}
 
 				vijSq_max[i] = MAX(dv.squaredNorm(), vijSq_max[i]);
 
@@ -284,17 +291,12 @@ void PairTlsph::PreCompute() {
 				Fdottmp = -dv * g.transpose();
 				Ftmp = -(dx - dx0) * g.transpose();
 
-				if (damage[j] > 0.0) {
-				  scale =  1.0-degradation_ij[i][jj];
-				} else {
-				  scale = 1.0;
-				}
 				if (update->ntimestep > 1 && npartner[j] == 0) printf("Step %d, npartner[%d] == %f\n", update->ntimestep, tag[j], npartner[j]);
-				K[i].noalias() += volj * Ktmp * scale;
-				Fdot[i].noalias() += volj * Fdottmp * scale;
-				Fincr[i].noalias() += volj * Ftmp * scale;
-				shepardWeight += volj * wf * scale;
-				smoothVelDifference[i].noalias() += volj * wf * dvint * scale;
+				K[i].noalias() += volj * Ktmp;
+				Fdot[i].noalias() += volj * Fdottmp;
+				Fincr[i].noalias() += volj * Ftmp;
+				shepardWeight += volj * wf;
+				smoothVelDifference[i].noalias() += volj * wf * dvint;
 
 				// if ((tag[i] == 18268 && tag[j] == 17854)||(tag[i] == 17854 && tag[j] == 18268)||(tag[i] == 17853 && tag[j] == 17854)||(tag[i] == 17854 && tag[j] == 17853)||(tag[i] == 18268 && tag[j] == 18267)||(tag[i] == 18267 && tag[j] == 18268)||(tag[i] == 17854 && tag[j] == 17440) || (tag[i] == 17025 && tag[j] == 17439) || (tag[i] == 17439 && tag[j] == 17025)) {
 				//   printf("Step %d PRE,  %d-%d: dx = [%.10e %.10e %.10e] dv = [%.10e %.10e %.10e] damage_i=%.10e damage_j=%.10e damage_increment_j = %.10e\n",update->ntimestep, tag[i], tag[j], dx(0), dx(1), dx(2), dv(0), dv(1), dv(2), damage[i], damage[j], damage_increment[j]);
