@@ -81,7 +81,7 @@ PairTlsph::PairTlsph(LAMMPS *lmp) :
 	hourglass_error = NULL;
 	Lookup = NULL;
 	particle_dt = NULL;
-	vij_max = NULL;
+	vijSq_max = NULL;
 	damage_increment = NULL;
 
 	updateFlag = 0;
@@ -126,7 +126,7 @@ PairTlsph::~PairTlsph() {
 		delete[] CauchyStress;
 		delete[] hourglass_error;
 		delete[] particle_dt;
-		delete[] vij_max;
+		delete[] vijSq_max;
 		delete[] damage_increment;
 		delete[] rSqMin;
 
@@ -168,13 +168,12 @@ void PairTlsph::PreCompute() {
 	int periodic = (domain->xperiodic || domain->yperiodic || domain->zperiodic);
 	bool status;
 	Matrix3d F0;
-	double dv_norm;
 
 	dtCFL = 1.0e22;
 
 	eye.setIdentity();
 	for (i = 0; i < nlocal; i++) {
-		vij_max[i] = 0.0;
+		vijSq_max[i] = 0.0;
 
 		itype = type[i];
 		
@@ -273,8 +272,7 @@ void PairTlsph::PreCompute() {
 				h = irad + radius[j];
 				volj = vfrac[j];
 
-				dv_norm = dv.norm();
-				if (dv_norm > vij_max[i]) vij_max[i] = dv_norm;
+				vijSq_max[i] = MAX(dv.squaredNorm(), vijSq_max[i]);
 
 				wf = wf_list[i][jj];
 				wfd = wfd_list[i][jj];
@@ -412,8 +410,8 @@ void PairTlsph::compute(int eflag, int vflag) {
 		hourglass_error = new double[nmax];
 		delete[] particle_dt;
 		particle_dt = new double[nmax];
-		delete[] vij_max;
-		vij_max = new double[nmax];
+		delete[] vijSq_max;
+		vijSq_max = new double[nmax];
 		delete[] damage_increment;
 		damage_increment = new double[nmax];
 		delete[] rSqMin;
@@ -432,7 +430,7 @@ void PairTlsph::compute(int eflag, int vflag) {
 			CauchyStress[i].setZero();
 			hourglass_error[i] = 0.0;
 			particle_dt[i] = 0.0;
-			vij_max[i] = 0.0;
+			vijSq_max[i] = 0.0;
 			damage_increment[i] = 0.0;
 		}
 
@@ -931,7 +929,7 @@ void PairTlsph::AssembleStress() {
 				  vi(idim) = v[i][idim];
 				}
 				//double max_damage = max(0.0001, 1 - f);
-				particle_dt[i] = sqrt(rSqMin[i]) / (p_wave_speed + vij_max[i]); //* max(0.0001, 1 - fx * vi.norm()*dt/radius[i]);
+				particle_dt[i] = sqrt(rSqMin[i]) / (p_wave_speed + sqrt(vijSq_max[i])); //* max(0.0001, 1 - fx * vi.norm()*dt/radius[i]);
 				dtCFL = MIN(dtCFL, particle_dt[i]);
 
 			} else { // end if mol > 0
