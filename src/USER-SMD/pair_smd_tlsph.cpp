@@ -635,7 +635,7 @@ void PairTlsph::ComputeForces(int eflag, int vflag) {
 			//visc_magnitude = ((-Lookup[VISCOSITY_Q1][itype] * Lookup[SIGNAL_VELOCITY][itype] + Lookup[VISCOSITY_Q2][itype] * mu_ij) * mu_ij) / Lookup[REFERENCE_DENSITY][itype]; // units: m^5/(s^2 kg))
 			rmassij = rmass[i] * rmass[j];
 			r_plus_h = r + 1.0e-2 * h;
-			f_visc = rmassij * (-Lookup[VISCOSITY_Q1][itype] * Lookup[SIGNAL_VELOCITY][itype] + Lookup[VISCOSITY_Q2][itype] * mu_ij) * mu_ij * wfddx / (r_plus_h * Lookup[REFERENCE_DENSITY][itype]); // units: kg^2 * m^5/(s^2 kg) * m^-4 = kg m / s^2 = N
+			f_visc = rmassij * (-Lookup[VISCOSITY_Q1_times_SIGNAL_VELOCITY][itype] + Lookup[VISCOSITY_Q2][itype] * mu_ij) * mu_ij * wfddx / (r_plus_h * Lookup[REFERENCE_DENSITY][itype]); // units: kg^2 * m^5/(s^2 kg) * m^-4 = kg m / s^2 = N
 			  //} else {
 			  //f_visc = Vector3d(0.0, 0.0, 0.0);
 			  //}
@@ -1143,6 +1143,7 @@ void PairTlsph::coeff(int narg, char **arg) {
 	Lookup[SIGNAL_VELOCITY][itype] = sqrt(
 			(Lookup[LAME_LAMBDA][itype] + 2.0 * Lookup[SHEAR_MODULUS][itype]) / Lookup[REFERENCE_DENSITY][itype]);
 	Lookup[BULK_MODULUS][itype] = Lookup[LAME_LAMBDA][itype] + 2.0 * Lookup[SHEAR_MODULUS][itype] / 3.0;
+	Lookup[VISCOSITY_Q1_times_SIGNAL_VELOCITY][itype] = Lookup[VISCOSITY_Q1][itype] * Lookup[SIGNAL_VELOCITY][itype];
 
 	if (comm->me == 0) {
 		printf("\n material unspecific properties for SMD/TLSPH definition of particle type %d:\n", itype);
