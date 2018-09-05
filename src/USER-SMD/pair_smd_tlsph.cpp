@@ -217,7 +217,7 @@ void PairTlsph::PreCompute() {
 
 			for (jj = 0; jj < jnum; jj++) {
 
-				if (degradation_ij[i][jj] >= 1.0) continue;
+				// if (degradation_ij[i][jj] >= 1.0) continue;
 				
 				j = atom->map(partner[i][jj]);
 				if (j < 0) { //			// check if lost a partner without first breaking bond
@@ -2690,8 +2690,8 @@ void PairTlsph::UpdateDegradation() {
 		}
 		
 		for (jj = 0; jj < jnum; jj++) {
-			if (degradation_ij[i][jj] >= 1.0)
-				continue;
+			// if (degradation_ij[i][jj] >= 1.0)
+			// 	continue;
 			j = atom->map(partner[i][jj]);
 			if (j < 0) { //			// check if lost a partner without first breaking bond
 			  error->all(FLERR, "Bond broken not detected during PreCompute -3!");
