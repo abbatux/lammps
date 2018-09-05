@@ -290,7 +290,7 @@ void PairTlsph::PreCompute() {
 				Ftmp = -(dx - dx0) * g.transpose();
 
 				if (damage[j] > 0.0) {
-				  scale =  1.0-damage[j]/((double) npartner[j]);
+				  scale =  1.0-degradation_ij[i][jj];
 				} else {
 				  scale = 1.0;
 				}
@@ -612,9 +612,9 @@ void PairTlsph::ComputeForces(int eflag, int vflag) {
 			 */
 			if (damage[i] < 1.0 && damage[j] < 1.0) {
 			  scale_i = 1.0;
-			  scale_j = 1.0;
+			  scale_j = 1.0-degradation_ij[i][jj];
 			  if (damage[i] > 0.0) scale_i -= damage[i]/((double) npartner[i]);
-			  if (damage[j] > 0.0) scale_j -= damage[j]/((double) npartner[j]);
+			  //if (damage[j] > 0.0) scale_j -= damage[j]/((double) npartner[j]);
 
 			  f_stress = -(voli * volj) * (PK1[j]*(1-damage[i]) + PK1[i]*(1-damage[j])) * g * scale_i * scale_j;
 
@@ -2770,9 +2770,9 @@ void PairTlsph::UpdateDegradation() {
 			    partnerdx[i][jj] = dx;
 			  }
 
-			  degradation_ij[i][jj] = 0.0; //1 - (1 - damage[i]) * (1 - damage[j]);
+			  degradation_ij[i][jj] = damage[j]/((double) npartner[j]);
 
-			  if (damage[i] >= 1.0) degradation_ij[i][jj] = 1.0;
+			  //if (damage[i] >= 1.0) degradation_ij[i][jj] = 1.0;
 
 			  if (degradation_ij[i][jj] >= 1.0) { // delete interaction if fully damaged
 			    //printf("Link between %d and %d destroyed due to complete degradation with damage[i] = %f and damage[j] = %f.\n", tag[i], partner[i][jj], damage[i], damage[j]);
@@ -2780,7 +2780,7 @@ void PairTlsph::UpdateDegradation() {
 			  }
 			}
 			
-			if (degradation_ij[i][jj] < 1.0) {
+			if (degradation_ij[i][jj] < 1.0 && damage[i] < 1.0) {
 			  numNeighbors += 1;
 			}
 		} // end loop over jj neighbors of i
