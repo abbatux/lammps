@@ -161,7 +161,7 @@ void PairTlsph::PreCompute() {
 	float **wf_list = ((FixSMD_TLSPH_ReferenceConfiguration *) modify->fix[ifix_tlsph])->wf_list;
 	float **degradation_ij = ((FixSMD_TLSPH_ReferenceConfiguration *) modify->fix[ifix_tlsph])->degradation_ij;
 	Vector3d **partnerdx = ((FixSMD_TLSPH_ReferenceConfiguration *) modify->fix[ifix_tlsph])->partnerdx;
-	double rSq, r0, r0Sq, wf, wfd, h, irad, voli, volj, shepardWeight, scale;
+	double rSq, r0, wf, wfd, h, irad, voli, volj, shepardWeight, scale;
 	Vector3d dx, dx0, dx0mirror, dv, g;
 	Matrix3d Ktmp, Ftmp, Fdottmp, L, U, eye;
 	Vector3d vi, vj, vinti, vintj, xi, xj, x0i, x0j, dvint;
@@ -270,10 +270,7 @@ void PairTlsph::PreCompute() {
 				if (periodic)
 					domain->minimum_image(dx0(0), dx0(1), dx0(2));
 
-				r0Sq = dx0.squaredNorm();
 				h = irad + radius[j];
-
-				r0 = sqrt(r0Sq);
 				volj = vfrac[j];
 
 				dv_norm = dv.norm();
@@ -281,7 +278,7 @@ void PairTlsph::PreCompute() {
 
 				wf = wf_list[i][jj];
 				wfd = wfd_list[i][jj];
-				g = (wfd / r0) * dx0;
+				g = wfd * dx0.normalized();
 
 				/* build matrices */;
 				//printf("damage[j]/((float)npartner[j]) = %f\n",1.0 - damage[j]/((float)npartner[j]));
@@ -605,7 +602,7 @@ void PairTlsph::ComputeForces(int eflag, int vflag) {
 			  wfd *= scale;
 			}
 
-			g = (wfd_list[i][jj] / r0) * dx0; // uncorrected kernel gradient
+			g = (wfd / r0) * dx0; // uncorrected kernel gradient
 
 			/*
 			 * force contribution -- note that the kernel gradient correction has been absorbed into PK1
