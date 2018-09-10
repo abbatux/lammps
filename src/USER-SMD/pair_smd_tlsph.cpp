@@ -474,11 +474,11 @@ void PairTlsph::ComputeForces(int eflag, int vflag) {
 	int *type = atom->type;
 	int nlocal = atom->nlocal;
 	int i, j, jj, jnum, itype, idim;
-	double r, hg_mag, wf, wfd, h, r0_, voli, volj, r_plus_h, over_r_plus_h;
+	double r, hg_mag, wf, wfd, h, r0_, over_r0_, voli, volj, over_r_plus_h;
 	double delVdotDelR, visc_magnitude, deltaE, mu_ij, hg_err, gamma_dot_dx, delta, scale, scale_i, scale_j, rmassij;
 	double softening_strain, shepardWeight;
 	char str[128];
-	Vector3d fi, fj, dx0, dx, dv, f_stress, f_hg, dxp_i, dxp_j, gamma, g, gamma_i, gamma_j, x0i, x0j, wfddx, f_stressbc, fbc;
+	Vector3d fi, fj, dx0, dx, dv, f_stress, f_hg, dxp_i, dxp_j, gamma, g, gamma_i, gamma_j, x0i, x0j, f_stressbc, fbc;
 	Vector3d xi, xj, vi, vj, f_visc, sumForces, f_spring;
 	int periodic = (domain->xperiodic || domain->yperiodic || domain->zperiodic);
 
@@ -594,7 +594,8 @@ void PairTlsph::ComputeForces(int eflag, int vflag) {
 			  wfd *= scale;
 			}
 
-			g = (wfd / r0_) * dx0; // uncorrected kernel gradient
+			over_r0_ = 1.0/r0_;
+			g = wfd * over_r0_ * dx0; // uncorrected kernel gradient
 
 			/*
 			 * force contribution -- note that the kernel gradient correction has been absorbed into PK1
@@ -620,25 +621,23 @@ void PairTlsph::ComputeForces(int eflag, int vflag) {
 			 */
 			over_r_plus_h = 1 / (r + 0.1 * h);
 			delVdotDelR = dx.dot(dv) * over_r_plus_h; // project relative velocity onto unit particle distance vector [m/s]
+			rmassij = rmass[i] * rmass[j];
 			LimitDoubleMagnitude(delVdotDelR, 0.01 * Lookup[SIGNAL_VELOCITY][itype]);
 			mu_ij = h * delVdotDelR * over_r_plus_h; // units: [m * m/s / m = m/s]
-			wfddx = wfd * dx;
-			//if (delVdotDelR < 0) { // i.e. if (dx.dot(dv) < 0) // To be consistent with the viscosity proposed by Monaghan
-			visc_magnitude = ((-Lookup[VISCOSITY_Q1_times_SIGNAL_VELOCITY][itype] + Lookup[VISCOSITY_Q2][itype] * mu_ij) * mu_ij) / Lookup[REFERENCE_DENSITY][itype]; // units: m^5/(s^2 kg))
-			rmassij = rmass[i] * rmass[j];
-			r_plus_h = r + 1.0e-2 * h;
-			f_visc = rmassij * visc_magnitude * g; // units: kg^2 * m^5/(s^2 kg) * m^-4 = kg m / s^2 = N
-			// Why f_visc is not: f_visc = rmassij * (-Lookup[VISCOSITY_Q1_times_SIGNAL_VELOCITY][itype] + Lookup[VISCOSITY_Q2][itype] * mu_ij) * mu_ij * g / Lookup[REFERENCE_DENSITY][itype]; ??
-			  //} else {
-			  //f_visc = Vector3d(0.0, 0.0, 0.0);
-			  //}
+			if (delVdotDelR <= 0.0) { // i.e. if (dx.dot(dv) < 0) // To be consistent with the viscosity proposed by Monaghan
+			  visc_magnitude = ((-Lookup[VISCOSITY_Q1_times_SIGNAL_VELOCITY][itype] + Lookup[VISCOSITY_Q2][itype] * mu_ij) * mu_ij) / Lookup[REFERENCE_DENSITY][itype]; // units: m^5/(s^2 kg))
+			  f_visc = rmassij * visc_magnitude * g; // units: kg^2 * m^5/(s^2 kg) * m^-4 = kg m / s^2 = N
+			  // Why f_visc is not: f_visc = rmassij * (-Lookup[VISCOSITY_Q1_times_SIGNAL_VELOCITY][itype] + Lookup[VISCOSITY_Q2][itype] * mu_ij) * mu_ij * g / Lookup[REFERENCE_DENSITY][itype]; ??
+			} else {
+			  f_visc = Vector3d(0.0, 0.0, 0.0);
+			}
 
 			/*
 			 * hourglass deviation of particles i and j
 			 */
 
 			gamma = 0.5 * (Fincr[i] + Fincr[j]) * dx0 - dx;
-			hg_err = gamma.norm() / r0_;
+			hg_err = gamma.norm() * over_r0_;
 			hourglass_error[i] += volj * wf * hg_err;
 
 			/* SPH-like hourglass formulation */
@@ -652,10 +651,11 @@ void PairTlsph::ComputeForces(int eflag, int vflag) {
 					hg_err = MAX(hg_err, 0.05); // limit hg_err to avoid numerical instabilities
 					hg_mag = -hg_err * Lookup[HOURGLASS_CONTROL_AMPLITUDE][itype] * Lookup[SIGNAL_VELOCITY][itype] * mu_ij
 							/ Lookup[REFERENCE_DENSITY][itype]; // this has units of pressure
+					f_hg = rmassij * hg_mag * g;
 				} else {
 					hg_mag = 0.0;
+					f_hg = Vector3d(0.0, 0.0, 0.0);
 				}
-				f_hg = rmassij * hg_mag * g;
 
 			} else {
 				/*
@@ -664,8 +664,8 @@ void PairTlsph::ComputeForces(int eflag, int vflag) {
 
 				gamma_dot_dx = gamma.dot(dx); // project hourglass error vector onto pair distance vector
 				LimitDoubleMagnitude(gamma_dot_dx, 0.1 * r); // limit projected vector to avoid numerical instabilities
-				delta = 0.5 * gamma_dot_dx * over_r_plus_h; // delta has dimensions of [m]
-				hg_mag = Lookup[HOURGLASS_CONTROL_AMPLITUDE][itype] * delta / (r0_ * r0_); // hg_mag has dimensions [m^(-1)]
+				delta = gamma_dot_dx * over_r_plus_h; // delta has dimensions of [m]
+				hg_mag = Lookup[HOURGLASS_CONTROL_AMPLITUDE][itype] * delta * over_r0_ * over_r0_; // hg_mag has dimensions [m^(-1)]
 				hg_mag *= -voli * volj * wf * Lookup[YOUNGS_MODULUS][itype]; // hg_mag has dimensions [J*m^(-1)] = [N]
 				f_hg = (hg_mag * over_r_plus_h) * dx;
 			}
