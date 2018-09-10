@@ -164,7 +164,7 @@ void PairTlsph::PreCompute() {
 	Vector3d **g_list = ((FixSMD_TLSPH_ReferenceConfiguration *) modify->fix[ifix_tlsph])->g_list;
 	double rSq, wf, wfd, h, irad, voli, volj, shepardWeight, scale;
 	Vector3d dx, dx0, dx0mirror, dv, g;
-	Matrix3d Ktmp, Ftmp, Fdottmp, L, U, eye;
+	Matrix3d L, U, eye;
 	Vector3d vi, vj, vinti, vintj, xi, xj, x0i, x0j, dvint;
 	int periodic = (domain->xperiodic || domain->yperiodic || domain->zperiodic);
 	bool status;
@@ -277,18 +277,15 @@ void PairTlsph::PreCompute() {
 
 				wf = wf_list[i][jj];
 				//wfd = wfd_list[i][jj];
-				g = g_list[i][jj];
+				g = volj * g_list[i][jj];
 
 				/* build matrices */;
 				//printf("damage[j]/((float)npartner[j]) = %f\n",1.0 - damage[j]/((float)npartner[j]));
-				Ktmp = -g * dx0.transpose();
-				Fdottmp = -dv * g.transpose();
-				Ftmp = -(dx - dx0) * g.transpose();
+				K[i].noalias() -= g * dx0.transpose();
+				Fdot[i].noalias() -= dv * g.transpose();
+				Fincr[i].noalias() -= (dx - dx0) * g.transpose();
 
 				if (update->ntimestep > 1 && npartner[j] == 0) printf("Step %d, npartner[%d] == %f\n", update->ntimestep, tag[j], npartner[j]);
-				K[i].noalias() += volj * Ktmp;
-				Fdot[i].noalias() += volj * Fdottmp;
-				Fincr[i].noalias() += volj * Ftmp;
 				shepardWeight += volj * wf;
 				smoothVelDifference[i].noalias() += volj * wf * dvint;
 
