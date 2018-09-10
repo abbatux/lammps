@@ -475,7 +475,7 @@ void PairTlsph::ComputeForces(int eflag, int vflag) {
 	int nlocal = atom->nlocal;
 	int i, j, jj, jnum, itype, idim;
 	double r, hg_mag, wf, wfd, h, r0_, voli, volj, r_plus_h, over_r_plus_h;
-	double delVdotDelR, deltaE, mu_ij, hg_err, gamma_dot_dx, delta, scale, scale_i, scale_j, rmassij;
+	double delVdotDelR, visc_magnitude, deltaE, mu_ij, hg_err, gamma_dot_dx, delta, scale, scale_i, scale_j, rmassij;
 	double softening_strain, shepardWeight;
 	char str[128];
 	Vector3d fi, fj, dx0, dx, dv, f_stress, f_hg, dxp_i, dxp_j, gamma, g, gamma_i, gamma_j, x0i, x0j, wfddx, f_stressbc, fbc;
@@ -624,10 +624,10 @@ void PairTlsph::ComputeForces(int eflag, int vflag) {
 			mu_ij = h * delVdotDelR * over_r_plus_h; // units: [m * m/s / m = m/s]
 			wfddx = wfd * dx;
 			//if (delVdotDelR < 0) { // i.e. if (dx.dot(dv) < 0) // To be consistent with the viscosity proposed by Monaghan
-			//visc_magnitude = ((-Lookup[VISCOSITY_Q1][itype] * Lookup[SIGNAL_VELOCITY][itype] + Lookup[VISCOSITY_Q2][itype] * mu_ij) * mu_ij) / Lookup[REFERENCE_DENSITY][itype]; // units: m^5/(s^2 kg))
+			visc_magnitude = ((-Lookup[VISCOSITY_Q1_times_SIGNAL_VELOCITY][itype] + Lookup[VISCOSITY_Q2][itype] * mu_ij) * mu_ij) / Lookup[REFERENCE_DENSITY][itype]; // units: m^5/(s^2 kg))
 			rmassij = rmass[i] * rmass[j];
 			r_plus_h = r + 1.0e-2 * h;
-			f_visc = rmassij * (-Lookup[VISCOSITY_Q1_times_SIGNAL_VELOCITY][itype] + Lookup[VISCOSITY_Q2][itype] * mu_ij) * mu_ij * wfddx / (r_plus_h * Lookup[REFERENCE_DENSITY][itype]); // units: kg^2 * m^5/(s^2 kg) * m^-4 = kg m / s^2 = N
+			f_visc = rmassij * visc_magnitude * g; // units: kg^2 * m^5/(s^2 kg) * m^-4 = kg m / s^2 = N
 			// Why f_visc is not: f_visc = rmassij * (-Lookup[VISCOSITY_Q1_times_SIGNAL_VELOCITY][itype] + Lookup[VISCOSITY_Q2][itype] * mu_ij) * mu_ij * g / Lookup[REFERENCE_DENSITY][itype]; ??
 			  //} else {
 			  //f_visc = Vector3d(0.0, 0.0, 0.0);
@@ -655,7 +655,7 @@ void PairTlsph::ComputeForces(int eflag, int vflag) {
 				} else {
 					hg_mag = 0.0;
 				}
-				f_hg = rmassij * hg_mag * wfddx / r_plus_h;
+				f_hg = rmassij * hg_mag * g;
 
 			} else {
 				/*
