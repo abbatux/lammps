@@ -76,7 +76,7 @@ protected:
 	float **wfd_list, **wf_list, **energy_per_bond;
 	double **r0;
 	float **degradation_ij; // per-pair interaction degradation status
-	Eigen::Vector3d **partnerdx; // x0 vector of all partners
+	Eigen::Vector3d **partnerdx, **g_list; // x0 vector of all partners
 	class Pair *pair;
 
 };

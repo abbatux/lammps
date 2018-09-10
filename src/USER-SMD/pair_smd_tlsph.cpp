@@ -161,6 +161,7 @@ void PairTlsph::PreCompute() {
 	float **wf_list = ((FixSMD_TLSPH_ReferenceConfiguration *) modify->fix[ifix_tlsph])->wf_list;
 	float **degradation_ij = ((FixSMD_TLSPH_ReferenceConfiguration *) modify->fix[ifix_tlsph])->degradation_ij;
 	Vector3d **partnerdx = ((FixSMD_TLSPH_ReferenceConfiguration *) modify->fix[ifix_tlsph])->partnerdx;
+	Vector3d **g_list = ((FixSMD_TLSPH_ReferenceConfiguration *) modify->fix[ifix_tlsph])->g_list;
 	double rSq, wf, wfd, h, irad, voli, volj, shepardWeight, scale;
 	Vector3d dx, dx0, dx0mirror, dv, g;
 	Matrix3d Ktmp, Ftmp, Fdottmp, L, U, eye;
@@ -275,8 +276,8 @@ void PairTlsph::PreCompute() {
 				vijSq_max[i] = MAX(dv.squaredNorm(), vijSq_max[i]);
 
 				wf = wf_list[i][jj];
-				wfd = wfd_list[i][jj];
-				g = wfd * dx0.normalized();
+				//wfd = wfd_list[i][jj];
+				g = g_list[i][jj];
 
 				/* build matrices */;
 				//printf("damage[j]/((float)npartner[j]) = %f\n",1.0 - damage[j]/((float)npartner[j]));
@@ -490,6 +491,7 @@ void PairTlsph::ComputeForces(int eflag, int vflag) {
 	float **degradation_ij = ((FixSMD_TLSPH_ReferenceConfiguration *) modify->fix[ifix_tlsph])->degradation_ij;
 	float **energy_per_bond = ((FixSMD_TLSPH_ReferenceConfiguration *) modify->fix[ifix_tlsph])->energy_per_bond;
 	Vector3d **partnerdx = ((FixSMD_TLSPH_ReferenceConfiguration *) modify->fix[ifix_tlsph])->partnerdx;
+	Vector3d **g_list = ((FixSMD_TLSPH_ReferenceConfiguration *) modify->fix[ifix_tlsph])->g_list;
 	double **r0 = ((FixSMD_TLSPH_ReferenceConfiguration *) modify->fix[ifix_tlsph])->r0;
 	Matrix3d eye, sigmaBC_i;
 	eye.setIdentity();
@@ -588,11 +590,11 @@ void PairTlsph::ComputeForces(int eflag, int vflag) {
 			}
 
 			wf = wf_list[i][jj];
-			wfd = wfd_list[i][jj];
+			//wfd = wfd_list[i][jj];
 
 			if ((failureModel[itype].failure_none == false) && (failureModel[itype].integration_point_wise == false)) {
 			  wf *= scale;
-			  wfd *= scale;
+			  //wfd *= scale;
 			}
 
 			over_r0_ = 1.0/r0_;
@@ -601,7 +603,7 @@ void PairTlsph::ComputeForces(int eflag, int vflag) {
 			scale_j = 1.0-degradation_ij[i][jj];
 			if (damage[i] > 0.0) scale_i -= damage[i]/((double) npartner[i]);
 
-			g = wfd * over_r0_ * dx0 * scale_i * scale_j; // uncorrected kernel gradient
+			g = g_list[i][jj] * scale_i * scale_j; // uncorrected kernel gradient
 
 			/*
 			 * force contribution -- note that the kernel gradient correction has been absorbed into PK1
@@ -651,7 +653,7 @@ void PairTlsph::ComputeForces(int eflag, int vflag) {
 				delta = gamma.dot(dx);
 				if (delVdotDelR * delta < 0.0) {
 					hg_err = MAX(hg_err, 0.05); // limit hg_err to avoid numerical instabilities
-					hg_mag = -hg_err * Lookup[HOURGLASS_CONTROL_AMPLITUDE_over_REFERENCE_DENSITY][itype] * Lookup[SIGNAL_VELOCITY][itype] * mu_ij;// this has units of pressure
+					hg_mag = -hg_err * Lookup[HOURGLASS_CONTROL_AMPLITUDE_over_REFERENCE_DENSITY_times_SIGNAL_VELOCITY][itype] * mu_ij;// this has units of pressure
 					f_hg = rmassij * hg_mag * g;
 				} else {
 					hg_mag = 0.0;
@@ -1138,7 +1140,7 @@ void PairTlsph::coeff(int narg, char **arg) {
 			(Lookup[LAME_LAMBDA][itype] + 2.0 * Lookup[SHEAR_MODULUS][itype]) / Lookup[REFERENCE_DENSITY][itype]);
 	Lookup[BULK_MODULUS][itype] = Lookup[LAME_LAMBDA][itype] + 2.0 * Lookup[SHEAR_MODULUS][itype] / 3.0;
 	Lookup[VISCOSITY_Q1_times_SIGNAL_VELOCITY][itype] = Lookup[VISCOSITY_Q1][itype] * Lookup[SIGNAL_VELOCITY][itype];
-	Lookup[HOURGLASS_CONTROL_AMPLITUDE_over_REFERENCE_DENSITY][itype] = Lookup[HOURGLASS_CONTROL_AMPLITUDE][itype]/Lookup[REFERENCE_DENSITY][itype];
+	Lookup[HOURGLASS_CONTROL_AMPLITUDE_over_REFERENCE_DENSITY_times_SIGNAL_VELOCITY][itype] = Lookup[HOURGLASS_CONTROL_AMPLITUDE][itype] * Lookup[SIGNAL_VELOCITY][itype] / Lookup[REFERENCE_DENSITY][itype];
 
 	if (comm->me == 0) {
 		printf("\n material unspecific properties for SMD/TLSPH definition of particle type %d:\n", itype);

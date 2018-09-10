@@ -71,6 +71,7 @@ FixSMD_TLSPH_ReferenceConfiguration::FixSMD_TLSPH_ReferenceConfiguration(LAMMPS 
 	degradation_ij = NULL;
 	partnerdx = NULL;
 	r0 = NULL;
+	g_list = NULL;
 	grow_arrays(atom->nmax);
 	atom->add_callback(0);
 
@@ -100,6 +101,7 @@ FixSMD_TLSPH_ReferenceConfiguration::~FixSMD_TLSPH_ReferenceConfiguration() {
 	memory->destroy(energy_per_bond);
 	memory->destroy(partnerdx);
 	memory->destroy(r0);
+	memory->destroy(g_list);
 }
 
 /* ---------------------------------------------------------------------- */
@@ -321,6 +323,7 @@ void FixSMD_TLSPH_ReferenceConfiguration::setup(int vflag) {
 
 				partnerdx[i][npartner[i]] = -dx;
 				r0[i][npartner[i]] = r;
+				g_list[i][npartner[i]] = -wfd * dx / r;
 				npartner[i]++;
 
 				if (j < nlocal) {
@@ -330,6 +333,7 @@ void FixSMD_TLSPH_ReferenceConfiguration::setup(int vflag) {
 					
 					partnerdx[j][npartner[j]] = dx;
 					r0[j][npartner[j]] = r;
+					g_list[j][npartner[j]] = wfd * dx / r;
 					npartner[j]++;
 				}
 			}
@@ -387,6 +391,7 @@ double FixSMD_TLSPH_ReferenceConfiguration::memory_usage() {
 	bytes += nmax * maxpartner * sizeof(Vector3d); // partnerdx array
 	bytes += nmax * sizeof(int); // npartner array
 	bytes += nmax * maxpartner * sizeof(double); // r0 array
+	bytes += nmax * maxpartner * sizeof(Vector3d); // g_list array
 	return bytes;
 
 }
@@ -405,6 +410,7 @@ void FixSMD_TLSPH_ReferenceConfiguration::grow_arrays(int nmax) {
 	memory->grow(energy_per_bond, nmax, maxpartner, "tlsph_refconfig_neigh:damage_onset_strain");
 	memory->grow(partnerdx, nmax, maxpartner, "tlsph_refconfig_neigh:partnerdx");
 	memory->grow(r0, nmax, maxpartner, "tlsph_refconfig_neigh:r0");
+	memory->grow(g_list, nmax, maxpartner, "tlsph_refconfig_neigh:g_list");
 }
 
 /* ----------------------------------------------------------------------
@@ -421,6 +427,7 @@ void FixSMD_TLSPH_ReferenceConfiguration::copy_arrays(int i, int j, int delflag)
 		energy_per_bond[j][m] = energy_per_bond[i][m];
 		partnerdx[j][m] = partnerdx[i][m];
 		r0[j][m] = r0[i][m];
+		g_list[j][m] = g_list[i][m];
 	}
 }
 
@@ -446,6 +453,9 @@ int FixSMD_TLSPH_ReferenceConfiguration::pack_exchange(int i, double *buf) {
 		buf[m++] = partnerdx[i][n][1];
 		buf[m++] = partnerdx[i][n][2];
 		buf[m++] = r0[i][n];
+		buf[m++] = g_list[i][n][0];
+		buf[m++] = g_list[i][n][1];
+		buf[m++] = g_list[i][n][2];
 	}
 	return m;
 
@@ -479,6 +489,9 @@ int FixSMD_TLSPH_ReferenceConfiguration::unpack_exchange(int nlocal, double *buf
 		partnerdx[nlocal][n][1] = static_cast<double>(buf[m++]);
 		partnerdx[nlocal][n][2] = static_cast<double>(buf[m++]);
 		r0[nlocal][n] = static_cast<double>(buf[m++]);
+		g_list[nlocal][n][0] = static_cast<double>(buf[m++]);
+		g_list[nlocal][n][1] = static_cast<double>(buf[m++]);
+		g_list[nlocal][n][2] = static_cast<double>(buf[m++]);
 	}
 	return m;
 }
