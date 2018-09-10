@@ -466,6 +466,7 @@ void PairTlsph::ComputeForces(int eflag, int vflag) {
 	double **x0 = atom->x0;
 	double **f = atom->f;
 	double *vfrac = atom->vfrac;
+	double *rho = atom->rho;
 	double *de = atom->de;
 	double *rmass = atom->rmass;
 	double *radius = atom->radius;
@@ -595,18 +596,19 @@ void PairTlsph::ComputeForces(int eflag, int vflag) {
 			}
 
 			over_r0_ = 1.0/r0_;
-			g = wfd * over_r0_ * dx0; // uncorrected kernel gradient
+
+			scale_i = 1.0;
+			scale_j = 1.0-degradation_ij[i][jj];
+			if (damage[i] > 0.0) scale_i -= damage[i]/((double) npartner[i]);
+
+			g = wfd * over_r0_ * dx0 * scale_i * scale_j; // uncorrected kernel gradient
 
 			/*
 			 * force contribution -- note that the kernel gradient correction has been absorbed into PK1
 			 */
 			if (damage[i] < 1.0 && damage[j] < 1.0) {
-			  scale_i = 1.0;
-			  scale_j = 1.0-degradation_ij[i][jj];
-			  if (damage[i] > 0.0) scale_i -= damage[i]/((double) npartner[i]);
-			  //if (damage[j] > 0.0) scale_j -= damage[j]/((double) npartner[j]);
 
-			  f_stress = -(voli * volj) * (PK1[j]*(1-damage[i]) + PK1[i]*(1-damage[j])) * g * scale_i * scale_j;
+			  f_stress = -(voli * volj) * (PK1[j]*(1-damage[i]) + PK1[i]*(1-damage[j])) * g;
 
 			} else {
 			  f_stress.setZero();
@@ -625,7 +627,7 @@ void PairTlsph::ComputeForces(int eflag, int vflag) {
 			LimitDoubleMagnitude(delVdotDelR, 0.01 * Lookup[SIGNAL_VELOCITY][itype]);
 			mu_ij = h * delVdotDelR * over_r_plus_h; // units: [m * m/s / m = m/s]
 			if (delVdotDelR <= 0.0) { // i.e. if (dx.dot(dv) < 0) // To be consistent with the viscosity proposed by Monaghan
-			  visc_magnitude = ((-Lookup[VISCOSITY_Q1_times_SIGNAL_VELOCITY][itype] + Lookup[VISCOSITY_Q2][itype] * mu_ij) * mu_ij) / Lookup[REFERENCE_DENSITY][itype]; // units: m^5/(s^2 kg))
+			  visc_magnitude = ((-Lookup[VISCOSITY_Q1_times_SIGNAL_VELOCITY][itype] + Lookup[VISCOSITY_Q2][itype] * mu_ij) * mu_ij) / (0.5 * (rho[i] + rho[j])); // units: m^5/(s^2 kg))
 			  f_visc = rmassij * visc_magnitude * g; // units: kg^2 * m^5/(s^2 kg) * m^-4 = kg m / s^2 = N
 			  // Why f_visc is not: f_visc = rmassij * (-Lookup[VISCOSITY_Q1_times_SIGNAL_VELOCITY][itype] + Lookup[VISCOSITY_Q2][itype] * mu_ij) * mu_ij * g / Lookup[REFERENCE_DENSITY][itype]; ??
 			} else {
@@ -649,8 +651,7 @@ void PairTlsph::ComputeForces(int eflag, int vflag) {
 				delta = gamma.dot(dx);
 				if (delVdotDelR * delta < 0.0) {
 					hg_err = MAX(hg_err, 0.05); // limit hg_err to avoid numerical instabilities
-					hg_mag = -hg_err * Lookup[HOURGLASS_CONTROL_AMPLITUDE][itype] * Lookup[SIGNAL_VELOCITY][itype] * mu_ij
-							/ Lookup[REFERENCE_DENSITY][itype]; // this has units of pressure
+					hg_mag = -hg_err * Lookup[HOURGLASS_CONTROL_AMPLITUDE_over_REFERENCE_DENSITY][itype] * Lookup[SIGNAL_VELOCITY][itype] * mu_ij;// this has units of pressure
 					f_hg = rmassij * hg_mag * g;
 				} else {
 					hg_mag = 0.0;
@@ -666,7 +667,7 @@ void PairTlsph::ComputeForces(int eflag, int vflag) {
 				LimitDoubleMagnitude(gamma_dot_dx, 0.1 * r); // limit projected vector to avoid numerical instabilities
 				delta = gamma_dot_dx * over_r_plus_h; // delta has dimensions of [m]
 				hg_mag = Lookup[HOURGLASS_CONTROL_AMPLITUDE][itype] * delta * over_r0_ * over_r0_; // hg_mag has dimensions [m^(-1)]
-				hg_mag *= -voli * volj * wf * Lookup[YOUNGS_MODULUS][itype] * (1.0 - 0.5*(damage[i] + damage[j])); // hg_mag has dimensions [J*m^(-1)] = [N]
+				hg_mag *= -voli * volj * wf * Lookup[YOUNGS_MODULUS][itype]; // * (1.0 - 0.5*(damage[i] + damage[j])) * scale_i * scale_j; removed because their is no damage without plasticity // hg_mag has dimensions [J*m^(-1)] = [N]
 				f_hg = (hg_mag * over_r_plus_h) * dx;
 			}
 
@@ -1137,6 +1138,7 @@ void PairTlsph::coeff(int narg, char **arg) {
 			(Lookup[LAME_LAMBDA][itype] + 2.0 * Lookup[SHEAR_MODULUS][itype]) / Lookup[REFERENCE_DENSITY][itype]);
 	Lookup[BULK_MODULUS][itype] = Lookup[LAME_LAMBDA][itype] + 2.0 * Lookup[SHEAR_MODULUS][itype] / 3.0;
 	Lookup[VISCOSITY_Q1_times_SIGNAL_VELOCITY][itype] = Lookup[VISCOSITY_Q1][itype] * Lookup[SIGNAL_VELOCITY][itype];
+	Lookup[HOURGLASS_CONTROL_AMPLITUDE_over_REFERENCE_DENSITY][itype] = Lookup[HOURGLASS_CONTROL_AMPLITUDE][itype]/Lookup[REFERENCE_DENSITY][itype];
 
 	if (comm->me == 0) {
 		printf("\n material unspecific properties for SMD/TLSPH definition of particle type %d:\n", itype);
