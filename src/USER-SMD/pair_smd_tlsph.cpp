@@ -161,7 +161,7 @@ void PairTlsph::PreCompute() {
 	float **wf_list = ((FixSMD_TLSPH_ReferenceConfiguration *) modify->fix[ifix_tlsph])->wf_list;
 	float **degradation_ij = ((FixSMD_TLSPH_ReferenceConfiguration *) modify->fix[ifix_tlsph])->degradation_ij;
 	Vector3d **partnerdx = ((FixSMD_TLSPH_ReferenceConfiguration *) modify->fix[ifix_tlsph])->partnerdx;
-	double rSq, r0, wf, wfd, h, irad, voli, volj, shepardWeight, scale;
+	double rSq, wf, wfd, h, irad, voli, volj, shepardWeight, scale;
 	Vector3d dx, dx0, dx0mirror, dv, g;
 	Matrix3d Ktmp, Ftmp, Fdottmp, L, U, eye;
 	Vector3d vi, vj, vinti, vintj, xi, xj, x0i, x0j, dvint;
@@ -192,8 +192,8 @@ void PairTlsph::PreCompute() {
 
 			// initialize aveage mass density
 			h = 2.0 * radius[i];
-			r0 = 0.0;
-			spiky_kernel_and_derivative(h, r0, domain->dimension, wf, wfd);
+			//r0 = 0.0;
+			spiky_kernel_and_derivative(h, 0.0, domain->dimension, wf, wfd);
 
 			jnum = npartner[i];
 			irad = radius[i];
@@ -242,13 +242,6 @@ void PairTlsph::PreCompute() {
 				dx = xj - xi;
 				dv = vj - vi;
 				dvint = vintj - vinti;
-
-				if (failureModel[itype].integration_point_wise == true) {
-				  if (damage[j] >= 1.0) {
-				    dv.setZero();
-				    dvint.setZero();
-				  }
-				}
 
 				dv *= (1-damage[j]);
 				dvint *= (1-damage[j]);
@@ -481,7 +474,7 @@ void PairTlsph::ComputeForces(int eflag, int vflag) {
 	int *type = atom->type;
 	int nlocal = atom->nlocal;
 	int i, j, jj, jnum, itype, idim;
-	double r, hg_mag, wf, wfd, h, r0, r0Sq, voli, volj, r_plus_h, over_r_plus_h;
+	double r, hg_mag, wf, wfd, h, r0_, voli, volj, r_plus_h, over_r_plus_h;
 	double delVdotDelR, deltaE, mu_ij, hg_err, gamma_dot_dx, delta, scale, scale_i, scale_j, rmassij;
 	double softening_strain, shepardWeight;
 	char str[128];
@@ -496,6 +489,7 @@ void PairTlsph::ComputeForces(int eflag, int vflag) {
 	float **degradation_ij = ((FixSMD_TLSPH_ReferenceConfiguration *) modify->fix[ifix_tlsph])->degradation_ij;
 	float **energy_per_bond = ((FixSMD_TLSPH_ReferenceConfiguration *) modify->fix[ifix_tlsph])->energy_per_bond;
 	Vector3d **partnerdx = ((FixSMD_TLSPH_ReferenceConfiguration *) modify->fix[ifix_tlsph])->partnerdx;
+	double **r0 = ((FixSMD_TLSPH_ReferenceConfiguration *) modify->fix[ifix_tlsph])->r0;
 	Matrix3d eye, sigmaBC_i;
 	eye.setIdentity();
 
@@ -565,24 +559,23 @@ void PairTlsph::ComputeForces(int eflag, int vflag) {
 
 			// check that distance between i and j (in the reference config) is less than cutoff
 			dx0 = x0j - x0i;
-			r0Sq = dx0.squaredNorm();
 			h = radius[i] + radius[j];
 			hMin = MIN(hMin, h);
-			r0 = sqrt(r0Sq);
+			r0_ = r0[i][jj];
 			volj = vfrac[j];
 
 			// distance vectors in current and reference configuration, velocity difference
 			dx = xj - xi;
 			dv = vj - vi;
 
+			dv *= (1-damage[j]);
+
 			if (failureModel[itype].integration_point_wise == true) {
-			  if (damage[j] >= 1.0) {
-			//     dx = (1-damage[j])*dx + partnerdx[i][jj];
+			  if (damage[j] > 0.0) {
 			    dx = partnerdx[i][jj];
-			    if (damage[j] >= 1.0) dv.setZero();
-			    //else dv *= (1-damage[j]);
 			  }
 			}
+
 			r = dx.norm(); // current distance
 
 			// scale the interaction according to the damage variable
@@ -593,7 +586,6 @@ void PairTlsph::ComputeForces(int eflag, int vflag) {
 			  scale = 1.0;//CalculateScale(MAX(damage[i], damage[j]), itype);
 			}
 
-			dv *= (1-damage[j]);
 			wf = wf_list[i][jj];
 			wfd = wfd_list[i][jj];
 
@@ -602,7 +594,7 @@ void PairTlsph::ComputeForces(int eflag, int vflag) {
 			  wfd *= scale;
 			}
 
-			g = (wfd / r0) * dx0; // uncorrected kernel gradient
+			g = (wfd / r0_) * dx0; // uncorrected kernel gradient
 
 			/*
 			 * force contribution -- note that the kernel gradient correction has been absorbed into PK1
@@ -636,6 +628,7 @@ void PairTlsph::ComputeForces(int eflag, int vflag) {
 			rmassij = rmass[i] * rmass[j];
 			r_plus_h = r + 1.0e-2 * h;
 			f_visc = rmassij * (-Lookup[VISCOSITY_Q1_times_SIGNAL_VELOCITY][itype] + Lookup[VISCOSITY_Q2][itype] * mu_ij) * mu_ij * wfddx / (r_plus_h * Lookup[REFERENCE_DENSITY][itype]); // units: kg^2 * m^5/(s^2 kg) * m^-4 = kg m / s^2 = N
+			// Why f_visc is not: f_visc = rmassij * (-Lookup[VISCOSITY_Q1_times_SIGNAL_VELOCITY][itype] + Lookup[VISCOSITY_Q2][itype] * mu_ij) * mu_ij * g / Lookup[REFERENCE_DENSITY][itype]; ??
 			  //} else {
 			  //f_visc = Vector3d(0.0, 0.0, 0.0);
 			  //}
@@ -645,7 +638,7 @@ void PairTlsph::ComputeForces(int eflag, int vflag) {
 			 */
 
 			gamma = 0.5 * (Fincr[i] + Fincr[j]) * dx0 - dx;
-			hg_err = gamma.norm() / r0;
+			hg_err = gamma.norm() / r0_;
 			hourglass_error[i] += volj * wf * hg_err;
 
 			/* SPH-like hourglass formulation */
@@ -672,7 +665,7 @@ void PairTlsph::ComputeForces(int eflag, int vflag) {
 				gamma_dot_dx = gamma.dot(dx); // project hourglass error vector onto pair distance vector
 				LimitDoubleMagnitude(gamma_dot_dx, 0.1 * r); // limit projected vector to avoid numerical instabilities
 				delta = 0.5 * gamma_dot_dx * over_r_plus_h; // delta has dimensions of [m]
-				hg_mag = Lookup[HOURGLASS_CONTROL_AMPLITUDE][itype] * delta / (r0Sq + 0.01 * h * h); // hg_mag has dimensions [m^(-1)]
+				hg_mag = Lookup[HOURGLASS_CONTROL_AMPLITUDE][itype] * delta / (r0_ * r0_); // hg_mag has dimensions [m^(-1)]
 				hg_mag *= -voli * volj * wf * Lookup[YOUNGS_MODULUS][itype]; // hg_mag has dimensions [J*m^(-1)] = [N]
 				f_hg = (hg_mag * over_r_plus_h) * dx;
 			}
@@ -704,13 +697,13 @@ void PairTlsph::ComputeForces(int eflag, int vflag) {
 			shepardWeight += wf * volj;
 
 			// check if a particle has moved too much w.r.t another particle
-			if (r > r0) {
+			if (r > r0_) {
 				if (update_method == UPDATE_CONSTANT_THRESHOLD) {
-					if (r - r0 > update_threshold) {
+					if (r - r0_ > update_threshold) {
 						updateFlag = 1;
 					}
 				} else if (update_method == UPDATE_PAIRWISE_RATIO) {
-					if ((r - r0) / h > update_threshold) {
+					if ((r - r0_) / h > update_threshold) {
 						updateFlag = 1;
 					}
 				}
@@ -2638,7 +2631,7 @@ void PairTlsph::UpdateDegradation() {
 	int *type = atom->type;
 	int nlocal = atom->nlocal;
 	int i, j, jj, jnum, itype, idim;
-	double r, h, r0, r0Sq;
+	double r, h, r0_;
 	double strain1d, strain1d_max, softening_strain;
 	Vector3d dx0, dx, dv, x0i, x0j;
 	Vector3d xi, xj;
@@ -2650,6 +2643,7 @@ void PairTlsph::UpdateDegradation() {
 	float **degradation_ij = ((FixSMD_TLSPH_ReferenceConfiguration *) modify->fix[ifix_tlsph])->degradation_ij;
 	float **energy_per_bond = ((FixSMD_TLSPH_ReferenceConfiguration *) modify->fix[ifix_tlsph])->energy_per_bond;
         Vector3d **partnerdx = ((FixSMD_TLSPH_ReferenceConfiguration *) modify->fix[ifix_tlsph])->partnerdx;
+        double **r0 = ((FixSMD_TLSPH_ReferenceConfiguration *) modify->fix[ifix_tlsph])->r0;
 
 	for (i = 0; i < nlocal; i++) {
 
@@ -2719,15 +2713,14 @@ void PairTlsph::UpdateDegradation() {
 
 			  // check that distance between i and j (in the reference config) is less than cutoff
 			  dx0 = x0j - x0i;
-			  r0Sq = dx0.squaredNorm();
 			  h = radius[i] + radius[j];
-			  r0 = sqrt(r0Sq);
+			  r0_ = r0[i][jj];
 
 			  // distance vectors in current and reference configuration, velocity difference
 			  dx = xj - xi;
 			  r = dx.norm(); // current distance
 
-			  strain1d = (r - r0) / r0;
+			  strain1d = (r - r0_) / r0_;
 			  strain1d_max = Lookup[FAILURE_MAX_PAIRWISE_STRAIN_THRESHOLD][itype];
 			  softening_strain = 2.0 * strain1d_max;
 
