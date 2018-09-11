@@ -474,10 +474,10 @@ void PairTlsph::ComputeForces(int eflag, int vflag) {
 	int nlocal = atom->nlocal;
 	int i, j, jj, jnum, itype, idim;
 	double r, hg_mag, vwf, wf, wfd, h, r0_, r0inv_, voli, volj, r_plus_h_inv;
-	double delVdotDelR, visc_magnitude, deltaE, mu_ij, hg_err, gamma_dot_dx, delta, scale, scale_i, scale_j, rmassij;
+	double delVdotDelR, visc_magnitude, deltaE, mu_ij, hg_err, gamma_dot_dx_normalized, delta, scale, scale_i, scale_j, rmassij;
 	double softening_strain, shepardWeight;
 	char str[128];
-	Vector3d fi, fj, dx0, dx, dv, f_stress, f_hg, dxp_i, dxp_j, gamma, g, gamma_i, gamma_j, x0i, x0j, f_stressbc, fbc;
+	Vector3d fi, fj, dx0, dx, dx_normalized, dv, f_stress, f_hg, dxp_i, dxp_j, gamma, g, gamma_i, gamma_j, x0i, x0j, f_stressbc, fbc;
 	Vector3d xi, xj, vi, vj, f_visc, sumForces, f_spring;
 	int periodic = (domain->xperiodic || domain->yperiodic || domain->zperiodic);
 
@@ -620,13 +620,14 @@ void PairTlsph::ComputeForces(int eflag, int vflag) {
 			 * artificial viscosity
 			 */
 			r_plus_h_inv = 1 / (r + 0.1 * h);
-			delVdotDelR = dx.dot(dv) * r_plus_h_inv; // project relative velocity onto unit particle distance vector [m/s]
+			dx_normalized = dx * r_plus_h_inv;
+			delVdotDelR = dx_normalized.dot(dv); // project relative velocity onto unit particle distance vector [m/s]
 			rmassij = rmass[i] * rmass[j];
 			LimitDoubleMagnitude(delVdotDelR, 0.01 * Lookup[SIGNAL_VELOCITY][itype]);
 			mu_ij = h * delVdotDelR * r_plus_h_inv; // units: [m * m/s / m = m/s]
 
 			if (delVdotDelR <= 0.0) { // i.e. if (dx.dot(dv) < 0) // To be consistent with the viscosity proposed by Monaghan
-			  f_visc = rmassij * (-Lookup[VISCOSITY_Q1_times_SIGNAL_VELOCITY][itype] + Lookup[VISCOSITY_Q2][itype] * mu_ij) * mu_ij * wfd * dx * r_plus_h_inv /(rho[i] + rho[j]) * 2;
+			  f_visc = rmassij * (-Lookup[VISCOSITY_Q1_times_SIGNAL_VELOCITY][itype] + Lookup[VISCOSITY_Q2][itype] * mu_ij) * mu_ij * wfd * dx_normalized /(rho[i] + rho[j]) * 2;
 			} else {
 			  f_visc = Vector3d(0.0, 0.0, 0.0);
 			}
@@ -650,7 +651,7 @@ void PairTlsph::ComputeForces(int eflag, int vflag) {
 				if (delVdotDelR * delta < 0.0) {
 					hg_err = MAX(hg_err, 0.05); // limit hg_err to avoid numerical instabilities
 					hg_mag = -hg_err * Lookup[HOURGLASS_CONTROL_AMPLITUDE_over_REFERENCE_DENSITY_times_SIGNAL_VELOCITY][itype] * mu_ij;// this has units of pressure
-					f_hg = rmassij * hg_mag * wfd * dx * r_plus_h_inv;
+					f_hg = rmassij * hg_mag * wfd * dx_normalized;
 				} else {
 					hg_mag = 0.0;
 					f_hg = Vector3d(0.0, 0.0, 0.0);
@@ -661,12 +662,12 @@ void PairTlsph::ComputeForces(int eflag, int vflag) {
 				 * stiffness hourglass formulation for particle in the elastic regime
 				 */
 
-				gamma_dot_dx = gamma.dot(dx); // project hourglass error vector onto pair distance vector
-				LimitDoubleMagnitude(gamma_dot_dx, 0.1 * r); // limit projected vector to avoid numerical instabilities
-				delta = gamma_dot_dx * r_plus_h_inv; // delta has dimensions of [m]
+				gamma_dot_dx_normalized = gamma.dot(dx_normalized); // project hourglass error vector onto pair distance vector
+				LimitDoubleMagnitude(gamma_dot_dx_normalized, 0.1); // limit projected vector to avoid numerical instabilities
+				delta = gamma_dot_dx_normalized; // delta has dimensions of [m]
 				hg_mag = Lookup[HOURGLASS_CONTROL_AMPLITUDE][itype] * delta * r0inv_ * r0inv_; // hg_mag has dimensions [m^(-1)]
 				hg_mag *= -voli * vwf * Lookup[YOUNGS_MODULUS][itype]; // * (1.0 - 0.5*(damage[i] + damage[j])) * scale_i * scale_j; removed because their is no damage without plasticity // hg_mag has dimensions [J*m^(-1)] = [N]
-				f_hg = (hg_mag * r_plus_h_inv) * dx;
+				f_hg = hg_mag * dx_normalized;
 			}
 
 			// scale hourglass force with damage
