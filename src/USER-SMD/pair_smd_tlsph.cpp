@@ -522,6 +522,9 @@ void PairTlsph::ComputeForces(int eflag, int vflag) {
 		spiky_kernel_and_derivative(h, r, domain->dimension, wf, wfd);
 		shepardWeight = wf * voli;
 
+		scale_i = 1.0;
+		if (damage[i] > 0.0) scale_i -= damage[i]/((double) npartner[i]);
+
 		for (idim = 0; idim < 3; idim++) {
 			x0i(idim) = x0[i][idim];
 			xi(idim) = x[i][idim];
@@ -594,11 +597,7 @@ void PairTlsph::ComputeForces(int eflag, int vflag) {
 			  wfd *= scale;
 			}
 
-			r0inv_ = 1.0/r0_;
-
-			scale_i = 1.0;
 			scale_j = 1.0-degradation_ij[i][jj];
-			if (damage[i] > 0.0) scale_i -= damage[i]/((double) npartner[i]);
 
 			g = g_list[i][jj] * scale_i * scale_j; // uncorrected kernel gradient
 
@@ -637,6 +636,7 @@ void PairTlsph::ComputeForces(int eflag, int vflag) {
 			 */
 
 			gamma = 0.5 * (Fincr[i] + Fincr[j]) * dx0 - dx;
+			r0inv_ = 1.0/r0_;
 			hg_err = gamma.norm() * r0inv_;
 			hourglass_error[i] += vwf * hg_err;
 
