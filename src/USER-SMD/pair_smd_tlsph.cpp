@@ -162,7 +162,7 @@ void PairTlsph::PreCompute() {
 	float **degradation_ij = ((FixSMD_TLSPH_ReferenceConfiguration *) modify->fix[ifix_tlsph])->degradation_ij;
 	Vector3d **partnerdx = ((FixSMD_TLSPH_ReferenceConfiguration *) modify->fix[ifix_tlsph])->partnerdx;
 	Vector3d **g_list = ((FixSMD_TLSPH_ReferenceConfiguration *) modify->fix[ifix_tlsph])->g_list;
-	double rSq, wf, wfd, h, irad, voli, volj, shepardWeight, scale;
+	double rSq, wf, vwf, wfd, h, irad, voli, volj, shepardWeight, scale;
 	Vector3d dx, dx0, dx0mirror, dv, g;
 	Matrix3d L, U, eye;
 	Vector3d vi, vj, vinti, vintj, xi, xj, x0i, x0j, dvint;
@@ -275,7 +275,7 @@ void PairTlsph::PreCompute() {
 
 				vijSq_max[i] = MAX(dv.squaredNorm(), vijSq_max[i]);
 
-				wf = wf_list[i][jj];
+				vwf = volj * wf_list[i][jj];
 				//wfd = wfd_list[i][jj];
 				g = volj * g_list[i][jj];
 
@@ -286,8 +286,8 @@ void PairTlsph::PreCompute() {
 				Fincr[i].noalias() -= (dx - dx0) * g.transpose();
 
 				if (update->ntimestep > 1 && npartner[j] == 0) printf("Step %d, npartner[%d] == %f\n", update->ntimestep, tag[j], npartner[j]);
-				shepardWeight += volj * wf;
-				smoothVelDifference[i].noalias() += volj * wf * dvint;
+				shepardWeight += vwf;
+				smoothVelDifference[i].noalias() += vwf * dvint;
 
 				// if ((tag[i] == 18268 && tag[j] == 17854)||(tag[i] == 17854 && tag[j] == 18268)||(tag[i] == 17853 && tag[j] == 17854)||(tag[i] == 17854 && tag[j] == 17853)||(tag[i] == 18268 && tag[j] == 18267)||(tag[i] == 18267 && tag[j] == 18268)||(tag[i] == 17854 && tag[j] == 17440) || (tag[i] == 17025 && tag[j] == 17439) || (tag[i] == 17439 && tag[j] == 17025)) {
 				//   printf("Step %d PRE,  %d-%d: dx = [%.10e %.10e %.10e] dv = [%.10e %.10e %.10e] damage_i=%.10e damage_j=%.10e damage_increment_j = %.10e\n",update->ntimestep, tag[i], tag[j], dx(0), dx(1), dx(2), dv(0), dv(1), dv(2), damage[i], damage[j], damage_increment[j]);
@@ -473,7 +473,7 @@ void PairTlsph::ComputeForces(int eflag, int vflag) {
 	int *type = atom->type;
 	int nlocal = atom->nlocal;
 	int i, j, jj, jnum, itype, idim;
-	double r, hg_mag, wf, wfd, h, r0_, r0inv_, voli, volj, r_plus_h_inv;
+	double r, hg_mag, vwf, wf, wfd, h, r0_, r0inv_, voli, volj, r_plus_h_inv;
 	double delVdotDelR, visc_magnitude, deltaE, mu_ij, hg_err, gamma_dot_dx, delta, scale, scale_i, scale_j, rmassij;
 	double softening_strain, shepardWeight;
 	char str[128];
@@ -586,11 +586,11 @@ void PairTlsph::ComputeForces(int eflag, int vflag) {
 			  scale = 1.0;//CalculateScale(MAX(damage[i], damage[j]), itype);
 			}
 
-			wf = wf_list[i][jj];
+			vwf = volj * wf_list[i][jj];
 			//wfd = wfd_list[i][jj];
 
 			if ((failureModel[itype].failure_none == false) && (failureModel[itype].integration_point_wise == false)) {
-			  wf *= scale;
+			  vwf *= scale;
 			  //wfd *= scale;
 			}
 
@@ -639,7 +639,7 @@ void PairTlsph::ComputeForces(int eflag, int vflag) {
 
 			gamma = 0.5 * (Fincr[i] + Fincr[j]) * dx0 - dx;
 			hg_err = gamma.norm() * r0inv_;
-			hourglass_error[i] += volj * wf * hg_err;
+			hourglass_error[i] += vwf * hg_err;
 
 			/* SPH-like hourglass formulation */
 
@@ -666,7 +666,7 @@ void PairTlsph::ComputeForces(int eflag, int vflag) {
 				LimitDoubleMagnitude(gamma_dot_dx, 0.1 * r); // limit projected vector to avoid numerical instabilities
 				delta = gamma_dot_dx * r_plus_h_inv; // delta has dimensions of [m]
 				hg_mag = Lookup[HOURGLASS_CONTROL_AMPLITUDE][itype] * delta * r0inv_ * r0inv_; // hg_mag has dimensions [m^(-1)]
-				hg_mag *= -voli * volj * wf * Lookup[YOUNGS_MODULUS][itype]; // * (1.0 - 0.5*(damage[i] + damage[j])) * scale_i * scale_j; removed because their is no damage without plasticity // hg_mag has dimensions [J*m^(-1)] = [N]
+				hg_mag *= -voli * vwf * Lookup[YOUNGS_MODULUS][itype]; // * (1.0 - 0.5*(damage[i] + damage[j])) * scale_i * scale_j; removed because their is no damage without plasticity // hg_mag has dimensions [J*m^(-1)] = [N]
 				f_hg = (hg_mag * r_plus_h_inv) * dx;
 			}
 
@@ -694,7 +694,7 @@ void PairTlsph::ComputeForces(int eflag, int vflag) {
 				ev_tally_xyz(i, j, nlocal, 0, 0.0, 0.0, sumForces(0), sumForces(1), sumForces(2), dx(0), dx(1), dx(2));
 			}
 
-			shepardWeight += wf * volj;
+			shepardWeight += vwf;
 
 			// check if a particle has moved too much w.r.t another particle
 			if (r > r0_) {
