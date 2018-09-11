@@ -491,6 +491,8 @@ void PairTlsph::ComputeForces(int eflag, int vflag) {
 	Vector3d **g_list = ((FixSMD_TLSPH_ReferenceConfiguration *) modify->fix[ifix_tlsph])->g_list;
 	double **r0 = ((FixSMD_TLSPH_ReferenceConfiguration *) modify->fix[ifix_tlsph])->r0;
 	Matrix3d eye, sigmaBC_i;
+
+	double deltat_1, deltat_2;
 	eye.setIdentity();
 
 	if (eflag || vflag)
@@ -665,8 +667,7 @@ void PairTlsph::ComputeForces(int eflag, int vflag) {
 				gamma_dot_dx_normalized = gamma.dot(dx_normalized); // project hourglass error vector onto pair distance vector
 				LimitDoubleMagnitude(gamma_dot_dx_normalized, 0.1); // limit projected vector to avoid numerical instabilities
 				delta = gamma_dot_dx_normalized; // delta has dimensions of [m]
-				hg_mag = Lookup[HOURGLASS_CONTROL_AMPLITUDE][itype] * delta * r0inv_ * r0inv_; // hg_mag has dimensions [m^(-1)]
-				hg_mag *= -voli * vwf * Lookup[YOUNGS_MODULUS][itype]; // * (1.0 - 0.5*(damage[i] + damage[j])) * scale_i * scale_j; removed because their is no damage without plasticity // hg_mag has dimensions [J*m^(-1)] = [N]
+				hg_mag = -voli * vwf * Lookup[HOURGLASS_CONTROL_AMPLITUDE_times_YOUNGS_MODULUS][itype] * delta * r0inv_ * r0inv_; // * (1.0 - 0.5*(damage[i] + damage[j])) * scale_i * scale_j; removed because their is no damage without plasticity // hg_mag has dimensions [J*m^(-1)] = [N]
 				f_hg = hg_mag * dx_normalized;
 			}
 
@@ -721,13 +722,14 @@ void PairTlsph::ComputeForces(int eflag, int vflag) {
 		if (shepardWeight != 0.0) {
 			hourglass_error[i] /= shepardWeight;
 		}
-		double deltat_1 = sqrt(sqrt(rSqMin[i]) * rmass[i]/ sqrt( f[i][0]*f[i][0] + f[i][1]*f[i][1] + f[i][2]*f[i][2] ));
+
+		deltat_1 = sqrt(sqrt(rSqMin[i]) * rmass[i]/ sqrt( f[i][0]*f[i][0] + f[i][1]*f[i][1] + f[i][2]*f[i][2] ));
 		// if (particle_dt[i] > deltat_1) {
 		//   printf("particle_dt[%d] > deltat_1 with f = [%f %f %f]\n", tag[i], f[i][0], f[i][1], f[i][2]);
 		// }
 		particle_dt[i] = MIN(particle_dt[i], deltat_1); // Monaghan deltat_1 
 
-		double deltat_2 = sqrt(rmass[i]/ (Lookup[YOUNGS_MODULUS][itype] * 2 * radius[i])); // Make sure that oscillations due to elasticity are well captured. // This needs to be calculated once and for all.
+		deltat_2 = sqrt(rmass[i]/ (Lookup[YOUNGS_MODULUS][itype] * 2 * radius[i])); // Make sure that oscillations due to elasticity are well captured. // This needs to be calculated once and for all.
 		particle_dt[i] = MIN(particle_dt[i], deltat_2);
 		dtCFL = MIN(dtCFL, particle_dt[i]);
 
@@ -1138,6 +1140,7 @@ void PairTlsph::coeff(int narg, char **arg) {
 	Lookup[BULK_MODULUS][itype] = Lookup[LAME_LAMBDA][itype] + 2.0 * Lookup[SHEAR_MODULUS][itype] / 3.0;
 	Lookup[VISCOSITY_Q1_times_SIGNAL_VELOCITY][itype] = Lookup[VISCOSITY_Q1][itype] * Lookup[SIGNAL_VELOCITY][itype];
 	Lookup[HOURGLASS_CONTROL_AMPLITUDE_over_REFERENCE_DENSITY_times_SIGNAL_VELOCITY][itype] = Lookup[HOURGLASS_CONTROL_AMPLITUDE][itype] * Lookup[SIGNAL_VELOCITY][itype] / Lookup[REFERENCE_DENSITY][itype];
+	Lookup[HOURGLASS_CONTROL_AMPLITUDE_times_YOUNGS_MODULUS][itype] = Lookup[HOURGLASS_CONTROL_AMPLITUDE][itype] * Lookup[YOUNGS_MODULUS][itype];
 
 	if (comm->me == 0) {
 		printf("\n material unspecific properties for SMD/TLSPH definition of particle type %d:\n", itype);
