@@ -587,11 +587,11 @@ void PairTlsph::ComputeForces(int eflag, int vflag) {
 			}
 
 			vwf = volj * wf_list[i][jj];
-			//wfd = wfd_list[i][jj];
+			wfd = wfd_list[i][jj];
 
 			if ((failureModel[itype].failure_none == false) && (failureModel[itype].integration_point_wise == false)) {
 			  vwf *= scale;
-			  //wfd *= scale;
+			  wfd *= scale;
 			}
 
 			r0inv_ = 1.0/r0_;
@@ -625,10 +625,9 @@ void PairTlsph::ComputeForces(int eflag, int vflag) {
 			rmassij = rmass[i] * rmass[j];
 			LimitDoubleMagnitude(delVdotDelR, 0.01 * Lookup[SIGNAL_VELOCITY][itype]);
 			mu_ij = h * delVdotDelR * r_plus_h_inv; // units: [m * m/s / m = m/s]
+
 			if (delVdotDelR <= 0.0) { // i.e. if (dx.dot(dv) < 0) // To be consistent with the viscosity proposed by Monaghan
-			  visc_magnitude = ((-Lookup[VISCOSITY_Q1_times_SIGNAL_VELOCITY][itype] + Lookup[VISCOSITY_Q2][itype] * mu_ij) * mu_ij) / (0.5 * (rho[i] + rho[j])); // units: m^5/(s^2 kg))
-			  f_visc = rmassij * visc_magnitude * g; // units: kg^2 * m^5/(s^2 kg) * m^-4 = kg m / s^2 = N
-			  // Why f_visc is not: f_visc = rmassij * (-Lookup[VISCOSITY_Q1_times_SIGNAL_VELOCITY][itype] + Lookup[VISCOSITY_Q2][itype] * mu_ij) * mu_ij * g / Lookup[REFERENCE_DENSITY][itype]; ??
+			  f_visc = rmassij * (-Lookup[VISCOSITY_Q1_times_SIGNAL_VELOCITY][itype] + Lookup[VISCOSITY_Q2][itype] * mu_ij) * mu_ij * wfd * dx * r_plus_h_inv /(rho[i] + rho[j]) * 2;
 			} else {
 			  f_visc = Vector3d(0.0, 0.0, 0.0);
 			}
@@ -651,7 +650,7 @@ void PairTlsph::ComputeForces(int eflag, int vflag) {
 				if (delVdotDelR * delta < 0.0) {
 					hg_err = MAX(hg_err, 0.05); // limit hg_err to avoid numerical instabilities
 					hg_mag = -hg_err * Lookup[HOURGLASS_CONTROL_AMPLITUDE_over_REFERENCE_DENSITY_times_SIGNAL_VELOCITY][itype] * mu_ij;// this has units of pressure
-					f_hg = rmassij * hg_mag * g;
+					f_hg = rmassij * hg_mag * wfd * dx * r_plus_h_inv;
 				} else {
 					hg_mag = 0.0;
 					f_hg = Vector3d(0.0, 0.0, 0.0);
