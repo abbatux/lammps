@@ -478,7 +478,7 @@ void PairTlsph::ComputeForces(int eflag, int vflag) {
 	int nlocal = atom->nlocal;
 	int i, j, jj, jnum, itype, idim;
 	double r, hg_mag, vwf, wf, wfd, h, r0_, r0inv_, voli, volj, r_plus_h_inv;
-	double delVdotDelR, visc_magnitude, deltaE, mu_ij, hg_err, gamma_dot_dx_normalized, delta, scale, scale_i, scale_j, rmassij;
+	double delVdotDelR, visc_magnitude, deltaE, mu_ij, hg_err, delta, scale, scale_i, scale_j, rmassij;
 	double softening_strain, shepardWeight;
 	char str[128];
 	Vector3d fi, fj, dx0, dx, dx_normalized, dv, f_stress, f_hg, dxp_i, dxp_j, gamma, g, gamma_i, gamma_j, x0i, x0j, f_stressbc, fbc;
@@ -644,23 +644,25 @@ void PairTlsph::ComputeForces(int eflag, int vflag) {
 
 			gamma = 0.5 * (Fincr[i] + Fincr[j]) * dx0 - dx;
 			r0inv_ = 1.0/r0_;
-			hg_err = gamma.norm() * r0inv_;
-			hourglass_error[i] += vwf * hg_err;
 
 			/* SPH-like hourglass formulation */
 
-			gamma_dot_dx_normalized = gamma.dot(dx_normalized); // project hourglass error vector onto pair distance vector
-			LimitDoubleMagnitude(gamma_dot_dx_normalized, 0.1); // limit projected vector to avoid numerical instabilities
-			delta = gamma_dot_dx_normalized; // delta has dimensions of [m]
+			delta = gamma.dot(dx_normalized); // project hourglass error vector onto normalized pair distance vector, delta has dimensions of [m]
+			hg_err = delta * r0inv_;
+			hourglass_error[i] += vwf * hg_err;
+			LimitDoubleMagnitude(delta, 0.1); // limit delta to avoid numerical instabilities
 
+			hg_mag = -voli * vwf * delta * r0inv_ * r0inv_;
 			if (MAX(plastic_strain[i], plastic_strain[j]) > 1.0e-3) {
-				hg_mag = -voli * vwf * Lookup[HOURGLASS_CONTROL_AMPLITUDE][itype] * 0.5 * (flowstress_slope[i] + flowstress_slope[j]) * delta * r0inv_ * r0inv_; // * (1.0 - 0.5*(damage[i] + damage[j])) * scale_i * scale_j; removed because their is no damage without plasticity // hg_mag has dimensions [J*m^(-1)] = [N]
+				/*
+				 * stiffness hourglass formulation for particle in the plastic regime
+				 */
+				hg_mag *= 0.5 * Lookup[HOURGLASS_CONTROL_AMPLITUDE][itype] * (flowstress_slope[i] + flowstress_slope[j]); // hg_mag has dimensions [J*m^(-1)] = [N]
 			} else {
 				/*
 				 * stiffness hourglass formulation for particle in the elastic regime
 				 */
-
-				hg_mag = -voli * vwf * Lookup[HOURGLASS_CONTROL_AMPLITUDE_times_YOUNGS_MODULUS][itype] * delta * r0inv_ * r0inv_; // * (1.0 - 0.5*(damage[i] + damage[j])) * scale_i * scale_j; removed because their is no damage without plasticity // hg_mag has dimensions [J*m^(-1)] = [N]
+				hg_mag *= Lookup[HOURGLASS_CONTROL_AMPLITUDE_times_YOUNGS_MODULUS][itype];
 			}
 
 			f_hg = hg_mag * dx_normalized;
