@@ -88,8 +88,9 @@ PairTlsph::PairTlsph(LAMMPS *lmp) :
 	first = true;
 	dtCFL = 0.0; // initialize dtCFL so it is set to safe value if extracted on zero-th timestep
 	rSqMin = NULL;
+	flowstress_slope = NULL;
 
-	comm_forward = 24; // this pair style communicates 20 doubles to ghost atoms : PK1 tensor + F tensor + shepardWeight + damage_increment
+	comm_forward = 25; // this pair style communicates 20 doubles to ghost atoms : PK1 tensor + F tensor + shepardWeight + damage_increment + npartner + flowstress_slope
 	fix_tlsph_reference_configuration = NULL;
 
 	cut_comm = MAX(neighbor->cutneighmax, comm->cutghostuser); // cutoff radius within which ghost atoms are communicated.
@@ -129,6 +130,7 @@ PairTlsph::~PairTlsph() {
 		delete[] vijSq_max;
 		delete[] damage_increment;
 		delete[] rSqMin;
+		delete[] flowstress_slope;
 
 		delete[] failureModel;
 	}
@@ -409,6 +411,8 @@ void PairTlsph::compute(int eflag, int vflag) {
 		damage_increment = new double[nmax];
 		delete[] rSqMin;
 		rSqMin = new double[nmax];
+		delete[] flowstress_slope;
+		flowstress_slope = new double[nmax];
 	}
 
 	if (first) { // return on first call, because reference connectivity lists still needs to be built. Also zero quantities which are otherwise undefined.
@@ -650,7 +654,7 @@ void PairTlsph::ComputeForces(int eflag, int vflag) {
 			delta = gamma_dot_dx_normalized; // delta has dimensions of [m]
 
 			if (MAX(plastic_strain[i], plastic_strain[j]) > 1.0e-3) {
-				hg_mag = -voli * vwf * Lookup[HOURGLASS_CONTROL_AMPLITUDE][itype] * MIN(Lookup[YOUNGS_MODULUS][itype], 0.5 * (flowstress.evaluate_derivative(plastic_strain[i]) + flowstress.evaluate_derivative(plastic_strain[j])))* delta * r0inv_ * r0inv_; // * (1.0 - 0.5*(damage[i] + damage[j])) * scale_i * scale_j; removed because their is no damage without plasticity // hg_mag has dimensions [J*m^(-1)] = [N]
+				hg_mag = -voli * vwf * Lookup[HOURGLASS_CONTROL_AMPLITUDE][itype] * 0.5 * (flowstress_slope[i] + flowstress_slope[j]) * delta * r0inv_ * r0inv_; // * (1.0 - 0.5*(damage[i] + damage[j])) * scale_i * scale_j; removed because their is no damage without plasticity // hg_mag has dimensions [J*m^(-1)] = [N]
 			} else {
 				/*
 				 * stiffness hourglass formulation for particle in the elastic regime
@@ -914,6 +918,13 @@ void PairTlsph::AssembleStress() {
 				//double max_damage = max(0.0001, 1 - f);
 				particle_dt[i] = sqrt(rSqMin[i]) / (p_wave_speed + sqrt(vijSq_max[i])); //* max(0.0001, 1 - fx * vi.norm()*dt/radius[i]);
 				dtCFL = MIN(dtCFL, particle_dt[i]);
+
+				//Determine the derivative of the flowstress with respect to the strain:
+				if (eff_plastic_strain[i] > 0.0) {
+				  flowstress_slope[i] = MIN(Lookup[YOUNGS_MODULUS][itype],flowstress.evaluate_derivative(eff_plastic_strain[i]));
+				} else {
+				  flowstress_slope[i] = Lookup[YOUNGS_MODULUS][itype];
+				}
 
 			} else { // end if mol > 0
 				PK1[i].setZero();
@@ -2165,6 +2176,8 @@ void *PairTlsph::extract(const char *str, int &i) {
 		return (void *) damage_increment;
 	} else if (strcmp(str, "smd/tlsph/rSqMin") == 0) {
 	  return (void *) rSqMin;
+	} else if (strcmp(str, "smd/tlsph/flowstress_slope") == 0) {
+	  return (void *) flowstress_slope;
 	}
 
 	return NULL;
@@ -2212,6 +2225,7 @@ int PairTlsph::pack_forward_comm(int n, int *list, double *buf, int pbc_flag, in
 		buf[m++] = damage_increment[j]; //23
 
 		buf[m++] = npartner[j]; //24
+		buf[m++] = flowstress_slope[j]; //25
 
 	}
 	return m;
@@ -2259,6 +2273,7 @@ void PairTlsph::unpack_forward_comm(int n, int first, double *buf) {
 		damage_increment[i] = buf[m++]; //23
 
 		npartner[i] = static_cast<int>(buf[m++]); //24
+		flowstress_slope[i] = buf[m++]; //25
 	}
 }
 

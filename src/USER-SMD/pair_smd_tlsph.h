@@ -98,10 +98,11 @@ protected:
 	double *hourglass_error;
 	int *numNeighsRefConfig;
 	double *damage_increment;
+	double* rSqMin;
+	double* flowstress_slope;
 
 	int nmax; // max number of atoms on this proc
 	double hMin; // minimum kernel radius for two particles
-        double* rSqMin;
 	double dtCFL;
 	double dtRelative; // relative velocity of two particles, divided by sound speed
 	int updateFlag;
