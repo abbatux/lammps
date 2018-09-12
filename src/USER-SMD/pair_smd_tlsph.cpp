@@ -652,7 +652,11 @@ void PairTlsph::ComputeForces(int eflag, int vflag) {
 				delta = gamma.dot(dx);
 				if (delVdotDelR * delta < 0.0) {
 					hg_err = MAX(hg_err, 0.05); // limit hg_err to avoid numerical instabilities
-					hg_mag = -hg_err * Lookup[HOURGLASS_CONTROL_AMPLITUDE_over_REFERENCE_DENSITY_times_SIGNAL_VELOCITY][itype] * mu_ij;// this has units of pressure
+					// hg_mag = -hg_err * Lookup[HOURGLASS_CONTROL_AMPLITUDE_over_REFERENCE_DENSITY_times_SIGNAL_VELOCITY][itype] * mu_ij;// this has units of pressure
+					hg_mag = -hg_err * Lookup[HOURGLASS_CONTROL_AMPLITUDE][itype] * mu_ij;// this has units of pressure
+					// hg_mag *= 0.5 * (sqrt((1.0-damage[i])*detF[i]) + sqrt((1.0-damage[j])*detF[j]));
+					hg_mag *= 0.5 * (sqrt((Lookup[LONGITUDINAL_MODULUS][itype]) * (1.0 - damage[i])/(rho[i]*rho[i]*rho[i]))
+							 + sqrt((Lookup[LONGITUDINAL_MODULUS][itype]) * (1.0 - damage[j])/(rho[j]*rho[j]*rho[j])));
 					f_hg = rmassij * hg_mag * wfd * dx_normalized;
 				} else {
 					hg_mag = 0.0;
@@ -801,8 +805,8 @@ void PairTlsph::AssembleStress() {
 				Matrix3d FtF = Fincr[i].transpose() * Fincr[i];
 				strain = 0.5 * (FtF - eye);
 				mass_specific_energy = e[i] / rmass[i]; // energy per unit mass
-				//rho[i] = rmass[i] / (detF[i] * vfrac[i]);
-				rho[i] = rmass[i] / (sqrt(FtF.determinant()) * vfrac[i]);
+				rho[i] = rmass[i] / (detF[i] * vfrac[i]);
+				//rho[i] = rmass[i] / (sqrt(FtF.determinant()) * vfrac[i]);
 				vol_specific_energy = mass_specific_energy * rho[i]; // energy per current volume
 
 				/*
@@ -1139,8 +1143,8 @@ void PairTlsph::coeff(int narg, char **arg) {
 			(Lookup[LAME_LAMBDA][itype] + 2.0 * Lookup[SHEAR_MODULUS][itype]) / Lookup[REFERENCE_DENSITY][itype]);
 	Lookup[BULK_MODULUS][itype] = Lookup[LAME_LAMBDA][itype] + 2.0 * Lookup[SHEAR_MODULUS][itype] / 3.0;
 	Lookup[VISCOSITY_Q1_times_SIGNAL_VELOCITY][itype] = Lookup[VISCOSITY_Q1][itype] * Lookup[SIGNAL_VELOCITY][itype];
-	Lookup[HOURGLASS_CONTROL_AMPLITUDE_over_REFERENCE_DENSITY_times_SIGNAL_VELOCITY][itype] = Lookup[HOURGLASS_CONTROL_AMPLITUDE][itype] * Lookup[SIGNAL_VELOCITY][itype] / Lookup[REFERENCE_DENSITY][itype];
 	Lookup[HOURGLASS_CONTROL_AMPLITUDE_times_YOUNGS_MODULUS][itype] = Lookup[HOURGLASS_CONTROL_AMPLITUDE][itype] * Lookup[YOUNGS_MODULUS][itype];
+	Lookup[LONGITUDINAL_MODULUS][itype] = Lookup[LAME_LAMBDA][itype] + 2.0 * Lookup[SHEAR_MODULUS][itype];
 
 	if (comm->me == 0) {
 		printf("\n material unspecific properties for SMD/TLSPH definition of particle type %d:\n", itype);
