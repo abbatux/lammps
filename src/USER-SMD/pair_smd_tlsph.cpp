@@ -645,38 +645,21 @@ void PairTlsph::ComputeForces(int eflag, int vflag) {
 
 			/* SPH-like hourglass formulation */
 
-			if (MAX(plastic_strain[i], plastic_strain[j]) > 1.0e-3) {
-				/*
-				 * viscous hourglass formulation for particles with plastic deformation
-				 */
-				delta = gamma.dot(dx);
-				if (delVdotDelR * delta < 0.0) {
-					hg_err = MAX(hg_err, 0.05); // limit hg_err to avoid numerical instabilities
-					// hg_mag = -hg_err * Lookup[HOURGLASS_CONTROL_AMPLITUDE_over_REFERENCE_DENSITY_times_SIGNAL_VELOCITY][itype] * mu_ij;// this has units of pressure
-					hg_mag = -hg_err * Lookup[HOURGLASS_CONTROL_AMPLITUDE][itype] * mu_ij;// this has units of pressure
-					// hg_mag *= 0.5 * (sqrt((1.0-damage[i])*detF[i]) + sqrt((1.0-damage[j])*detF[j]));
-					hg_mag *= 0.5 * (sqrt((Lookup[LONGITUDINAL_MODULUS][itype]) * (1.0 - damage[i])/(rho[i]*rho[i]*rho[i]))
-							 + sqrt((Lookup[LONGITUDINAL_MODULUS][itype]) * (1.0 - damage[j])/(rho[j]*rho[j]*rho[j])));
-					f_hg = rmassij * hg_mag * wfd * dx_normalized;
-				} else {
-					hg_mag = 0.0;
-					f_hg = Vector3d(0.0, 0.0, 0.0);
-				}
+			gamma_dot_dx_normalized = gamma.dot(dx_normalized); // project hourglass error vector onto pair distance vector
+			LimitDoubleMagnitude(gamma_dot_dx_normalized, 0.1); // limit projected vector to avoid numerical instabilities
+			delta = gamma_dot_dx_normalized; // delta has dimensions of [m]
 
+			if (MAX(plastic_strain[i], plastic_strain[j]) > 1.0e-3) {
+				hg_mag = -voli * vwf * Lookup[HOURGLASS_CONTROL_AMPLITUDE][itype] * MIN(Lookup[YOUNGS_MODULUS][itype], 0.5 * (flowstress.evaluate_derivative(plastic_strain[i]) + flowstress.evaluate_derivative(plastic_strain[j])))* delta * r0inv_ * r0inv_; // * (1.0 - 0.5*(damage[i] + damage[j])) * scale_i * scale_j; removed because their is no damage without plasticity // hg_mag has dimensions [J*m^(-1)] = [N]
 			} else {
 				/*
 				 * stiffness hourglass formulation for particle in the elastic regime
 				 */
 
-				gamma_dot_dx_normalized = gamma.dot(dx_normalized); // project hourglass error vector onto pair distance vector
-				LimitDoubleMagnitude(gamma_dot_dx_normalized, 0.1); // limit projected vector to avoid numerical instabilities
-				delta = gamma_dot_dx_normalized; // delta has dimensions of [m]
 				hg_mag = -voli * vwf * Lookup[HOURGLASS_CONTROL_AMPLITUDE_times_YOUNGS_MODULUS][itype] * delta * r0inv_ * r0inv_; // * (1.0 - 0.5*(damage[i] + damage[j])) * scale_i * scale_j; removed because their is no damage without plasticity // hg_mag has dimensions [J*m^(-1)] = [N]
-				f_hg = hg_mag * dx_normalized;
 			}
 
-			// scale hourglass force with damage
-			f_hg *= scale; //(1.0 - damage[i]) * (1.0 - damage[j]);
+			f_hg = hg_mag * dx_normalized;
 
 			// sum stress, viscous, and hourglass forces
 			sumForces = f_stress + f_visc + f_hg; // + f_spring;
