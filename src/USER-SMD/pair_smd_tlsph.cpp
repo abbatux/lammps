@@ -646,15 +646,16 @@ void PairTlsph::ComputeForces(int eflag, int vflag) {
 
 			gamma = 0.5 * (Fincr[i] + Fincr[j]) * dx0 - dx;
 			r0inv_ = 1.0/r0_;
+			gamma *= r0inv_;
 
 			/* SPH-like hourglass formulation */
 
 			//delta = gamma.dot(dx_normalized); // project hourglass error vector onto normalized pair distance vector, delta has dimensions of [m]
-			hg_err = gamma.norm() * r0inv_;
+			hg_err = gamma.norm();
 			hourglass_error[i] += vwf * hg_err;
 			//LimitDoubleMagnitude(delta, 0.5); // limit delta to avoid numerical instabilities
 
-			f_hg = -voli * vwf * gamma * r0inv_ * r0inv_;
+			f_hg = -voli * vwf * gamma * r0inv_;
 			if (MAX(plastic_strain[i], plastic_strain[j]) > 1.0e-3) {
 				/*
 				 * stiffness hourglass formulation for particle in the plastic regime
