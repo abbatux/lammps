@@ -49,6 +49,7 @@
 #include "smd_material_models.h"
 #include "smd_kernels.h"
 #include "smd_math.h"
+#include "output.h"
 using namespace SMD_Kernels;
 using namespace Eigen;
 using namespace std;
@@ -651,8 +652,11 @@ void PairTlsph::ComputeForces(int eflag, int vflag) {
 			/* SPH-like hourglass formulation */
 
 			//delta = gamma.dot(dx_normalized); // project hourglass error vector onto normalized pair distance vector, delta has dimensions of [m]
-			hg_err = gamma.norm();
-			hourglass_error[i] += vwf * hg_err;
+			if (output->next_dump_any == update->ntimestep) {
+			  // Calculate hg_err only for steps at which dumps are created.
+			  hg_err = gamma.norm();
+			  hourglass_error[i] += vwf * hg_err;
+			}
 			//LimitDoubleMagnitude(delta, 0.5); // limit delta to avoid numerical instabilities
 
 			f_hg = -voli * vwf * gamma * r0inv_;
