@@ -90,8 +90,9 @@ PairTlsph::PairTlsph(LAMMPS *lmp) :
 	dtCFL = 0.0; // initialize dtCFL so it is set to safe value if extracted on zero-th timestep
 	rSqMin = NULL;
 	flowstress_slope = NULL;
+	shepardWeight = NULL;
 
-	comm_forward = 25; // this pair style communicates 20 doubles to ghost atoms : PK1 tensor + F tensor + shepardWeight + damage_increment + npartner + flowstress_slope
+	comm_forward = 25; // this pair style communicates 20 doubles to ghost atoms : PK1 tensor + F tensor + damage_increment + npartner + flowstress_slope
 	fix_tlsph_reference_configuration = NULL;
 
 	cut_comm = MAX(neighbor->cutneighmax, comm->cutghostuser); // cutoff radius within which ghost atoms are communicated.
@@ -132,6 +133,7 @@ PairTlsph::~PairTlsph() {
 		delete[] damage_increment;
 		delete[] rSqMin;
 		delete[] flowstress_slope;
+		delete[] shepardWeight;
 
 		delete[] failureModel;
 	}
@@ -165,7 +167,7 @@ void PairTlsph::PreCompute() {
 	float **degradation_ij = ((FixSMD_TLSPH_ReferenceConfiguration *) modify->fix[ifix_tlsph])->degradation_ij;
 	Vector3d **partnerdx = ((FixSMD_TLSPH_ReferenceConfiguration *) modify->fix[ifix_tlsph])->partnerdx;
 	Vector3d **g_list = ((FixSMD_TLSPH_ReferenceConfiguration *) modify->fix[ifix_tlsph])->g_list;
-	double rSq, wf, vwf, wfd, h, irad, voli, volj, shepardWeight, scale;
+	double rSq, wf, vwf, wfd, h, irad, voli, volj, scale;
 	Vector3d dx, dx0, dx0mirror, dv, g;
 	Matrix3d L, U, eye;
 	Vector3d vi, vj, vinti, vintj, xi, xj, x0i, x0j, dvint;
@@ -196,14 +198,13 @@ void PairTlsph::PreCompute() {
 
 			// initialize aveage mass density
 			h = 2.0 * radius[i];
-			//r0 = 0.0;
 			spiky_kernel_and_derivative(h, 0.0, domain->dimension, wf, wfd);
 
 			jnum = npartner[i];
 			irad = radius[i];
 			voli = vfrac[i];
 
-			shepardWeight = wf * voli;
+			shepardWeight[i] = wf * voli;
 
 			// initialize Eigen data structures from LAMMPS data structures
 			for (idim = 0; idim < 3; idim++) {
@@ -288,8 +289,7 @@ void PairTlsph::PreCompute() {
 				Fdot[i].noalias() -= dv * g.transpose();
 				Fincr[i].noalias() -= (dx - dx0) * g.transpose();
 
-				if (update->ntimestep > 1 && npartner[j] == 0) printf("Step %d, npartner[%d] == %f\n", update->ntimestep, tag[j], npartner[j]);
-				shepardWeight += vwf;
+				shepardWeight[i] += vwf;
 				smoothVelDifference[i].noalias() += vwf * dvint;
 
 				// if ((tag[i] == 18268 && tag[j] == 17854)||(tag[i] == 17854 && tag[j] == 18268)||(tag[i] == 17853 && tag[j] == 17854)||(tag[i] == 17854 && tag[j] == 17853)||(tag[i] == 18268 && tag[j] == 18267)||(tag[i] == 18267 && tag[j] == 18268)||(tag[i] == 17854 && tag[j] == 17440) || (tag[i] == 17025 && tag[j] == 17439) || (tag[i] == 17439 && tag[j] == 17025)) {
@@ -300,8 +300,8 @@ void PairTlsph::PreCompute() {
 			} // end loop over j
 
 			// normalize average velocity field around an integration point
-			if (shepardWeight > 0.0) {
-			  smoothVelDifference[i] /= shepardWeight;
+			if (shepardWeight[i] > 0.0) {
+			  smoothVelDifference[i] /= shepardWeight[i];
 			} else {
 				smoothVelDifference[i].setZero();
 			}
@@ -414,6 +414,8 @@ void PairTlsph::compute(int eflag, int vflag) {
 		rSqMin = new double[nmax];
 		delete[] flowstress_slope;
 		flowstress_slope = new double[nmax];
+		delete[] shepardWeight;
+	        shepardWeight = new double[nmax];
 	}
 
 	if (first) { // return on first call, because reference connectivity lists still needs to be built. Also zero quantities which are otherwise undefined.
@@ -480,7 +482,7 @@ void PairTlsph::ComputeForces(int eflag, int vflag) {
 	int i, j, jj, jnum, itype, idim;
 	double r, vwf, wf, wfd, h, r0_, r0inv_, voli, volj, r_plus_h_inv;
 	double delVdotDelR, visc_magnitude, deltaE, mu_ij, hg_err, scale, scale_i, scale_j, rmassij;
-	double softening_strain, shepardWeight;
+	double softening_strain;
 	char str[128];
 	Vector3d fi, fj, dx0, dx, dx_normalized, dv, f_stress, f_hg, dxp_i, dxp_j, gamma, g, gamma_i, gamma_j, x0i, x0j, f_stressbc, fbc;
 	Vector3d xi, xj, vi, vj, f_visc, sumForces, f_spring;
@@ -522,12 +524,6 @@ void PairTlsph::ComputeForces(int eflag, int vflag) {
 		itype = type[i];
 		jnum = npartner[i];
 		voli = vfrac[i];
-
-		// initialize aveage mass density
-		h = 2.0 * radius[i];
-		r = 0.0;
-		spiky_kernel_and_derivative(h, r, domain->dimension, wf, wfd);
-		shepardWeight = wf * voli;
 
 		scale_i = 1.0;
 		if (damage[i] > 0.0) scale_i -= damage[i]/((double) npartner[i]);
@@ -674,6 +670,9 @@ void PairTlsph::ComputeForces(int eflag, int vflag) {
 				f_hg *= Lookup[HOURGLASS_CONTROL_AMPLITUDE_times_YOUNGS_MODULUS][itype];
 			}
 
+			if (shepardWeight[i] != 0.0) {
+			  f_hg /= shepardWeight[i];
+			}
 			// sum stress, viscous, and hourglass forces
 			sumForces = f_stress + f_visc + f_hg; // + f_spring;
 
@@ -694,8 +693,6 @@ void PairTlsph::ComputeForces(int eflag, int vflag) {
 			if (evflag) {
 				ev_tally_xyz(i, j, nlocal, 0, 0.0, 0.0, sumForces(0), sumForces(1), sumForces(2), dx(0), dx(1), dx(2));
 			}
-
-			shepardWeight += vwf;
 
 			// check if a particle has moved too much w.r.t another particle
 			if (r > r0_) {
@@ -719,8 +716,8 @@ void PairTlsph::ComputeForces(int eflag, int vflag) {
 		// if (tag[i] == 18268)
 		//   printf("Step %d, COMPUTE_FORCES Particle %d: f = [%.10e %.10e %.10e]\n",update->ntimestep, tag[i], f[i][0], f[i][1], f[i][2]);
 		if (output->next_dump_any == update->ntimestep) {
-		  if (shepardWeight != 0.0) {
-		    hourglass_error[i] /= shepardWeight;
+		  if (shepardWeight[i] != 0.0) {
+		    hourglass_error[i] /= shepardWeight[i];
 		  }
 		}
 
@@ -2192,6 +2189,8 @@ void *PairTlsph::extract(const char *str, int &i) {
 	  return (void *) rSqMin;
 	} else if (strcmp(str, "smd/tlsph/flowstress_slope") == 0) {
 	  return (void *) flowstress_slope;
+	} else if (strcmp(str, "smd/tlsph/shepardWeight") == 0) {
+	  return (void *) shepardWeight;
 	}
 
 	return NULL;
