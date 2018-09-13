@@ -478,7 +478,7 @@ void PairTlsph::ComputeForces(int eflag, int vflag) {
 	int *type = atom->type;
 	int nlocal = atom->nlocal;
 	int i, j, jj, jnum, itype, idim;
-	double r, hg_mag, vwf, wf, wfd, h, r0_, r0inv_, voli, volj, r_plus_h_inv;
+	double r, vwf, wf, wfd, h, r0_, r0inv_, voli, volj, r_plus_h_inv;
 	double delVdotDelR, visc_magnitude, deltaE, mu_ij, hg_err, scale, scale_i, scale_j, rmassij;
 	double softening_strain, shepardWeight;
 	char str[128];
