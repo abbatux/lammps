@@ -654,12 +654,12 @@ void PairTlsph::ComputeForces(int eflag, int vflag) {
 			hourglass_error[i] += vwf * hg_err;
 			LimitDoubleMagnitude(delta, 0.5); // limit delta to avoid numerical instabilities
 
-			hg_mag = -voli * vwf * delta * r_plus_h_inv * r0inv_;
+			hg_mag = -voli * vwf * delta * r0inv_ * r0inv_;
 			if (MAX(plastic_strain[i], plastic_strain[j]) > 1.0e-3) {
 				/*
 				 * stiffness hourglass formulation for particle in the plastic regime
 				 */
-				hg_mag *= 0.5 * Lookup[HOURGLASS_CONTROL_AMPLITUDE][itype] * (flowstress_slope[i] + flowstress_slope[j]) * (1 - MAX(damage[i], damage[j])); // hg_mag has dimensions [J*m^(-1)] = [N]
+				hg_mag *= 0.25 * Lookup[HOURGLASS_CONTROL_AMPLITUDE][itype] * (flowstress_slope[i] + flowstress_slope[j]) * (1.0-damage[i]) * (1.0-damage[j]); // hg_mag has dimensions [J*m^(-1)] = [N]
 			} else {
 				/*
 				 * stiffness hourglass formulation for particle in the elastic regime
@@ -930,9 +930,9 @@ void PairTlsph::AssembleStress() {
 				  flowstress_slope[i] = Lookup[YOUNGS_MODULUS][itype];
 				}
 
-				// if (damage[i] > 0.0) {
-				//   flowstress_slope[i] *= (1.0 - damage[i]);
-				// }
+				if (damage[i] > 0.0) {
+				  flowstress_slope[i] *= (1.0 - damage[i]);
+				}
 
 			} else { // end if mol > 0
 				PK1[i].setZero();
