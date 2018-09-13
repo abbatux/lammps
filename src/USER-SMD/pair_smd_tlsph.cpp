@@ -234,18 +234,30 @@ void PairTlsph::PreCompute() {
 					continue;
 				}
 
-				// initialize Eigen data structures from LAMMPS data structures
-				for (idim = 0; idim < 3; idim++) {
-					xj(idim) = x[j][idim];
-					x0j(idim) = x0[j][idim];
-					vj(idim) = v[j][idim];
-					vintj(idim) = vint[j][idim];
-				}
 
 				// distance vectors in current and reference configuration, velocity difference
+				// initialize Eigen data structures from LAMMPS data structures without for loop to maximize memory performance
+				x0j(0) = x0[j][0];
+				x0j(1) = x0[j][1];
+				x0j(2) = x0[j][2];
 				dx0 = x0j - x0i;
+
+				// initialize Eigen data structures from LAMMPS data structures
+				xj(0) = x[j][0];
+				xj(1) = x[j][1];
+				xj(2) = x[j][2];
 				dx = xj - xi;
+
+				// initialize Eigen data structures from LAMMPS data structures
+				vj(0) = v[j][0];
+				vj(1) = v[j][1];
+				vj(2) = v[j][2];
 				dv = vj - vi;
+
+				// initialize Eigen data structures from LAMMPS data structures
+				vintj(0) = vint[j][0];
+				vintj(1) = vint[j][1];
+				vintj(2) = vint[j][2];
 				dvint = vintj - vinti;
 
 				dv *= (1-damage[j]);
@@ -554,26 +566,31 @@ void PairTlsph::ComputeForces(int eflag, int vflag) {
 				error->all(FLERR, str);
 			}
 			
-			for (idim = 0; idim < 3; idim++) {
-				x0j(idim) = x0[j][idim];
-				xj(idim) = x[j][idim];
-				vj(idim) = v[j][idim];
-			}
+			x0j(0) = x0[j][0];
+			x0j(1) = x0[j][1];
+			x0j(2) = x0[j][2];
+
+			// check that distance between i and j (in the reference config) is less than cutoff
+			dx0 = x0j - x0i;
 
 			if (periodic)
 				domain->minimum_image(dx0(0), dx0(1), dx0(2));
 
-			// check that distance between i and j (in the reference config) is less than cutoff
-			dx0 = x0j - x0i;
 			h = radius[i] + radius[j];
 			hMin = MIN(hMin, h);
 			r0_ = r0[i][jj];
 			volj = vfrac[j];
 
 			// distance vectors in current and reference configuration, velocity difference
+			xj(0) = x[j][0];
+			xj(1) = x[j][1];
+			xj(2) = x[j][2];
 			dx = xj - xi;
-			dv = vj - vi;
 
+			vj(0) = v[j][0];
+			vj(1) = v[j][1];
+			vj(2) = v[j][2];
+			dv = vj - vi;
 			dv *= (1-damage[j]);
 
 			if (failureModel[itype].integration_point_wise == true) {
