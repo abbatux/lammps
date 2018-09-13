@@ -478,7 +478,7 @@ void PairTlsph::ComputeForces(int eflag, int vflag) {
 	int nlocal = atom->nlocal;
 	int i, j, jj, jnum, itype, idim;
 	double r, hg_mag, vwf, wf, wfd, h, r0_, r0inv_, voli, volj, r_plus_h_inv;
-	double delVdotDelR, visc_magnitude, deltaE, mu_ij, hg_err, delta, scale, scale_i, scale_j, rmassij;
+	double delVdotDelR, visc_magnitude, deltaE, mu_ij, hg_err, scale, scale_i, scale_j, rmassij;
 	double softening_strain, shepardWeight;
 	char str[128];
 	Vector3d fi, fj, dx0, dx, dx_normalized, dv, f_stress, f_hg, dxp_i, dxp_j, gamma, g, gamma_i, gamma_j, x0i, x0j, f_stressbc, fbc;
@@ -649,25 +649,23 @@ void PairTlsph::ComputeForces(int eflag, int vflag) {
 
 			/* SPH-like hourglass formulation */
 
-			delta = gamma.dot(dx_normalized); // project hourglass error vector onto normalized pair distance vector, delta has dimensions of [m]
-			hg_err = delta * r0inv_;
+			//delta = gamma.dot(dx_normalized); // project hourglass error vector onto normalized pair distance vector, delta has dimensions of [m]
+			hg_err = gamma.norm() * r0inv_;
 			hourglass_error[i] += vwf * hg_err;
-			LimitDoubleMagnitude(delta, 0.5); // limit delta to avoid numerical instabilities
+			//LimitDoubleMagnitude(delta, 0.5); // limit delta to avoid numerical instabilities
 
-			hg_mag = -voli * vwf * delta * r0inv_ * r0inv_;
+			f_hg = -voli * vwf * gamma * r0inv_ * r0inv_;
 			if (MAX(plastic_strain[i], plastic_strain[j]) > 1.0e-3) {
 				/*
 				 * stiffness hourglass formulation for particle in the plastic regime
 				 */
-				hg_mag *= 0.25 * Lookup[HOURGLASS_CONTROL_AMPLITUDE][itype] * (flowstress_slope[i] + flowstress_slope[j]) * (1.0-damage[i]) * (1.0-damage[j]); // hg_mag has dimensions [J*m^(-1)] = [N]
+				f_hg *= 0.25 * Lookup[HOURGLASS_CONTROL_AMPLITUDE][itype] * (flowstress_slope[i] + flowstress_slope[j]) * (1.0-damage[i]) * (1.0-damage[j]); // hg_mag has dimensions [J*m^(-1)] = [N]
 			} else {
 				/*
 				 * stiffness hourglass formulation for particle in the elastic regime
 				 */
-				hg_mag *= Lookup[HOURGLASS_CONTROL_AMPLITUDE_times_YOUNGS_MODULUS][itype];
+				f_hg *= Lookup[HOURGLASS_CONTROL_AMPLITUDE_times_YOUNGS_MODULUS][itype];
 			}
-
-			f_hg = hg_mag * dx_normalized;
 
 			// sum stress, viscous, and hourglass forces
 			sumForces = f_stress + f_visc + f_hg; // + f_spring;
