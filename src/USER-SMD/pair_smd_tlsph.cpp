@@ -611,9 +611,11 @@ void PairTlsph::ComputeForces(int eflag, int vflag) {
 			 * force contribution -- note that the kernel gradient correction has been absorbed into PK1
 			 */
 			if (damage[i] < 1.0 && damage[j] < 1.0) {
-
-			  f_stress = -(voli * volj) * (PK1[j]*(1-damage[i]) + PK1[i]*(1-damage[j])) * g;
-
+			  if (damage[i] > 0.0 || damage[j] > 0.0) {
+			    f_stress = -(voli * volj) * (PK1[j]*(1-damage[i]) + PK1[i]*(1-damage[j])) * g;
+			  } else {
+			    f_stress = -(voli * volj) * (PK1[j] + PK1[i]) * g;
+			  }
 			} else {
 			  f_stress.setZero();
 			}
@@ -650,14 +652,14 @@ void PairTlsph::ComputeForces(int eflag, int vflag) {
 			delta = gamma.dot(dx_normalized); // project hourglass error vector onto normalized pair distance vector, delta has dimensions of [m]
 			hg_err = delta * r0inv_;
 			hourglass_error[i] += vwf * hg_err;
-			LimitDoubleMagnitude(delta, 0.1); // limit delta to avoid numerical instabilities
+			LimitDoubleMagnitude(delta, 0.5); // limit delta to avoid numerical instabilities
 
-			hg_mag = -voli * vwf * delta * r0inv_ * r0inv_;
+			hg_mag = -voli * vwf * delta * r_plus_h_inv * r0inv_;
 			if (MAX(plastic_strain[i], plastic_strain[j]) > 1.0e-3) {
 				/*
 				 * stiffness hourglass formulation for particle in the plastic regime
 				 */
-				hg_mag *= 0.5 * Lookup[HOURGLASS_CONTROL_AMPLITUDE][itype] * (flowstress_slope[i] + flowstress_slope[j]); // hg_mag has dimensions [J*m^(-1)] = [N]
+				hg_mag *= 0.5 * Lookup[HOURGLASS_CONTROL_AMPLITUDE][itype] * (flowstress_slope[i] + flowstress_slope[j]) * (1 - MAX(damage[i], damage[j])); // hg_mag has dimensions [J*m^(-1)] = [N]
 			} else {
 				/*
 				 * stiffness hourglass formulation for particle in the elastic regime
@@ -927,6 +929,10 @@ void PairTlsph::AssembleStress() {
 				} else {
 				  flowstress_slope[i] = Lookup[YOUNGS_MODULUS][itype];
 				}
+
+				// if (damage[i] > 0.0) {
+				//   flowstress_slope[i] *= (1.0 - damage[i]);
+				// }
 
 			} else { // end if mol > 0
 				PK1[i].setZero();
