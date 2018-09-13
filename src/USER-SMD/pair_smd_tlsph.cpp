@@ -597,10 +597,12 @@ void PairTlsph::ComputeForces(int eflag, int vflag) {
 			}
 
 			vwf = volj * wf_list[i][jj];
+			if (damage[i] > 0.0) vwf *= 1.0-damage[i];
+			if (damage[j] > 0.0) vwf *= 1.0-damage[j];
+
 			wfd = wfd_list[i][jj];
 
 			if ((failureModel[itype].failure_none == false) && (failureModel[itype].integration_point_wise == false)) {
-			  vwf *= scale;
 			  wfd *= scale;
 			}
 
@@ -664,7 +666,7 @@ void PairTlsph::ComputeForces(int eflag, int vflag) {
 				/*
 				 * stiffness hourglass formulation for particle in the plastic regime
 				 */
-				f_hg *= 0.25 * Lookup[HOURGLASS_CONTROL_AMPLITUDE][itype] * (flowstress_slope[i] + flowstress_slope[j]) * (1.0-damage[i]) * (1.0-damage[j]); // hg_mag has dimensions [J*m^(-1)] = [N]
+				f_hg *= 0.25 * Lookup[HOURGLASS_CONTROL_AMPLITUDE][itype] * (flowstress_slope[i] + flowstress_slope[j]); // hg_mag has dimensions [J*m^(-1)] = [N]
 			} else {
 				/*
 				 * stiffness hourglass formulation for particle in the elastic regime
@@ -716,9 +718,10 @@ void PairTlsph::ComputeForces(int eflag, int vflag) {
 		
 		// if (tag[i] == 18268)
 		//   printf("Step %d, COMPUTE_FORCES Particle %d: f = [%.10e %.10e %.10e]\n",update->ntimestep, tag[i], f[i][0], f[i][1], f[i][2]);
-
-		if (shepardWeight != 0.0) {
-			hourglass_error[i] /= shepardWeight;
+		if (output->next_dump_any == update->ntimestep) {
+		  if (shepardWeight != 0.0) {
+		    hourglass_error[i] /= shepardWeight;
+		  }
 		}
 
 		deltat_1 = sqrt(sqrt(rSqMin[i]) * rmass[i]/ sqrt( f[i][0]*f[i][0] + f[i][1]*f[i][1] + f[i][2]*f[i][2] ));
