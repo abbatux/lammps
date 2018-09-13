@@ -680,7 +680,7 @@ void PairTlsph::ComputeForces(int eflag, int vflag) {
 			// }
 
 			// energy rate -- project velocity onto force vector
-			deltaE = 0.5 * sumForces.dot(dv);
+			deltaE = sumForces.dot(dv);
 
 			// apply forces to pair of particles
 			f[i][0] += sumForces(0);
