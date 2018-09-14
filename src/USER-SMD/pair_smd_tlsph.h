@@ -100,7 +100,7 @@ protected:
 	double *damage_increment;
 	double* rSqMin;
 	double* flowstress_slope;
-	double* shepardWeight;
+	double* shepardWeightInv;
 
 	int nmax; // max number of atoms on this proc
 	double hMin; // minimum kernel radius for two particles
