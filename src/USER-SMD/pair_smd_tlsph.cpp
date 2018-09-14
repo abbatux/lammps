@@ -494,7 +494,7 @@ void PairTlsph::ComputeForces(int eflag, int vflag) {
 	int *type = atom->type;
 	int nlocal = atom->nlocal;
 	int i, j, jj, jnum, itype, idim;
-	double r, vwf, wf, wfd, h, r0_, r0inv_, voli, volj, r_plus_h_inv;
+	double r, vwf, wf, wfd, h, r0_, r0inv_, irad, voli, volj, r_plus_h_inv;
 	double delVdotDelR, visc_magnitude, deltaE, mu_ij, hg_err, scale, scale_i, scale_j, rmassij;
 	double softening_strain;
 	char str[128];
@@ -537,10 +537,11 @@ void PairTlsph::ComputeForces(int eflag, int vflag) {
 
 		itype = type[i];
 		jnum = npartner[i];
+		irad = radius[i];
 		voli = vfrac[i];
 
 		scale_i = 1.0;
-		if (damage[i] > 0.0) scale_i -= damage[i]/((double) npartner[i]);
+		if (damage[i] > 0.0) scale_i -= damage[i]/ npartner[i];
 
 		for (idim = 0; idim < 3; idim++) {
 			x0i(idim) = x0[i][idim];
@@ -554,10 +555,6 @@ void PairTlsph::ComputeForces(int eflag, int vflag) {
 			  error->all(FLERR, "Bond broken not detected during PreCompute - 2!");
 			  continue;
 			}
-
-			//if (mol[j] < 0) {
-			//	continue; // Particle j is not a valid SPH particle (anymore). Skip all interactions with this particle.
-			//}
 
 			if ((abs(mol[i]) != abs(mol[j]))) {
 				continue;
@@ -578,9 +575,8 @@ void PairTlsph::ComputeForces(int eflag, int vflag) {
 			if (periodic)
 				domain->minimum_image(dx0(0), dx0(1), dx0(2));
 
-			h = radius[i] + radius[j];
+			h = irad + radius[j];
 			hMin = MIN(hMin, h);
-			r0_ = r0[i][jj];
 			volj = vfrac[j];
 
 			// distance vectors in current and reference configuration, velocity difference
@@ -672,6 +668,7 @@ void PairTlsph::ComputeForces(int eflag, int vflag) {
 			 */
 
 			gamma = 0.5 * (Fincr[i] + Fincr[j]) * dx0 - dx;
+			r0_ = r0[i][jj];
 			r0inv_ = 1.0/r0_;
 			gamma *= r0inv_;
 
@@ -759,7 +756,7 @@ void PairTlsph::ComputeForces(int eflag, int vflag) {
 		// }
 		particle_dt[i] = MIN(particle_dt[i], deltat_1); // Monaghan deltat_1 
 
-		deltat_2 = sqrt(rmass[i]/ (Lookup[YOUNGS_MODULUS][itype] * 2 * radius[i])); // Make sure that oscillations due to elasticity are well captured. // This needs to be calculated once and for all.
+		deltat_2 = sqrt(rmass[i]/ (Lookup[YOUNGS_MODULUS][itype] * 2 * irad)); // Make sure that oscillations due to elasticity are well captured. // This needs to be calculated once and for all.
 		particle_dt[i] = MIN(particle_dt[i], deltat_2);
 		dtCFL = MIN(dtCFL, particle_dt[i]);
 
@@ -2811,7 +2808,11 @@ void PairTlsph::UpdateDegradation() {
 			    partnerdx[i][jj] = dx;
 			  }
 
-			  degradation_ij[i][jj] = damage[j]/((double) npartner[j]);
+			  if (damage[j] > 0.0) {
+			    degradation_ij[i][jj] = damage[j]/ npartner[j];
+			  } else {
+			    degradation_ij[i][jj] = 0;
+			  }
 
 			  //if (damage[i] >= 1.0) degradation_ij[i][jj] = 1.0;
 
