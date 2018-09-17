@@ -87,7 +87,7 @@ protected:
 	/*
 	 * per atom arrays
 	 */
-	Eigen::Matrix3d *K,  *PK1, *Fdot, *Fincr; 
+	Eigen::Matrix3d *PK1, *Fdot, *Fincr; 
 	Eigen::Matrix3d *R; // rotation matrix
 	Eigen::Matrix3d *FincrInv;
 	Eigen::Matrix3d *D, *W; // strain rate and spin tensor

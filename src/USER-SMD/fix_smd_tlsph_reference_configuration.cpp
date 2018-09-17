@@ -72,6 +72,7 @@ FixSMD_TLSPH_ReferenceConfiguration::FixSMD_TLSPH_ReferenceConfiguration(LAMMPS 
 	partnerdx = NULL;
 	r0 = NULL;
 	g_list = NULL;
+	K = NULL;
 	grow_arrays(atom->nmax);
 	atom->add_callback(0);
 
@@ -102,6 +103,7 @@ FixSMD_TLSPH_ReferenceConfiguration::~FixSMD_TLSPH_ReferenceConfiguration() {
 	memory->destroy(partnerdx);
 	memory->destroy(r0);
 	memory->destroy(g_list);
+	memory->destroy(K);
 }
 
 /* ---------------------------------------------------------------------- */
@@ -278,6 +280,7 @@ void FixSMD_TLSPH_ReferenceConfiguration::setup(int vflag) {
 
 	for (i = 0; i < nlocal; i++) {
 		npartner[i] = 0;
+		K[i].setZero();
 
 		for (jj = 0; jj < maxpartner; jj++) {
 			wfd_list[i][jj] = 0.0;
@@ -305,7 +308,7 @@ void FixSMD_TLSPH_ReferenceConfiguration::setup(int vflag) {
 			x0j[1] = x0[j][1];
 			x0j[2] = x0[j][2];
 
-			dx = x0i - x0j;
+			dx = x0j - x0i;
 			r = dx.norm();
 			h = radius[i] + radius[j];
 
@@ -321,9 +324,10 @@ void FixSMD_TLSPH_ReferenceConfiguration::setup(int vflag) {
 				wfd_list[i][npartner[i]] = wfd;
 				wf_list[i][npartner[i]] = wf;
 
-				partnerdx[i][npartner[i]] = -dx;
+				partnerdx[i][npartner[i]] = dx;
 				r0[i][npartner[i]] = r;
-				g_list[i][npartner[i]] = -wfd * dx / r;
+				g_list[i][npartner[i]] = wfd * dx / r;
+				K[i] -= vfrac[j] * g_list[i][npartner[i]] * dx.transpose();
 				npartner[i]++;
 
 				if (j < nlocal) {
@@ -331,15 +335,19 @@ void FixSMD_TLSPH_ReferenceConfiguration::setup(int vflag) {
 					wfd_list[j][npartner[j]] = wfd;
 					wf_list[j][npartner[j]] = wf;
 					
-					partnerdx[j][npartner[j]] = dx;
+					partnerdx[j][npartner[j]] = -dx;
 					r0[j][npartner[j]] = r;
-					g_list[j][npartner[j]] = wfd * dx / r;
+					g_list[j][npartner[j]] = -wfd * dx / r;
+					K[j] += vfrac[j] * g_list[j][npartner[j]] * dx.transpose();
 					npartner[j]++;
 				}
 			}
 		}
 	}
 
+	for (i = 0; i < nlocal; i++) {
+	  pseudo_inverse_SVD(K[i]);
+	}
 	
 	// count number of particles for which this group is active
 
@@ -392,6 +400,7 @@ double FixSMD_TLSPH_ReferenceConfiguration::memory_usage() {
 	bytes += nmax * sizeof(int); // npartner array
 	bytes += nmax * maxpartner * sizeof(double); // r0 array
 	bytes += nmax * maxpartner * sizeof(Vector3d); // g_list array
+	bytes += nmax * sizeof(Matrix3d); // K matrix
 	return bytes;
 
 }
@@ -411,6 +420,7 @@ void FixSMD_TLSPH_ReferenceConfiguration::grow_arrays(int nmax) {
 	memory->grow(partnerdx, nmax, maxpartner, "tlsph_refconfig_neigh:partnerdx");
 	memory->grow(r0, nmax, maxpartner, "tlsph_refconfig_neigh:r0");
 	memory->grow(g_list, nmax, maxpartner, "tlsph_refconfig_neigh:g_list");
+	memory->grow(K, nmax, "tlsph_refconfig_neigh:K");
 }
 
 /* ----------------------------------------------------------------------
@@ -419,6 +429,15 @@ void FixSMD_TLSPH_ReferenceConfiguration::grow_arrays(int nmax) {
 
 void FixSMD_TLSPH_ReferenceConfiguration::copy_arrays(int i, int j, int delflag) {
 	npartner[j] = npartner[i];
+	K[j](0) = K[i](0);
+	K[j](1) = K[i](1);
+	K[j](2) = K[i](2);
+	K[j](3) = K[i](3);
+	K[j](4) = K[i](4);
+	K[j](5) = K[i](5);
+	K[j](6) = K[i](6);
+	K[j](7) = K[i](7);
+	K[j](8) = K[i](8);
 	for (int m = 0; m < npartner[j]; m++) {
 		partner[j][m] = partner[i][m];
 		wfd_list[j][m] = wfd_list[i][m];
@@ -443,6 +462,15 @@ int FixSMD_TLSPH_ReferenceConfiguration::pack_exchange(int i, double *buf) {
 
 	int m = 0;
 	buf[m++] = npartner[i];
+	buf[m++] = K[i](0);
+	buf[m++] = K[i](1);
+	buf[m++] = K[i](2);
+	buf[m++] = K[i](3);
+	buf[m++] = K[i](4);
+	buf[m++] = K[i](5);
+	buf[m++] = K[i](6);
+	buf[m++] = K[i](7);
+	buf[m++] = K[i](8);
 	for (int n = 0; n < npartner[i]; n++) {
 		buf[m++] = partner[i][n];
 		buf[m++] = wfd_list[i][n];
@@ -479,6 +507,15 @@ int FixSMD_TLSPH_ReferenceConfiguration::unpack_exchange(int nlocal, double *buf
 
 	int m = 0;
 	npartner[nlocal] = static_cast<int>(buf[m++]);
+	K[nlocal](0) = static_cast<double>(buf[m++]);
+	K[nlocal](1) = static_cast<double>(buf[m++]);
+	K[nlocal](2) = static_cast<double>(buf[m++]);
+	K[nlocal](3) = static_cast<double>(buf[m++]);
+	K[nlocal](4) = static_cast<double>(buf[m++]);
+	K[nlocal](5) = static_cast<double>(buf[m++]);
+	K[nlocal](6) = static_cast<double>(buf[m++]);
+	K[nlocal](7) = static_cast<double>(buf[m++]);
+	K[nlocal](8) = static_cast<double>(buf[m++]);
 	for (int n = 0; n < npartner[nlocal]; n++) {
 		partner[nlocal][n] = static_cast<tagint>(buf[m++]);
 		wfd_list[nlocal][n] = static_cast<float>(buf[m++]);

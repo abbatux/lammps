@@ -73,7 +73,7 @@ PairTlsph::PairTlsph(LAMMPS *lmp) :
 	strengthModel = eos = NULL;
 
 	nmax = 0; // make sure no atom on this proc such that initial memory allocation is correct
-	Fdot = Fincr = K = PK1 = NULL;
+	Fdot = Fincr = PK1 = NULL;
 	R = FincrInv = W = D = NULL;
 	detF = NULL;
 	smoothVelDifference = NULL;
@@ -117,7 +117,6 @@ PairTlsph::~PairTlsph() {
 
 		delete[] Fdot;
 		delete[] Fincr;
-		delete[] K;
 		delete[] detF;
 		delete[] PK1;
 		delete[] smoothVelDifference;
@@ -167,7 +166,12 @@ void PairTlsph::PreCompute() {
 	float **degradation_ij = ((FixSMD_TLSPH_ReferenceConfiguration *) modify->fix[ifix_tlsph])->degradation_ij;
 	Vector3d **partnerdx = ((FixSMD_TLSPH_ReferenceConfiguration *) modify->fix[ifix_tlsph])->partnerdx;
 	Vector3d **g_list = ((FixSMD_TLSPH_ReferenceConfiguration *) modify->fix[ifix_tlsph])->g_list;
+<<<<<<< HEAD
 	double rSq, wf, vwf, wfd, h, irad, voli, volj, shepardWeight, scale;
+=======
+	Matrix3d *K = ((FixSMD_TLSPH_ReferenceConfiguration *) modify->fix[ifix_tlsph])->K;
+	double rSq, wf, vwf, wfd, h, irad, voli, volj, shepardWeight;
+>>>>>>> 210db6f... Calculate K only once in fix_smd_tlsph_reference_configuration.
 	Vector3d dx, dx0, dx0mirror, dv, g;
 	Matrix3d L, U, eye;
 	Vector3d vi, vj, vinti, vintj, xi, xj, x0i, x0j, dvint;
@@ -185,7 +189,6 @@ void PairTlsph::PreCompute() {
 		
 		if (setflag[itype][itype] == 1) {
 
-			K[i].setZero();
 			Fincr[i].setZero();
 			Fdot[i].setZero();
 			numNeighsRefConfig[i] = 0;
@@ -294,17 +297,11 @@ void PairTlsph::PreCompute() {
 				g = volj * g_list[i][jj];
 
 				/* build matrices */;
-				//printf("damage[j]/((float)npartner[j]) = %f\n",1.0 - damage[j]/((float)npartner[j]));
-				K[i].noalias() -= g * dx0.transpose();
 				Fdot[i].noalias() -= dv * g.transpose();
 				Fincr[i].noalias() -= (dx - dx0) * g.transpose();
 
 				shepardWeight += vwf;
 				smoothVelDifference[i].noalias() += vwf * dvint;
-
-				// if ((tag[i] == 18268 && tag[j] == 17854)||(tag[i] == 17854 && tag[j] == 18268)||(tag[i] == 17853 && tag[j] == 17854)||(tag[i] == 17854 && tag[j] == 17853)||(tag[i] == 18268 && tag[j] == 18267)||(tag[i] == 18267 && tag[j] == 18268)||(tag[i] == 17854 && tag[j] == 17440) || (tag[i] == 17025 && tag[j] == 17439) || (tag[i] == 17439 && tag[j] == 17025)) {
-				//   printf("Step %d PRE,  %d-%d: dx = [%.10e %.10e %.10e] dv = [%.10e %.10e %.10e] damage_i=%.10e damage_j=%.10e damage_increment_j = %.10e\n",update->ntimestep, tag[i], tag[j], dx(0), dx(1), dx(2), dv(0), dv(1), dv(2), damage[i], damage[j], damage_increment[j]);
-				// }
 
 				if (damage[j]<1.0) numNeighsRefConfig[i]++;
 			} // end loop over j
@@ -318,8 +315,6 @@ void PairTlsph::PreCompute() {
 				smoothVelDifference[i].setZero();
 			}
 
-
-			pseudo_inverse_SVD(K[i]);
 			Fdot[i] *= K[i];
 			Fincr[i] *= K[i];
 			Fincr[i].noalias() += eye;
@@ -394,8 +389,6 @@ void PairTlsph::compute(int eflag, int vflag) {
 		Fdot = new Matrix3d[nmax]; // memory usage: 9 doubles
 		delete[] Fincr;
 		Fincr = new Matrix3d[nmax]; // memory usage: 9 doubles
-		delete[] K;
-		K = new Matrix3d[nmax]; // memory usage: 9 doubles
 		delete[] PK1;
 		PK1 = new Matrix3d[nmax]; // memory usage: 9 doubles; total 5*9=45 doubles
 		delete[] detF;
@@ -785,6 +778,7 @@ void PairTlsph::AssembleStress() {
 	Matrix3d sigma_rate, eye, sigmaInitial, sigmaFinal, T, T_damaged, Jaumann_rate, sigma_rate_check;
 	Matrix3d d_dev, sigmaInitial_dev, sigmaFinal_dev, sigma_dev_rate, strain, deltaSigma;
 	Vector3d vi;
+	Matrix3d *K = ((FixSMD_TLSPH_ReferenceConfiguration *) modify->fix[ifix_tlsph])->K;
 
 	eye.setIdentity();
 	//dtCFL = 1.0e22;
