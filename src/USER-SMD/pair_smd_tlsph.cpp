@@ -641,27 +641,12 @@ void PairTlsph::ComputeForces(int eflag, int vflag) {
 			/*
 			 * artificial viscosity
 			 */
-			if (Lookup[VISCOSITY_Q1_times_SIGNAL_VELOCITY][itype] != 0 && Lookup[VISCOSITY_Q2][itype] != 0 ) {
-			  r_plus_h_inv = 1 / (r + 0.1 * h);
-			  dx_normalized = dx * r_plus_h_inv;
-			  delVdotDelR = dx_normalized.dot(dv); // project relative velocity onto unit particle distance vector [m/s]
-			  rmassij = rmass[i] * rmass[j];
-			  LimitDoubleMagnitude(delVdotDelR, 0.01 * Lookup[SIGNAL_VELOCITY][itype]);
-			  mu_ij = h * delVdotDelR * r_plus_h_inv; // units: [m * m/s / m = m/s]
-
-			  if (delVdotDelR <= 0.0) { // i.e. if (dx.dot(dv) < 0) // To be consistent with the viscosity proposed by Monaghan
-			    f_visc = rmassij * mu_ij * wfd * dx_normalized /(rho[i] + rho[j]) * 2;
-			    if (Lookup[VISCOSITY_Q2][itype] == 0) {
-			      f_visc *= -Lookup[VISCOSITY_Q1_times_SIGNAL_VELOCITY][itype];
-			    } else {
-			      f_visc *= -Lookup[VISCOSITY_Q1_times_SIGNAL_VELOCITY][itype] + Lookup[VISCOSITY_Q2][itype] * mu_ij;
-			    }
-			  } else {
-			    f_visc = Vector3d(0.0, 0.0, 0.0);
-			  }
-			} else {
-			  f_visc = Vector3d(0.0, 0.0, 0.0);
-			}
+			r_plus_h_inv = 1 / (r + 0.1 * h);
+			dx_normalized = dx * r_plus_h_inv;
+			delVdotDelR = dx_normalized.dot(dv); // project relative velocity onto unit particle distance vector [m/s]
+			rmassij = rmass[i] * rmass[j];
+			LimitDoubleMagnitude(delVdotDelR, 0.01 * Lookup[SIGNAL_VELOCITY][itype]);
+			mu_ij = h * delVdotDelR * r_plus_h_inv; // units: [m * m/s / m = m/s]
 
 			/*
 			 * hourglass deviation of particles i and j
@@ -671,6 +656,18 @@ void PairTlsph::ComputeForces(int eflag, int vflag) {
 			r0_ = r0[i][jj];
 			r0inv_ = 1.0/r0_;
 			gamma *= r0inv_;
+
+			if (delVdotDelR <= 0.0) { // i.e. if (dx.dot(dv) < 0) // To be consistent with the viscosity proposed by Monaghan
+			  f_visc = rmassij * mu_ij * wfd * dx_normalized /(rho[i] + rho[j]) * 2;
+			  if (MAX(plastic_strain[i], plastic_strain[j]) > 1.0e-3) {
+			    f_visc *= -Lookup[VISCOSITY_Q1_times_SIGNAL_VELOCITY][itype] - Lookup[HOURGLASS_CONTROL_AMPLITUDE][itype] * gamma.dot(dx_normalized) + Lookup[VISCOSITY_Q2][itype] * mu_ij;
+			  } else {
+			    f_visc *= -Lookup[VISCOSITY_Q1_times_SIGNAL_VELOCITY][itype] + Lookup[VISCOSITY_Q2][itype] * mu_ij;
+			  }
+			} else {
+			  f_visc = Vector3d(0.0, 0.0, 0.0);
+			}
+
 
 			/* SPH-like hourglass formulation */
 
