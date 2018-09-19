@@ -671,7 +671,7 @@ void PairTlsph::ComputeForces(int eflag, int vflag) {
 				/*
 				 * stiffness hourglass formulation for particle in the plastic regime
 				 */
-				f_hg *= 0.25 * Lookup[HOURGLASS_CONTROL_AMPLITUDE][itype] * (flowstress_slope[i] + flowstress_slope[j]); // hg_mag has dimensions [J*m^(-1)] = [N]
+				f_hg *= 0.25 * Lookup[HOURGLASS_CONTROL_AMPLITUDE][itype] * (flowstress_slope[i] + flowstress_slope[j])*(1-0.5*(damage[i] + damage[j]));
 			} else {
 				/*
 				 * stiffness hourglass formulation for particle in the elastic regime
