@@ -260,13 +260,21 @@ void PairTlsph::PreCompute() {
 				vintj(2) = vint[j][2];
 				dvint = vintj - vinti;
 
-				dv *= (1-damage[j]);
-				dvint *= (1-damage[j]);
+				if (degradation_ij[i][jj] > 0.0) {
+				  scale = 1 - degradation_ij[i][jj];
+				} else {
+				  scale = 1.0;
+				}
+
+				volj = vfrac[j];
 
 				if (failureModel[itype].integration_point_wise == true) {
-				  if (damage[j] > 0.0) {
+				  if (scale < 1.0) {
+				    dv *= (1-damage[j]);
+				    dvint *= (1-damage[j]);
 				    partnerdx[i][jj] += dt * dv;
 				    dx = partnerdx[i][jj];
+				    volj *= scale;
 				    }
 				}
 
@@ -279,20 +287,10 @@ void PairTlsph::PreCompute() {
 				if (periodic)
 					domain->minimum_image(dx0(0), dx0(1), dx0(2));
 
-				h = irad + radius[j];
-
-				volj = vfrac[j];
-				if (damage[j] > 0.0) {
-				  scale =  1.0-degradation_ij[i][jj];
-				  volj *= scale;
-				} else {
-				  scale = 1.0;
-				}
 
 				vijSq_max[i] = MAX(dv.squaredNorm(), vijSq_max[i]);
 
 				vwf = volj * wf_list[i][jj];
-				//wfd = wfd_list[i][jj];
 				g = volj * g_list[i][jj];
 
 				/* build matrices */;
@@ -540,15 +538,14 @@ void PairTlsph::ComputeForces(int eflag, int vflag) {
 		irad = radius[i];
 		voli = vfrac[i];
 
-		scale_i = 1.0;
-		if (damage[i] > 0.0) scale_i -= damage[i]/ npartner[i];
-
 		for (idim = 0; idim < 3; idim++) {
 			x0i(idim) = x0[i][idim];
 			xi(idim) = x[i][idim];
 			vi(idim) = v[i][idim];
 		}
-		
+		scale_i = 1.0;
+		if (damage[i] > 0.0) scale_i -= damage[i]/ npartner[i];
+
 		for (jj = 0; jj < jnum; jj++) {
 			j = atom->map(partner[i][jj]);
 			if (j < 0) { //			// check if lost a partner without first breaking bond
@@ -589,13 +586,7 @@ void PairTlsph::ComputeForces(int eflag, int vflag) {
 			vj(1) = v[j][1];
 			vj(2) = v[j][2];
 			dv = vj - vi;
-			dv *= (1-damage[j]);
 
-			if (failureModel[itype].integration_point_wise == true) {
-			  if (damage[j] > 0.0) {
-			    dx = partnerdx[i][jj];
-			  }
-			}
 
 			r = dx.norm(); // current distance
 
@@ -604,22 +595,18 @@ void PairTlsph::ComputeForces(int eflag, int vflag) {
 			if (failureModel[itype].failure_none == true) {
 			  scale = 1.0;
 			} else {
-			  scale = 1.0;//CalculateScale(MAX(damage[i], damage[j]), itype);
+			  scale = 1.0 - degradation_ij[i][jj];
 			}
 
-			vwf = volj * wf_list[i][jj];
-			if (damage[i] > 0.0) vwf *= 1.0-damage[i];
-			if (damage[j] > 0.0) vwf *= 1.0-damage[j];
-
-			wfd = wfd_list[i][jj];
-
-			if ((failureModel[itype].failure_none == false) && (failureModel[itype].integration_point_wise == false)) {
-			  wfd *= scale;
+			if (failureModel[itype].integration_point_wise == true) {
+			  if (degradation_ij[i][jj] > 0.0) {
+			    dx = partnerdx[i][jj];
+			    dv *= (1-damage[j]);
+			  }
 			}
-
-			scale_j = 1.0-degradation_ij[i][jj];
-
-			g = g_list[i][jj] * scale_i * scale_j; // uncorrected kernel gradient
+			vwf = volj * wf_list[i][jj] * scale * scale_i;
+			wfd = wfd_list[i][jj] * scale * scale_i;
+			g = g_list[i][jj] * scale * scale_i; // uncorrected kernel gradient
 
 			/*
 			 * force contribution -- note that the kernel gradient correction has been absorbed into PK1
