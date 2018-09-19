@@ -493,7 +493,7 @@ void PairTlsph::ComputeForces(int eflag, int vflag) {
 	int nlocal = atom->nlocal;
 	int i, j, jj, jnum, itype, idim;
 	double r, vwf, wf, wfd, h, r0_, r0inv_, irad, voli, volj, r_plus_h_inv;
-	double delVdotDelR, visc_magnitude, deltaE, mu_ij, hg_err, scale, scale_i, scale_j, rmassij;
+	double delVdotDelR, visc_magnitude, delta, deltaE, mu_ij, hg_err, scale, scale_i, scale_j, rmassij;
 	double softening_strain;
 	char str[128];
 	Vector3d fi, fj, dx0, dx, dx_normalized, dv, f_stress, f_hg, dxp_i, dxp_j, gamma, g, gamma_i, gamma_j, x0i, x0j, f_stressbc, fbc;
@@ -646,19 +646,14 @@ void PairTlsph::ComputeForces(int eflag, int vflag) {
 
 			if (delVdotDelR <= 0.0) { // i.e. if (dx.dot(dv) < 0) // To be consistent with the viscosity proposed by Monaghan
 			  f_visc = rmassij * mu_ij * wfd * dx_normalized /(rho[i] + rho[j]) * 2;
-			  if (MAX(plastic_strain[i], plastic_strain[j]) > 1.0e-3) {
-			    f_visc *= -Lookup[VISCOSITY_Q1_times_SIGNAL_VELOCITY][itype] - Lookup[HOURGLASS_CONTROL_AMPLITUDE][itype] * gamma.dot(dx_normalized) + Lookup[VISCOSITY_Q2][itype] * mu_ij;
-			  } else {
-			    f_visc *= -Lookup[VISCOSITY_Q1_times_SIGNAL_VELOCITY][itype] + Lookup[VISCOSITY_Q2][itype] * mu_ij;
-			  }
+			  f_visc *= -Lookup[VISCOSITY_Q1_times_SIGNAL_VELOCITY][itype] + Lookup[VISCOSITY_Q2][itype] * mu_ij;
 			} else {
 			  f_visc = Vector3d(0.0, 0.0, 0.0);
 			}
 
-
 			/* SPH-like hourglass formulation */
 
-			//delta = gamma.dot(dx_normalized); // project hourglass error vector onto normalized pair distance vector, delta has dimensions of [m]
+			delta = gamma.dot(dx_normalized); // project hourglass error vector onto normalized pair distance vector, delta has dimensions of [m]
 			if (output->next_dump_any == update->ntimestep) {
 			  // Calculate hg_err only for steps at which dumps are created.
 			  hg_err = gamma.norm();
@@ -666,24 +661,33 @@ void PairTlsph::ComputeForces(int eflag, int vflag) {
 			}
 			//LimitDoubleMagnitude(delta, 0.5); // limit delta to avoid numerical instabilities
 
-			f_hg = -voli * vwf * gamma * r0inv_;
-			if (MAX(plastic_strain[i], plastic_strain[j]) > 1.0e-3) {
-				/*
-				 * stiffness hourglass formulation for particle in the plastic regime
-				 */
-				f_hg *= 0.25 * Lookup[HOURGLASS_CONTROL_AMPLITUDE][itype] * (flowstress_slope[i] + flowstress_slope[j])*(1-0.5*(damage[i] + damage[j]));
-			} else {
-				/*
-				 * stiffness hourglass formulation for particle in the elastic regime
-				 */
-				f_hg *= Lookup[HOURGLASS_CONTROL_AMPLITUDE_times_YOUNGS_MODULUS][itype];
-			}
-
 			if (shepardWeightInv[i] != 0.0) {
-			  f_hg *= shepardWeightInv[i];
+			  f_hg = -voli * vwf * gamma * r0inv_ * shepardWeightInv[i];
+			  if (MAX(plastic_strain[i], plastic_strain[j]) > 1.0e-3) {
+			    /*
+			     * stiffness hourglass formulation for particle in the plastic regime
+			     */
+			    f_hg *= 0.25 * Lookup[HOURGLASS_CONTROL_AMPLITUDE][itype] * (flowstress_slope[i] + flowstress_slope[j])*(1-0.5*(damage[i] + damage[j]));
+			  } else {
+			    /*
+			     * stiffness hourglass formulation for particle in the elastic regime
+			     */
+			    f_hg *= Lookup[HOURGLASS_CONTROL_AMPLITUDE_times_YOUNGS_MODULUS][itype];
+			  }
 			} else {
 			  f_hg.setZero();
 			}
+
+			if (MAX(plastic_strain[i], plastic_strain[j]) > 1.0e-3) {
+			  if ((delVdotDelR < 0.0 && delta > 0.0) || (delVdotDelR > 0.0 && delta < 0.0)) {
+			    if (output->next_dump_any != update->ntimestep) {
+			      // hg_err has not been calculated
+			      hg_err = gamma.norm();
+			    }
+			    f_hg += -rmassij * mu_ij * wfd * dx_normalized /(rho[i] + rho[j]) * 2 * Lookup[HOURGLASS_CONTROL_AMPLITUDE][itype] * hg_err *(1-0.5*(damage[i] + damage[j]));
+			  }
+			}
+
 			// sum stress, viscous, and hourglass forces
 			sumForces = f_stress + f_visc + f_hg; // + f_spring;
 
