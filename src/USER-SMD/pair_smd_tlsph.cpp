@@ -662,7 +662,7 @@ void PairTlsph::ComputeForces(int eflag, int vflag) {
 			//LimitDoubleMagnitude(delta, 0.5); // limit delta to avoid numerical instabilities
 
 			if (shepardWeightInv[i] != 0.0) {
-			  f_hg = -voli * vwf * gamma * r0inv_ * shepardWeightInv[i];
+			  f_hg = -voli * vwf * delta * r0inv_ * shepardWeightInv[i] * dx_normalized;
 			  if (MAX(plastic_strain[i], plastic_strain[j]) > 1.0e-3) {
 			    /*
 			     * stiffness hourglass formulation for particle in the plastic regime
@@ -684,7 +684,7 @@ void PairTlsph::ComputeForces(int eflag, int vflag) {
 			      // hg_err has not been calculated
 			      hg_err = gamma.norm();
 			    }
-			    f_hg += -rmassij * mu_ij * wfd * dx_normalized /(rho[i] + rho[j]) * 2 * Lookup[HOURGLASS_CONTROL_AMPLITUDE][itype] * hg_err *(1-0.5*(damage[i] + damage[j]));
+			    f_hg += -rmassij * mu_ij * wfd * dx_normalized /(rho[i] + rho[j]) * 2 * Lookup[HOURGLASS_CONTROL_AMPLITUDE][itype] * delta *(1-0.5*(damage[i] + damage[j]));
 			  }
 			}
 
