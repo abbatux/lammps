@@ -667,7 +667,7 @@ void PairTlsph::ComputeForces(int eflag, int vflag) {
 			    /*
 			     * stiffness hourglass formulation for particle in the plastic regime
 			     */
-			    f_hg *= 0.25 * Lookup[HOURGLASS_CONTROL_AMPLITUDE][itype] * (flowstress_slope[i] + flowstress_slope[j])*(1-0.5*(damage[i] + damage[j]));
+			    f_hg *= 0.5 * Lookup[HOURGLASS_CONTROL_AMPLITUDE][itype] * (flowstress_slope[i] + flowstress_slope[j])*(1-0.5*(damage[i] + damage[j]));
 			  } else {
 			    /*
 			     * stiffness hourglass formulation for particle in the elastic regime
@@ -684,7 +684,7 @@ void PairTlsph::ComputeForces(int eflag, int vflag) {
 			      // hg_err has not been calculated
 			      hg_err = gamma.norm();
 			    }
-			    f_hg += -rmassij * mu_ij * wfd * dx_normalized * Lookup[SIGNAL_VELOCITY][itype]/(rho[i] + rho[j]) * 2 * Lookup[HOURGLASS_CONTROL_AMPLITUDE][itype] *  delta *(1-0.5*(damage[i] + damage[j]));
+			    f_hg += -rmassij * mu_ij * wfd * dx_normalized * Lookup[SIGNAL_VELOCITY][itype]/(rho[i] + rho[j]) * 2 * Lookup[HOURGLASS_CONTROL_AMPLITUDE][itype] * hg_err *(1-0.5*(damage[i] + damage[j]));
 			  }
 			}
 
