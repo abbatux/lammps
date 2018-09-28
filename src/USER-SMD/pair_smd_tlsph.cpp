@@ -639,7 +639,10 @@ void PairTlsph::ComputeForces(int eflag, int vflag) {
 			 * hourglass deviation of particles i and j
 			 */
 
-			gamma = 0.5 * (Fincr[i] * (1-damage[i]) + Fincr[j] * (1 - damage[j])) * dx0 - dx * (1 - 0.5 * (damage[i] + damage[j]));
+			gamma_i = 0.5 * (Fincr[i] * dx0 - dx)* (1 - damage[i]);
+			gamma_j = 0.5 * (Fincr[j] * dx0 - dx)* (1 - damage[j]);
+
+			gamma = gamma_i + gamma_j;
 			r0_ = r0[i][jj];
 			r0inv_ = 1.0/r0_;
 			gamma *= r0inv_;
