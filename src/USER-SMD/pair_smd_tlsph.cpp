@@ -598,12 +598,12 @@ void PairTlsph::ComputeForces(int eflag, int vflag) {
 			  scale = 1.0 - degradation_ij[i][jj];
 			}
 
-			if (failureModel[itype].integration_point_wise == true) {
-			  if (degradation_ij[i][jj] > 0.0) {
-			    dx = partnerdx[i][jj];
-			    dv *= (1-damage[j]);
-			  }
-			}
+			// if (failureModel[itype].integration_point_wise == true) {
+			//   if (degradation_ij[i][jj] > 0.0) {
+			//     dx = partnerdx[i][jj];
+			//     dv *= (1-damage[j]);
+			//   }
+			// }
 			vwf = volj * wf_list[i][jj] * scale * scale_i;
 			wfd = wfd_list[i][jj] * scale * scale_i;
 			g = g_list[i][jj] * scale * scale_i; // uncorrected kernel gradient
@@ -630,7 +630,7 @@ void PairTlsph::ComputeForces(int eflag, int vflag) {
 			 */
 			r_plus_h_inv = 1 / (r + 0.1 * h);
 			dx_normalized = dx * r_plus_h_inv;
-			delVdotDelR = dx_normalized.dot(dv); // project relative velocity onto unit particle distance vector [m/s]
+			delVdotDelR = dx_normalized.dot(dv) * (1 - damage[i]) * (1 - damage[j]); // project relative velocity onto unit particle distance vector [m/s]
 			rmassij = rmass[i] * rmass[j];
 			LimitDoubleMagnitude(delVdotDelR, 0.01 * Lookup[SIGNAL_VELOCITY][itype]);
 			mu_ij = h * delVdotDelR * r_plus_h_inv; // units: [m * m/s / m = m/s]
@@ -639,7 +639,7 @@ void PairTlsph::ComputeForces(int eflag, int vflag) {
 			 * hourglass deviation of particles i and j
 			 */
 
-			gamma = 0.5 * (Fincr[i] + Fincr[j]) * dx0 - dx;
+			gamma = 0.5 * (Fincr[i] * (1-damage[i]) + Fincr[j] * (1 - damage[j])) * dx0 - dx * (1 - 0.5 * (damage[i] + damage[j]));
 			r0_ = r0[i][jj];
 			r0inv_ = 1.0/r0_;
 			gamma *= r0inv_;
