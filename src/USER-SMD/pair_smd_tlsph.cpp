@@ -496,7 +496,7 @@ void PairTlsph::ComputeForces(int eflag, int vflag) {
 	double delVdotDelR, visc_magnitude, delta, delta_i, delta_j, deltaE, mu_ij, hg_err, scale, scale_i, scale_j, rmassij;
 	double softening_strain;
 	char str[128];
-	Vector3d fi, fj, dx0, dx, dx_normalized, dv, f_stress, f_hg, dxp_i, dxp_j, gamma, g, gamma_i, gamma_j, x0i, x0j, f_stressbc, fbc;
+	Vector3d fi, fj, dx0, dx, dx_normalized, dv, f_stress, f_hg, f_hg_visc, dxp_i, dxp_j, gamma, g, gamma_i, gamma_j, x0i, x0j, f_stressbc, fbc;
 	Vector3d xi, xj, vi, vj, f_visc, sumForces, f_spring;
 	int periodic = (domain->xperiodic || domain->yperiodic || domain->zperiodic);
 
@@ -683,12 +683,12 @@ void PairTlsph::ComputeForces(int eflag, int vflag) {
 			}
 
 			if (MAX(plastic_strain[i], plastic_strain[j]) > 1.0e-3) {
-			  if ((delVdotDelR < 0.0 && delta > 0.0) || (delVdotDelR > 0.0 && delta < 0.0)) {
-			    if (output->next_dump_any != update->ntimestep) {
-			      // hg_err has not been calculated
-			      hg_err = gamma.norm();
-			    }
-			    Vector3d f_hg_visc = -rmassij * mu_ij * Lookup[SIGNAL_VELOCITY][itype]/(rho[i] + rho[j]) * 2 * Lookup[HOURGLASS_CONTROL_AMPLITUDE][itype] * hg_err *(1-0.5*(damage[i] + damage[j])) * K[i] * g;
+			  if (delVdotDelR < 0.0 && delta > 0.0) {
+			    f_hg_visc = -rmassij * mu_ij * Lookup[SIGNAL_VELOCITY][itype]/(rho[i] + rho[j]) * 2 * Lookup[HOURGLASS_CONTROL_AMPLITUDE][itype] *(1-0.5*(damage[i] + damage[j])) * delta * K[i] * g;
+			    f_hg += f_hg_visc.dot(dx0) * r0inv_ * dx_normalized;
+			  }
+			  else if (delVdotDelR > 0.0 && delta < 0.0) {
+			    f_hg_visc = rmassij * mu_ij * Lookup[SIGNAL_VELOCITY][itype]/(rho[i] + rho[j]) * 2 * Lookup[HOURGLASS_CONTROL_AMPLITUDE][itype] *(1-0.5*(damage[i] + damage[j])) * delta * K[i] * g;
 			    f_hg += f_hg_visc.dot(dx0) * r0inv_ * dx_normalized;
 			  }
 			}
