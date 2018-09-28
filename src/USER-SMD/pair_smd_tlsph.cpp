@@ -493,7 +493,7 @@ void PairTlsph::ComputeForces(int eflag, int vflag) {
 	int nlocal = atom->nlocal;
 	int i, j, jj, jnum, itype, idim;
 	double r, vwf, wf, wfd, h, r0_, r0inv_, irad, voli, volj, r_plus_h_inv;
-	double delVdotDelR, visc_magnitude, delta, deltaE, mu_ij, hg_err, scale, scale_i, scale_j, rmassij;
+	double delVdotDelR, visc_magnitude, delta, delta_i, delta_j, deltaE, mu_ij, hg_err, scale, scale_i, scale_j, rmassij;
 	double softening_strain;
 	char str[128];
 	Vector3d fi, fj, dx0, dx, dx_normalized, dv, f_stress, f_hg, dxp_i, dxp_j, gamma, g, gamma_i, gamma_j, x0i, x0j, f_stressbc, fbc;
@@ -639,13 +639,12 @@ void PairTlsph::ComputeForces(int eflag, int vflag) {
 			 * hourglass deviation of particles i and j
 			 */
 
-			gamma_i = 0.5 * (Fincr[i] * dx0 - dx)* (1 - damage[i]);
-			gamma_j = 0.5 * (Fincr[j] * dx0 - dx)* (1 - damage[j]);
-
-			gamma = gamma_i + gamma_j;
 			r0_ = r0[i][jj];
 			r0inv_ = 1.0/r0_;
-			gamma *= r0inv_;
+			gamma_i = 0.5 * (Fincr[i] * dx0 - dx)* (1 - damage[i]) * r0inv_;
+			gamma_j = 0.5 * (Fincr[j] * dx0 - dx)* (1 - damage[j]) * r0inv_;
+
+			gamma = gamma_i + gamma_j;
 
 			if (delVdotDelR <= 0.0) { // i.e. if (dx.dot(dv) < 0) // To be consistent with the viscosity proposed by Monaghan
 			  f_visc = rmassij * mu_ij * wfd * dx_normalized /(rho[i] + rho[j]) * 2;
@@ -656,6 +655,8 @@ void PairTlsph::ComputeForces(int eflag, int vflag) {
 
 			/* SPH-like hourglass formulation */
 
+			delta_i = gamma_i.dot(dx_normalized);
+			delta_j = gamma_j.dot(dx_normalized);
 			delta = gamma.dot(dx_normalized); // project hourglass error vector onto normalized pair distance vector, delta has dimensions of [m]
 			if (output->next_dump_any == update->ntimestep) {
 			  // Calculate hg_err only for steps at which dumps are created.
@@ -665,17 +666,17 @@ void PairTlsph::ComputeForces(int eflag, int vflag) {
 			//LimitDoubleMagnitude(delta, 0.5); // limit delta to avoid numerical instabilities
 
 			if (shepardWeightInv[i] != 0.0) {
-			  f_hg = -voli * vwf * delta * r0inv_ * shepardWeightInv[i] * dx_normalized;
+			  f_hg = -voli * vwf * r0inv_ * shepardWeightInv[i] * dx_normalized;
 			  if (MAX(plastic_strain[i], plastic_strain[j]) > 1.0e-3) {
 			    /*
 			     * stiffness hourglass formulation for particle in the plastic regime
 			     */
-			    f_hg *= 0.5 * Lookup[HOURGLASS_CONTROL_AMPLITUDE][itype] * (flowstress_slope[i] + flowstress_slope[j])*(1-0.5*(damage[i] + damage[j]));
+			    f_hg *= Lookup[HOURGLASS_CONTROL_AMPLITUDE][itype] * (flowstress_slope[i] * (1-damage[i]) * delta_i + flowstress_slope[j] * (1-damage[j]) * delta_j);
 			  } else {
 			    /*
 			     * stiffness hourglass formulation for particle in the elastic regime
 			     */
-			    f_hg *= Lookup[HOURGLASS_CONTROL_AMPLITUDE_times_YOUNGS_MODULUS][itype];
+			    f_hg *= Lookup[HOURGLASS_CONTROL_AMPLITUDE_times_YOUNGS_MODULUS][itype] * delta;
 			  }
 			} else {
 			  f_hg.setZero();
