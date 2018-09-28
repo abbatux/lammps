@@ -688,7 +688,8 @@ void PairTlsph::ComputeForces(int eflag, int vflag) {
 			      // hg_err has not been calculated
 			      hg_err = gamma.norm();
 			    }
-			    f_hg += -rmassij * mu_ij * wfd * dx_normalized * Lookup[SIGNAL_VELOCITY][itype]/(rho[i] + rho[j]) * 2 * Lookup[HOURGLASS_CONTROL_AMPLITUDE][itype] * hg_err *(1-0.5*(damage[i] + damage[j]));
+			    Vector3d f_hg_visc = -rmassij * mu_ij * Lookup[SIGNAL_VELOCITY][itype]/(rho[i] + rho[j]) * 2 * Lookup[HOURGLASS_CONTROL_AMPLITUDE][itype] * hg_err *(1-0.5*(damage[i] + damage[j])) * K[i] * g;
+			    f_hg += f_hg_visc.dot(dx0) * r0inv_ * dx_normalized;
 			  }
 			}
 
