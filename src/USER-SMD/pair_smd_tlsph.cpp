@@ -260,11 +260,11 @@ void PairTlsph::PreCompute() {
 				vintj(2) = vint[j][2];
 				dvint = vintj - vinti;
 
-				if (degradation_ij[i][jj] > 0.0) {
-				  scale = 1 - degradation_ij[i][jj];
-				} else {
-				  scale = 1.0;
-				}
+				// if (degradation_ij[i][jj] > 0.0) {
+				//   scale = 1 - degradation_ij[i][jj];
+				// } else {
+				//   scale = 1.0;
+				// }
 
 				volj = vfrac[j];
 
@@ -274,7 +274,7 @@ void PairTlsph::PreCompute() {
 				    dvint *= (1-damage[j]);
 				    partnerdx[i][jj] += dt * dv;
 				    dx = partnerdx[i][jj];
-				    volj *= scale;
+				    // volj *= scale;
 				    }
 				}
 
@@ -543,8 +543,8 @@ void PairTlsph::ComputeForces(int eflag, int vflag) {
 			xi(idim) = x[i][idim];
 			vi(idim) = v[i][idim];
 		}
-		scale_i = 1.0;
-		if (damage[i] > 0.0) scale_i -= damage[i]/ npartner[i];
+		// scale_i = 1.0;
+		// if (damage[i] > 0.0) scale_i -= damage[i]/ npartner[i];
 
 		for (jj = 0; jj < jnum; jj++) {
 			j = atom->map(partner[i][jj]);
@@ -592,11 +592,11 @@ void PairTlsph::ComputeForces(int eflag, int vflag) {
 
 			// scale the interaction according to the damage variable
 			//scale = CalculateScale(degradation_ij[i][jj], r, r0);
-			if (failureModel[itype].failure_none == true) {
-			  scale = 1.0;
-			} else {
-			  scale = 1.0 - degradation_ij[i][jj];
-			}
+			// if (failureModel[itype].failure_none == true) {
+			//   scale = 1.0;
+			// } else {
+			//   scale = 1.0 - degradation_ij[i][jj];
+			// }
 
 			// if (failureModel[itype].integration_point_wise == true) {
 			//   if (degradation_ij[i][jj] > 0.0) {
@@ -604,9 +604,9 @@ void PairTlsph::ComputeForces(int eflag, int vflag) {
 			//     dv *= (1-damage[j]);
 			//   }
 			// }
-			vwf = volj * wf_list[i][jj] * scale * scale_i;
-			wfd = wfd_list[i][jj] * scale * scale_i;
-			g = g_list[i][jj] * scale * scale_i; // uncorrected kernel gradient
+			vwf = volj * wf_list[i][jj];
+			wfd = wfd_list[i][jj];
+			g = g_list[i][jj]; // uncorrected kernel gradient
 
 			/*
 			 * force contribution -- note that the kernel gradient correction has been absorbed into PK1
