@@ -687,10 +687,10 @@ void PairTlsph::ComputeForces(int eflag, int vflag) {
 			    f_hg_visc = -rmassij * mu_ij * Lookup[SIGNAL_VELOCITY][itype]/(rho[i] + rho[j]) * 2 * Lookup[HOURGLASS_CONTROL_AMPLITUDE][itype] *(1-0.5*(damage[i] + damage[j])) * delta * K[i] * g;
 			    f_hg += f_hg_visc.dot(dx0) * r0inv_ * dx_normalized;
 			  }
-			  // else if (delVdotDelR > 0.0 && delta < 0.0) {
-			  //   f_hg_visc = rmassij * mu_ij * Lookup[SIGNAL_VELOCITY][itype]/(rho[i] + rho[j]) * 2 * Lookup[HOURGLASS_CONTROL_AMPLITUDE][itype] *(1-0.5*(damage[i] + damage[j])) * delta * K[i] * g;
-			  //   f_hg += f_hg_visc.dot(dx0) * r0inv_ * dx_normalized;
-			  // }
+			  else if (delVdotDelR > 0.0 && delta < 0.0) {
+			    f_hg_visc = rmassij * mu_ij * Lookup[SIGNAL_VELOCITY][itype]/(rho[i] + rho[j]) * 2 * Lookup[HOURGLASS_CONTROL_AMPLITUDE][itype] *(1-0.5*(damage[i] + damage[j])) * delta * K[i] * g;
+			    f_hg += f_hg_visc.dot(dx0) * r0inv_ * dx_normalized;
+			  }
 			}
 
 			// sum stress, viscous, and hourglass forces
