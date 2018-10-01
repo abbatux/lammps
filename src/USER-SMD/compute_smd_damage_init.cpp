@@ -34,7 +34,7 @@ ComputeSMDDamageInit::ComputeSMDDamageInit(LAMMPS *lmp, int narg, char **arg) :
   Compute(lmp, narg, arg)
 {
   if (narg != 3) error->all(FLERR,"Illegal compute smd/damage/init command");
-  if (atom->damage_flag != 1) error->all(FLERR,"compute smd/damage/init command requires atom_style with damage_init (e.g. smd)");
+  if (atom->damage_init_flag != 1) error->all(FLERR,"compute smd/damage/init command requires atom_style with damage_init (e.g. smd)");
 
   peratom_flag = 1;
   size_peratom_cols = 0;
