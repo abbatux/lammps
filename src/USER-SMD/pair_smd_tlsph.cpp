@@ -643,7 +643,7 @@ void PairTlsph::ComputeForces(int eflag, int vflag) {
 			r0inv_ = 1.0/r0_;
 			gamma = (0.5 * (Fincr[i] + Fincr[j]) * dx0 - dx) * r0inv_;
 
-			if (delVdotDelR <= 0.0) { // i.e. if (dx.dot(dv) < 0) // To be consistent with the viscosity proposed by Monaghan
+			if (delVdotDelR < 0.0) { // i.e. if (dx.dot(dv) < 0) // To be consistent with the viscosity proposed by Monaghan
 			  f_visc = rmassij * mu_ij * wfd * dx_normalized /(rho[i] + rho[j]) * 2;
 			  f_visc *= -Lookup[VISCOSITY_Q1_times_SIGNAL_VELOCITY][itype] + Lookup[VISCOSITY_Q2][itype] * mu_ij;
 			} else {
