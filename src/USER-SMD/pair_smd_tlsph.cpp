@@ -641,10 +641,7 @@ void PairTlsph::ComputeForces(int eflag, int vflag) {
 
 			r0_ = r0[i][jj];
 			r0inv_ = 1.0/r0_;
-			gamma_i = 0.5 * (Fincr[i] * dx0 - dx)* (1 - damage[i]) * r0inv_;
-			gamma_j = 0.5 * (Fincr[j] * dx0 - dx)* (1 - damage[j]) * r0inv_;
-
-			gamma = gamma_i + gamma_j;
+			gamma = (0.5 * (Fincr[i] + Fincr[j]) * dx0 - dx) * r0inv_;
 
 			if (delVdotDelR <= 0.0) { // i.e. if (dx.dot(dv) < 0) // To be consistent with the viscosity proposed by Monaghan
 			  f_visc = rmassij * mu_ij * wfd * dx_normalized /(rho[i] + rho[j]) * 2;
@@ -671,7 +668,7 @@ void PairTlsph::ComputeForces(int eflag, int vflag) {
 			    /*
 			     * stiffness hourglass formulation for particle in the plastic regime
 			     */
-			    f_hg *= Lookup[HOURGLASS_CONTROL_AMPLITUDE][itype] * (flowstress_slope[i] * (1-damage[i]) * delta_i + flowstress_slope[j] * (1-damage[j]) * delta_j);
+			    f_hg *= Lookup[HOURGLASS_CONTROL_AMPLITUDE][itype] * (flowstress_slope[i] + flowstress_slope[j]) * delta * (1 - damage[i]) * (1 - damage[j]);
 			  } else {
 			    /*
 			     * stiffness hourglass formulation for particle in the elastic regime
@@ -696,9 +693,9 @@ void PairTlsph::ComputeForces(int eflag, int vflag) {
 			// sum stress, viscous, and hourglass forces
 			sumForces = f_stress + f_visc + f_hg; // + f_spring;
 
-			// if ((tag[i] == 18268 && tag[j] == 18267)||(tag[i] == 18267 && tag[j] == 18268)||(tag[i] == 18268 && tag[j] == 18682)||(tag[i] == 18682 && tag[j] == 18268)) {
-			//   printf("Step %d - sumForces[%d][%d] = [%.10e %.10e %.10e] f_stress = [%.10e %.10e %.10e] f_visc = [%.10e %.10e %.10e] f_hg = [%.10e %.10e %.10e] dx = [%.10e %.10e %.10e] xi = [%.10e %.10e %.10e] xj = [%.10e %.10e %.10e]\n",update->ntimestep, tag[i], tag[j], sumForces(0), sumForces(1), sumForces(2), f_stress(0), f_stress(1), f_stress(2), f_visc(0), f_visc(1), f_visc(2), f_hg(0), f_hg(1), f_hg(2), dx(0), dx(1), dx(2), xi(0), xi(1), xi(2), xj(0), xj(1), xj(2));
-			// }
+			if ((tag[i] == 762 && tag[j] == 570)||(tag[i] == 570 && tag[j] == 762)) {
+			  printf("Step %d - sumForces[%d][%d] = [%.10e %.10e %.10e] f_stress = [%.10e %.10e %.10e] f_visc = [%.10e %.10e %.10e] f_hg = [%.10e %.10e %.10e], damagei = %f, damagej = %f\n",update->ntimestep, tag[i], tag[j], sumForces(0), sumForces(1), sumForces(2), f_stress(0), f_stress(1), f_stress(2), f_visc(0), f_visc(1), f_visc(2), f_hg(0), f_hg(1), f_hg(2), damage[i], damage[j]);
+			}
 
 			// energy rate -- project velocity onto force vector
 			deltaE = sumForces.dot(dv);
