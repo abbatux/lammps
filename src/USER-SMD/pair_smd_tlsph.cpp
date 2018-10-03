@@ -493,7 +493,7 @@ void PairTlsph::ComputeForces(int eflag, int vflag) {
 	int nlocal = atom->nlocal;
 	int i, j, jj, jnum, itype, idim;
 	double r, vwf, wf, wfd, h, r0_, r0inv_, irad, voli, volj, r_plus_h_inv;
-	double delVdotDelR, visc_magnitude, delta, delta_i, delta_j, deltaE, mu_ij, hg_err, scale, scale_i, scale_j, rmassij;
+	double delVdotDelR, visc_magnitude, delta, deltaE, mu_ij, hg_err, scale, scale_i, scale_j, rmassij;
 	double softening_strain;
 	char str[128];
 	Vector3d fi, fj, dx0, dx, dx_normalized, dv, f_stress, f_hg, f_hg_visc, dxp_i, dxp_j, gamma, g, gamma_i, gamma_j, x0i, x0j, f_stressbc, fbc;
@@ -652,8 +652,6 @@ void PairTlsph::ComputeForces(int eflag, int vflag) {
 
 			/* SPH-like hourglass formulation */
 
-			delta_i = gamma_i.dot(dx_normalized);
-			delta_j = gamma_j.dot(dx_normalized);
 			delta = gamma.dot(dx_normalized); // project hourglass error vector onto normalized pair distance vector, delta has dimensions of [m]
 			if (output->next_dump_any == update->ntimestep) {
 			  // Calculate hg_err only for steps at which dumps are created.
