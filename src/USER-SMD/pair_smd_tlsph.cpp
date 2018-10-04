@@ -658,6 +658,7 @@ void PairTlsph::ComputeForces(int eflag, int vflag) {
 			  hg_err = gamma.norm();
 			  hourglass_error[i] += vwf * hg_err;
 			}
+
 			//LimitDoubleMagnitude(delta, 0.5); // limit delta to avoid numerical instabilities
 
 			if (shepardWeightInv[i] != 0.0) {
@@ -677,13 +678,16 @@ void PairTlsph::ComputeForces(int eflag, int vflag) {
 			  f_hg.setZero();
 			}
 
+
 			if (MAX(plastic_strain[i], plastic_strain[j]) > 1.0e-3) {
 			  if (delVdotDelR < 0.0 && delta > 0.0) {
-			    f_hg_visc = -rmassij * mu_ij * Lookup[SIGNAL_VELOCITY][itype]/(rho[i] + rho[j]) * 2 * Lookup[HOURGLASS_CONTROL_AMPLITUDE][itype] *(1-0.5*(damage[i] + damage[j])) * delta * K[i] * g;
+			    LimitDoubleMagnitude(delta, 0.05 * r * r0inv_); // limit delta to avoid numerical instabilities
+			    f_hg_visc = -rmassij * mu_ij * Lookup[SIGNAL_VELOCITY][itype]/ Lookup[REFERENCE_DENSITY][itype] * 2 * Lookup[HOURGLASS_CONTROL_AMPLITUDE][itype] *(1-0.5*(damage[i] + damage[j])) * delta * K[i] * g;
 			    f_hg += f_hg_visc.dot(dx0) * r0inv_ * dx_normalized;
 			  }
 			  else if (delVdotDelR > 0.0 && delta < 0.0) {
-			    f_hg_visc = rmassij * mu_ij * Lookup[SIGNAL_VELOCITY][itype]/(rho[i] + rho[j]) * 2 * Lookup[HOURGLASS_CONTROL_AMPLITUDE][itype] *(1-0.5*(damage[i] + damage[j])) * delta * K[i] * g;
+			    LimitDoubleMagnitude(delta, 0.05 * r * r0inv_); // limit delta to avoid numerical instabilities      
+			    f_hg_visc = rmassij * mu_ij * Lookup[SIGNAL_VELOCITY][itype]/ Lookup[REFERENCE_DENSITY][itype] * 2 * Lookup[HOURGLASS_CONTROL_AMPLITUDE][itype] *(1-0.5*(damage[i] + damage[j])) * delta * K[i] * g;
 			    f_hg += f_hg_visc.dot(dx0) * r0inv_ * dx_normalized;
 			  }
 			}
