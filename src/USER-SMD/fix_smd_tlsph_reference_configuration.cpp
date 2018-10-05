@@ -349,11 +349,10 @@ void FixSMD_TLSPH_ReferenceConfiguration::setup(int vflag) {
 
 	for (i = 0; i < nlocal; i++) {
 	  pseudo_inverse_SVD(K[i]);
+	  npartner[i] = 0;
 	}
 	
-	int *nn;
 	Vector3d dx0_normalized;
-	memory->grow(nn, nmax, "nn");
 	for (ii = 0; ii < inum; ii++) {
 		i = ilist[ii];
 		jlist = firstneigh[i];
@@ -368,19 +367,19 @@ void FixSMD_TLSPH_ReferenceConfiguration::setup(int vflag) {
 					continue;
 			}
 
-			dx(0) = x0[i][0] - x0[j][0];
-			dx(1) = x0[i][1] - x0[j][1];
-			dx(2) = x0[i][2] - x0[j][2];
+			dx(0) = x0[j][0] - x0[i][0];
+			dx(1) = x0[j][1] - x0[i][1];
+			dx(2) = x0[j][2] - x0[i][2];
 			r = dx.norm();
 			h = radius[i] + radius[j];
 
-			if (r <= h) {
+			if (r < h) {
 			  dx0_normalized = dx / r;
-			  K_g_dot_dx0_normalized[i][nn[i]] = dx0_normalized.dot(K[i] * g_list[i][nn[i]]);
-			  nn[i]++;
+			  K_g_dot_dx0_normalized[i][npartner[i]] = dx0_normalized.dot(K[i] * g_list[i][npartner[i]]);
+			  npartner[i]++;
 			  if (j < nlocal) {
-			    K_g_dot_dx0_normalized[j][nn[j]] = -dx0_normalized.dot(K[j] * g_list[j][nn[j]]);
-			    nn[j]++;
+			    K_g_dot_dx0_normalized[j][npartner[j]] = -dx0_normalized.dot(K[j] * g_list[j][npartner[j]]);
+			    npartner[j]++;
 			  }
 			}
 		}

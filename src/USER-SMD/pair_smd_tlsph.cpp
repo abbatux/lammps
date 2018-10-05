@@ -479,7 +479,7 @@ void PairTlsph::ComputeForces(int eflag, int vflag) {
 	double delVdotDelR, visc_magnitude, delta, deltaE, mu_ij, hg_err, rmassij;
 	double softening_strain;
 	char str[128];
-	Vector3d fi, fj, dx0, dx, dx_normalized, dv, f_stress, f_hg, f_hg_visc, dxp_i, dxp_j, gamma, g, gamma_i, gamma_j, x0i, x0j, f_stressbc, fbc;
+	Vector3d fi, fj, dx0, dx, dx_normalized, dv, f_stress, f_hg, dxp_i, dxp_j, gamma, g, x0i, x0j, f_stressbc, fbc;
 	Vector3d xi, xj, vi, vj, f_visc, sumForces, f_spring;
 	int periodic = (domain->xperiodic || domain->yperiodic || domain->zperiodic);
 
@@ -657,28 +657,20 @@ void PairTlsph::ComputeForces(int eflag, int vflag) {
 			if (MAX(plastic_strain[i], plastic_strain[j]) > 1.0e-3) {
 			  if (delVdotDelR < 0.0 && delta > 0.0) {
 			    //LimitDoubleMagnitude(delta, 0.05 * r * r0inv_); // limit delta to avoid numerical instabilities
-			    f_hg_visc = -rmassij * mu_ij * Lookup[SIGNAL_VELOCITY_OVER_REFERENCE_DENSITY][itype] * 2 * Lookup[HOURGLASS_CONTROL_AMPLITUDE][itype] *(1-0.5*(damage[i] + damage[j])) * delta * K[i] * g;
-			    f_hg += f_hg_visc.dot(dx0) * r0inv_ * dx_normalized;
-			    Vector3d f_hg_visc_test = -rmassij * mu_ij * Lookup[SIGNAL_VELOCITY_OVER_REFERENCE_DENSITY][itype] * 2 * Lookup[HOURGLASS_CONTROL_AMPLITUDE][itype] *(1-0.5*(damage[i] + damage[j])) * delta * K_g_dot_dx0_normalized[i][jj] * dx_normalized;
-			    if (f_hg_visc_test != f_hg_visc.dot(dx0) * r0inv_ * dx_normalized) 
-			      cout << "Warning: f_hg_visc_test : \n" << f_hg_visc_test << endl << "f_hg_visc = \n" << f_hg_visc.dot(dx0) * r0inv_ * dx_normalized << endl;
+			    f_hg -= rmassij * mu_ij * Lookup[SIGNAL_VELOCITY_OVER_REFERENCE_DENSITY][itype] * 2 * Lookup[HOURGLASS_CONTROL_AMPLITUDE][itype] *(1-0.5*(damage[i] + damage[j])) * delta * K_g_dot_dx0_normalized[i][jj] * dx_normalized;
 			  }
 			  else if (delVdotDelR > 0.0 && delta < 0.0) {
 			    LimitDoubleMagnitude(delta, 0.05 * r * r0inv_); // limit delta to avoid numerical instabilities      
-			    f_hg_visc = rmassij * mu_ij * Lookup[SIGNAL_VELOCITY_OVER_REFERENCE_DENSITY][itype] * 2 * Lookup[HOURGLASS_CONTROL_AMPLITUDE][itype] *(1-0.5*(damage[i] + damage[j])) * delta * K[i] * g;
-			    f_hg += f_hg_visc.dot(dx0) * r0inv_ * dx_normalized;
-			    Vector3d f_hg_visc_test = -rmassij * mu_ij * Lookup[SIGNAL_VELOCITY_OVER_REFERENCE_DENSITY][itype] * 2 * Lookup[HOURGLASS_CONTROL_AMPLITUDE][itype] *(1-0.5*(damage[i] + damage[j])) * delta * K_g_dot_dx0_normalized[i][jj] * dx_normalized;
-			    if (f_hg_visc_test != f_hg_visc.dot(dx0) * r0inv_ * dx_normalized) 
-			      cout << "Warning: f_hg_visc_test : \n" << f_hg_visc_test << endl << "f_hg_visc = \n" << f_hg_visc.dot(dx0) * r0inv_ * dx_normalized << endl;
+			    f_hg += rmassij * mu_ij * Lookup[SIGNAL_VELOCITY_OVER_REFERENCE_DENSITY][itype] * 2 * Lookup[HOURGLASS_CONTROL_AMPLITUDE][itype] *(1-0.5*(damage[i] + damage[j])) * delta * K_g_dot_dx0_normalized[i][jj] * dx_normalized;
 			  }
 			}
 
 			// sum stress, viscous, and hourglass forces
 			sumForces = f_stress + f_visc + f_hg; // + f_spring;
 
-			if ((tag[i] == 762 && tag[j] == 570)||(tag[i] == 570 && tag[j] == 762)) {
-			  printf("Step %d - sumForces[%d][%d] = [%.10e %.10e %.10e] f_stress = [%.10e %.10e %.10e] f_visc = [%.10e %.10e %.10e] f_hg = [%.10e %.10e %.10e], damagei = %f, damagej = %f\n",update->ntimestep, tag[i], tag[j], sumForces(0), sumForces(1), sumForces(2), f_stress(0), f_stress(1), f_stress(2), f_visc(0), f_visc(1), f_visc(2), f_hg(0), f_hg(1), f_hg(2), damage[i], damage[j]);
-			}
+			// if ((tag[i] == 762 && tag[j] == 570)||(tag[i] == 570 && tag[j] == 762)) {
+			//   printf("Step %d - sumForces[%d][%d] = [%.10e %.10e %.10e] f_stress = [%.10e %.10e %.10e] f_visc = [%.10e %.10e %.10e] f_hg = [%.10e %.10e %.10e], damagei = %f, damagej = %f\n",update->ntimestep, tag[i], tag[j], sumForces(0), sumForces(1), sumForces(2), f_stress(0), f_stress(1), f_stress(2), f_visc(0), f_visc(1), f_visc(2), f_hg(0), f_hg(1), f_hg(2), damage[i], damage[j]);
+			// }
 
 			// energy rate -- project velocity onto force vector
 			deltaE = sumForces.dot(dv);
