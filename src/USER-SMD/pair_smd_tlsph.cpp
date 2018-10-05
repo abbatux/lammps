@@ -681,13 +681,13 @@ void PairTlsph::ComputeForces(int eflag, int vflag) {
 
 			if (MAX(plastic_strain[i], plastic_strain[j]) > 1.0e-3) {
 			  if (delVdotDelR < 0.0 && delta > 0.0) {
-			    LimitDoubleMagnitude(delta, 0.05 * r * r0inv_); // limit delta to avoid numerical instabilities
-			    f_hg_visc = -rmassij * mu_ij * Lookup[SIGNAL_VELOCITY][itype]/ Lookup[REFERENCE_DENSITY][itype] * 2 * Lookup[HOURGLASS_CONTROL_AMPLITUDE][itype] *(1-0.5*(damage[i] + damage[j])) * delta * K[i] * g;
+			    //LimitDoubleMagnitude(delta, 0.05 * r * r0inv_); // limit delta to avoid numerical instabilities
+			    f_hg_visc = -rmassij * mu_ij * Lookup[SIGNAL_VELOCITY_OVER_REFERENCE_DENSITY][itype] * 2 * Lookup[HOURGLASS_CONTROL_AMPLITUDE][itype] *(1-0.5*(damage[i] + damage[j])) * delta * K[i] * g;
 			    f_hg += f_hg_visc.dot(dx0) * r0inv_ * dx_normalized;
 			  }
 			  else if (delVdotDelR > 0.0 && delta < 0.0) {
 			    LimitDoubleMagnitude(delta, 0.05 * r * r0inv_); // limit delta to avoid numerical instabilities      
-			    f_hg_visc = rmassij * mu_ij * Lookup[SIGNAL_VELOCITY][itype]/ Lookup[REFERENCE_DENSITY][itype] * 2 * Lookup[HOURGLASS_CONTROL_AMPLITUDE][itype] *(1-0.5*(damage[i] + damage[j])) * delta * K[i] * g;
+			    f_hg_visc = rmassij * mu_ij * Lookup[SIGNAL_VELOCITY_OVER_REFERENCE_DENSITY][itype] * 2 * Lookup[HOURGLASS_CONTROL_AMPLITUDE][itype] *(1-0.5*(damage[i] + damage[j])) * delta * K[i] * g;
 			    f_hg += f_hg_visc.dot(dx0) * r0inv_ * dx_normalized;
 			  }
 			}
@@ -1171,6 +1171,7 @@ void PairTlsph::coeff(int narg, char **arg) {
 	Lookup[VISCOSITY_Q1_times_SIGNAL_VELOCITY][itype] = Lookup[VISCOSITY_Q1][itype] * Lookup[SIGNAL_VELOCITY][itype];
 	Lookup[HOURGLASS_CONTROL_AMPLITUDE_times_YOUNGS_MODULUS][itype] = Lookup[HOURGLASS_CONTROL_AMPLITUDE][itype] * Lookup[YOUNGS_MODULUS][itype];
 	Lookup[LONGITUDINAL_MODULUS][itype] = Lookup[LAME_LAMBDA][itype] + 2.0 * Lookup[SHEAR_MODULUS][itype];
+	Lookup[SIGNAL_VELOCITY_OVER_REFERENCE_DENSITY][itype] = Lookup[SIGNAL_VELOCITY][itype] / Lookup[REFERENCE_DENSITY][itype];
 
 	if (comm->me == 0) {
 		printf("\n material unspecific properties for SMD/TLSPH definition of particle type %d:\n", itype);

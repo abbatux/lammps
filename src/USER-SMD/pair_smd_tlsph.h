@@ -202,8 +202,9 @@ protected:
 		VISCOSITY_Q1_times_SIGNAL_VELOCITY = 78,
 		LONGITUDINAL_MODULUS = 79,
 		HOURGLASS_CONTROL_AMPLITUDE_times_YOUNGS_MODULUS = 80,
+		SIGNAL_VELOCITY_OVER_REFERENCE_DENSITY = 81,
 
-		MAX_KEY_VALUE = 81
+		MAX_KEY_VALUE = 82
 	};
 
 	struct failure_types { // this is defined per type and determines which failure/damage model is active
