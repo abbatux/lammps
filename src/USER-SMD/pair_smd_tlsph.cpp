@@ -166,12 +166,8 @@ void PairTlsph::PreCompute() {
 	float **degradation_ij = ((FixSMD_TLSPH_ReferenceConfiguration *) modify->fix[ifix_tlsph])->degradation_ij;
 	Vector3d **partnerdx = ((FixSMD_TLSPH_ReferenceConfiguration *) modify->fix[ifix_tlsph])->partnerdx;
 	Vector3d **g_list = ((FixSMD_TLSPH_ReferenceConfiguration *) modify->fix[ifix_tlsph])->g_list;
-<<<<<<< HEAD
-	double rSq, wf, vwf, wfd, h, irad, voli, volj, shepardWeight, scale;
-=======
 	Matrix3d *K = ((FixSMD_TLSPH_ReferenceConfiguration *) modify->fix[ifix_tlsph])->K;
 	double rSq, wf, vwf, wfd, h, irad, voli, volj, shepardWeight;
->>>>>>> 210db6f... Calculate K only once in fix_smd_tlsph_reference_configuration.
 	Vector3d dx, dx0, dx0mirror, dv, g;
 	Matrix3d L, U, eye;
 	Vector3d vi, vj, vinti, vintj, xi, xj, x0i, x0j, dvint;
@@ -263,16 +259,10 @@ void PairTlsph::PreCompute() {
 				vintj(2) = vint[j][2];
 				dvint = vintj - vinti;
 
-				// if (degradation_ij[i][jj] > 0.0) {
-				//   scale = 1 - degradation_ij[i][jj];
-				// } else {
-				//   scale = 1.0;
-				// }
-
 				volj = vfrac[j];
 
 				if (failureModel[itype].integration_point_wise == true) {
-				  if (scale < 1.0) {
+				  if (damage[j] > 0.0) {
 				    dv *= (1-damage[j]);
 				    dvint *= (1-damage[j]);
 				    partnerdx[i][jj] += dt * dv;
@@ -486,7 +476,7 @@ void PairTlsph::ComputeForces(int eflag, int vflag) {
 	int nlocal = atom->nlocal;
 	int i, j, jj, jnum, itype, idim;
 	double r, vwf, wf, wfd, h, r0_, r0inv_, irad, voli, volj, r_plus_h_inv;
-	double delVdotDelR, visc_magnitude, delta, deltaE, mu_ij, hg_err, scale, scale_i, scale_j, rmassij;
+	double delVdotDelR, visc_magnitude, delta, deltaE, mu_ij, hg_err, rmassij;
 	double softening_strain;
 	char str[128];
 	Vector3d fi, fj, dx0, dx, dx_normalized, dv, f_stress, f_hg, f_hg_visc, dxp_i, dxp_j, gamma, g, gamma_i, gamma_j, x0i, x0j, f_stressbc, fbc;
@@ -502,6 +492,7 @@ void PairTlsph::ComputeForces(int eflag, int vflag) {
 	Vector3d **partnerdx = ((FixSMD_TLSPH_ReferenceConfiguration *) modify->fix[ifix_tlsph])->partnerdx;
 	Vector3d **g_list = ((FixSMD_TLSPH_ReferenceConfiguration *) modify->fix[ifix_tlsph])->g_list;
 	double **r0 = ((FixSMD_TLSPH_ReferenceConfiguration *) modify->fix[ifix_tlsph])->r0;
+	Matrix3d *K = ((FixSMD_TLSPH_ReferenceConfiguration *) modify->fix[ifix_tlsph])->K;
 	Matrix3d eye, sigmaBC_i;
 
 	double deltat_1, deltat_2;
@@ -536,9 +527,7 @@ void PairTlsph::ComputeForces(int eflag, int vflag) {
 			xi(idim) = x[i][idim];
 			vi(idim) = v[i][idim];
 		}
-		// scale_i = 1.0;
-		// if (damage[i] > 0.0) scale_i -= damage[i]/ npartner[i];
-
+		
 		for (jj = 0; jj < jnum; jj++) {
 			j = atom->map(partner[i][jj]);
 			if (j < 0) { //			// check if lost a partner without first breaking bond
@@ -582,14 +571,6 @@ void PairTlsph::ComputeForces(int eflag, int vflag) {
 
 
 			r = dx.norm(); // current distance
-
-			// scale the interaction according to the damage variable
-			//scale = CalculateScale(degradation_ij[i][jj], r, r0);
-			// if (failureModel[itype].failure_none == true) {
-			//   scale = 1.0;
-			// } else {
-			//   scale = 1.0 - degradation_ij[i][jj];
-			// }
 
 			// if (failureModel[itype].integration_point_wise == true) {
 			//   if (degradation_ij[i][jj] > 0.0) {
