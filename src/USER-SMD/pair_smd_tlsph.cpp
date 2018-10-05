@@ -493,6 +493,7 @@ void PairTlsph::ComputeForces(int eflag, int vflag) {
 	Vector3d **g_list = ((FixSMD_TLSPH_ReferenceConfiguration *) modify->fix[ifix_tlsph])->g_list;
 	double **r0 = ((FixSMD_TLSPH_ReferenceConfiguration *) modify->fix[ifix_tlsph])->r0;
 	Matrix3d *K = ((FixSMD_TLSPH_ReferenceConfiguration *) modify->fix[ifix_tlsph])->K;
+	double **K_g_dot_dx0_normalized = ((FixSMD_TLSPH_ReferenceConfiguration *) modify->fix[ifix_tlsph])->K_g_dot_dx0_normalized;
 	Matrix3d eye, sigmaBC_i;
 
 	double deltat_1, deltat_2;
@@ -658,11 +659,17 @@ void PairTlsph::ComputeForces(int eflag, int vflag) {
 			    //LimitDoubleMagnitude(delta, 0.05 * r * r0inv_); // limit delta to avoid numerical instabilities
 			    f_hg_visc = -rmassij * mu_ij * Lookup[SIGNAL_VELOCITY_OVER_REFERENCE_DENSITY][itype] * 2 * Lookup[HOURGLASS_CONTROL_AMPLITUDE][itype] *(1-0.5*(damage[i] + damage[j])) * delta * K[i] * g;
 			    f_hg += f_hg_visc.dot(dx0) * r0inv_ * dx_normalized;
+			    Vector3d f_hg_visc_test = -rmassij * mu_ij * Lookup[SIGNAL_VELOCITY_OVER_REFERENCE_DENSITY][itype] * 2 * Lookup[HOURGLASS_CONTROL_AMPLITUDE][itype] *(1-0.5*(damage[i] + damage[j])) * delta * K_g_dot_dx0_normalized[i][jj] * dx_normalized;
+			    if (f_hg_visc_test != f_hg_visc.dot(dx0) * r0inv_ * dx_normalized) 
+			      cout << "Warning: f_hg_visc_test : \n" << f_hg_visc_test << endl << "f_hg_visc = \n" << f_hg_visc.dot(dx0) * r0inv_ * dx_normalized << endl;
 			  }
 			  else if (delVdotDelR > 0.0 && delta < 0.0) {
 			    LimitDoubleMagnitude(delta, 0.05 * r * r0inv_); // limit delta to avoid numerical instabilities      
 			    f_hg_visc = rmassij * mu_ij * Lookup[SIGNAL_VELOCITY_OVER_REFERENCE_DENSITY][itype] * 2 * Lookup[HOURGLASS_CONTROL_AMPLITUDE][itype] *(1-0.5*(damage[i] + damage[j])) * delta * K[i] * g;
 			    f_hg += f_hg_visc.dot(dx0) * r0inv_ * dx_normalized;
+			    Vector3d f_hg_visc_test = -rmassij * mu_ij * Lookup[SIGNAL_VELOCITY_OVER_REFERENCE_DENSITY][itype] * 2 * Lookup[HOURGLASS_CONTROL_AMPLITUDE][itype] *(1-0.5*(damage[i] + damage[j])) * delta * K_g_dot_dx0_normalized[i][jj] * dx_normalized;
+			    if (f_hg_visc_test != f_hg_visc.dot(dx0) * r0inv_ * dx_normalized) 
+			      cout << "Warning: f_hg_visc_test : \n" << f_hg_visc_test << endl << "f_hg_visc = \n" << f_hg_visc.dot(dx0) * r0inv_ * dx_normalized << endl;
 			  }
 			}
 

@@ -74,7 +74,7 @@ protected:
 	int *npartner;                // # of touching partners of each atom
 	tagint **partner;             // global atom IDs for the partners
 	float **wfd_list, **wf_list, **energy_per_bond;
-	double **r0;
+        double **r0, **K_g_dot_dx0_normalized;
 	float **degradation_ij; // per-pair interaction degradation status
 	Eigen::Vector3d **partnerdx, **g_list; // x0 vector of all partners
 	Eigen::Matrix3d *K;

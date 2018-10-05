@@ -73,6 +73,7 @@ FixSMD_TLSPH_ReferenceConfiguration::FixSMD_TLSPH_ReferenceConfiguration(LAMMPS 
 	r0 = NULL;
 	g_list = NULL;
 	K = NULL;
+	K_g_dot_dx0_normalized = NULL;
 	grow_arrays(atom->nmax);
 	atom->add_callback(0);
 
@@ -104,6 +105,7 @@ FixSMD_TLSPH_ReferenceConfiguration::~FixSMD_TLSPH_ReferenceConfiguration() {
 	memory->destroy(r0);
 	memory->destroy(g_list);
 	memory->destroy(K);
+	memory->destroy(K_g_dot_dx0_normalized);
 }
 
 /* ---------------------------------------------------------------------- */
@@ -349,6 +351,41 @@ void FixSMD_TLSPH_ReferenceConfiguration::setup(int vflag) {
 	  pseudo_inverse_SVD(K[i]);
 	}
 	
+	int *nn;
+	Vector3d dx0_normalized;
+	memory->grow(nn, nmax, "nn");
+	for (ii = 0; ii < inum; ii++) {
+		i = ilist[ii];
+		jlist = firstneigh[i];
+		jnum = numneigh[i];
+
+		for (jj = 0; jj < jnum; jj++) {
+			j = jlist[jj];
+			j &= NEIGHMASK;
+
+			if (INSERT_PREDEFINED_CRACKS) {
+				if (!crack_exclude(i, j))
+					continue;
+			}
+
+			dx(0) = x0[i][0] - x0[j][0];
+			dx(1) = x0[i][1] - x0[j][1];
+			dx(2) = x0[i][2] - x0[j][2];
+			r = dx.norm();
+			h = radius[i] + radius[j];
+
+			if (r <= h) {
+			  dx0_normalized = dx / r;
+			  K_g_dot_dx0_normalized[i][nn[i]] = dx0_normalized.dot(K[i] * g_list[i][nn[i]]);
+			  nn[i]++;
+			  if (j < nlocal) {
+			    K_g_dot_dx0_normalized[j][nn[j]] = -dx0_normalized.dot(K[j] * g_list[j][nn[j]]);
+			    nn[j]++;
+			  }
+			}
+		}
+	}
+
 	// count number of particles for which this group is active
 
 	// bond statistics
@@ -399,6 +436,7 @@ double FixSMD_TLSPH_ReferenceConfiguration::memory_usage() {
 	bytes += nmax * maxpartner * sizeof(Vector3d); // partnerdx array
 	bytes += nmax * sizeof(int); // npartner array
 	bytes += nmax * maxpartner * sizeof(double); // r0 array
+	bytes += nmax * maxpartner * sizeof(double); // K_g_dot_dx0_normalized array
 	bytes += nmax * maxpartner * sizeof(Vector3d); // g_list array
 	bytes += nmax * sizeof(Matrix3d); // K matrix
 	return bytes;
@@ -419,6 +457,7 @@ void FixSMD_TLSPH_ReferenceConfiguration::grow_arrays(int nmax) {
 	memory->grow(energy_per_bond, nmax, maxpartner, "tlsph_refconfig_neigh:damage_onset_strain");
 	memory->grow(partnerdx, nmax, maxpartner, "tlsph_refconfig_neigh:partnerdx");
 	memory->grow(r0, nmax, maxpartner, "tlsph_refconfig_neigh:r0");
+	memory->grow(K_g_dot_dx0_normalized, nmax, maxpartner, "tlsph_refconfig_neigh:K_g_dot_dx0_normalized");
 	memory->grow(g_list, nmax, maxpartner, "tlsph_refconfig_neigh:g_list");
 	memory->grow(K, nmax, "tlsph_refconfig_neigh:K");
 }
@@ -446,6 +485,7 @@ void FixSMD_TLSPH_ReferenceConfiguration::copy_arrays(int i, int j, int delflag)
 		energy_per_bond[j][m] = energy_per_bond[i][m];
 		partnerdx[j][m] = partnerdx[i][m];
 		r0[j][m] = r0[i][m];
+		K_g_dot_dx0_normalized[j][m] = K_g_dot_dx0_normalized[i][m];
 		g_list[j][m] = g_list[i][m];
 	}
 }
@@ -481,6 +521,7 @@ int FixSMD_TLSPH_ReferenceConfiguration::pack_exchange(int i, double *buf) {
 		buf[m++] = partnerdx[i][n][1];
 		buf[m++] = partnerdx[i][n][2];
 		buf[m++] = r0[i][n];
+		buf[m++] = K_g_dot_dx0_normalized[i][n];
 		buf[m++] = g_list[i][n][0];
 		buf[m++] = g_list[i][n][1];
 		buf[m++] = g_list[i][n][2];
@@ -526,6 +567,7 @@ int FixSMD_TLSPH_ReferenceConfiguration::unpack_exchange(int nlocal, double *buf
 		partnerdx[nlocal][n][1] = static_cast<double>(buf[m++]);
 		partnerdx[nlocal][n][2] = static_cast<double>(buf[m++]);
 		r0[nlocal][n] = static_cast<double>(buf[m++]);
+		K_g_dot_dx0_normalized[nlocal][n] = static_cast<double>(buf[m++]);
 		g_list[nlocal][n][0] = static_cast<double>(buf[m++]);
 		g_list[nlocal][n][1] = static_cast<double>(buf[m++]);
 		g_list[nlocal][n][2] = static_cast<double>(buf[m++]);
