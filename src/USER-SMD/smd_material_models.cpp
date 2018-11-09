@@ -409,7 +409,7 @@ double GTNStrength(const double G, FlowStress flowstress, const double Q1, const
 
   Matrix3d sigmaTrial_dev, dev_rate, plastic_strain_increment_array;
   double J2, yieldStress_undamaged, damage_increment;
-  double Gd = G;
+  double Gd = G * (1.0 - damage);
   double f;
   double fcrQ1 = fcr*Q1;
   double x;
@@ -437,7 +437,7 @@ double GTNStrength(const double G, FlowStress flowstress, const double Q1, const
    * check yield condition
    */
   J2 = sqrt(3. / 2.) * sigmaTrial_dev.norm();
-  yieldStress_undamaged = flowstress.evaluate(ep);
+  yieldStress_undamaged = flowstress.evaluate(ep) * (1.0 - damage);
 
   // determine stress triaxiality
   double triax = 0.0;
