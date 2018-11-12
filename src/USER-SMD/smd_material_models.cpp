@@ -474,7 +474,7 @@ double GTNStrength(const double G, FlowStress flowstress, const double Q1, const
 
     x = MIN(1.0, x);
     double dx = 1.0; // dx = x_{n+1} - x_{n} initiated at a value higher than the accepted error margin.
-    double error = 0.001;
+    double error = 0.005;
     double Fprime, Q2triaxx;
 
     int i = 0;
@@ -523,7 +523,7 @@ double GTNStrength(const double G, FlowStress flowstress, const double Q1, const
 	}
 	dx = plastic_strain_increment - plastic_strain_increment_old;
 	if (j>10) output = 1;
-	if (output == 1) printf("Loop2: %d - %d - plastic_strain_increment = %.10e, dx = %f, J2 = %f, yieldStress = %f, ep = %.10e, F = %.10e, Fprime = %.10e\n", tag, j, plastic_strain_increment, dx, J2, yieldStress, ep, F, Fprime);
+	if (output == 1) printf("Loop2: %d - %d - plastic_strain_increment = %.10e, dx = %.10e, J2 = %f, yieldStress = %f, ep = %.10e, F = %.10e, Fprime = %.10e\n", tag, j, plastic_strain_increment, dx, J2, yieldStress, ep, F, Fprime);
       }
       yieldStress_undamaged = flowstress.evaluate(ep + plastic_strain_increment);
       yieldStress = x * yieldStress_undamaged;
