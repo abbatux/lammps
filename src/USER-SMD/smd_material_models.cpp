@@ -511,7 +511,7 @@ double GTNStrength(const double G, FlowStress flowstress, const double Q1, const
     } else {
 
       plastic_strain_increment_old = plastic_strain_increment + 1.0; // arbitrary value
-      while(abs(dx) > 1e-12 && abs(dx/plastic_strain_increment) > error) {
+      while(abs(dx) > 1e-12 && abs(dx/plastic_strain_increment) > error && j<5) {
 	j++;
 	yieldStress = x * flowstress.evaluate(ep + plastic_strain_increment);
 	F = plastic_strain_increment - (J2 - yieldStress) * beta;
