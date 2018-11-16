@@ -437,7 +437,7 @@ double GTNStrength(const double G, FlowStress flowstress, const double Q1, const
    * check yield condition
    */
   J2 = sqrt(3. / 2.) * sigmaTrial_dev.norm();
-  yieldStress_undamaged = flowstress.evaluate(ep) * (1.0 - damage);
+  yieldStress_undamaged = flowstress.evaluate(ep);
 
   // determine stress triaxiality
   double triax = 0.0;
