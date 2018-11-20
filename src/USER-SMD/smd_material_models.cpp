@@ -451,7 +451,7 @@ double GTNStrength(const double G, FlowStress flowstress, const double Q1, const
   Q2triax = 1.5 * Q2 * triax;
   F = x*x + 2 * damage * cosh(Q2triax * x) - (1 + Q1fSq);
 
-  if (F < 0.0) {
+  if (F <= 0.0) {
     /*
      * no yielding has occured.
      * final deviatoric stress is trial deviatoric stress
@@ -485,7 +485,7 @@ double GTNStrength(const double G, FlowStress flowstress, const double Q1, const
 
       dx = -F/Fprime;
       x += dx;
-      if (i>5) printf("Loop1: %d - %d - F = %.10e, x = %f, J2 = %.10e, yieldStress_undamaged = %.10e, ep = %.10e, Q1f = %.10e, triax = %.10e\n", tag, i, F, x, J2, yieldStress_undamaged, ep, Q1f, triax);
+      if (i>5) printf("Loop1: %d - %d - F = %.10e, Fprime = %.10e, x = %f, J2 = %.10e, yieldStress_undamaged = %.10e, ep = %.10e, Q1f = %.10e, triax = %.10e, dx = %.10e, damage = %10.e\n", tag, i, F, Fprime, x, J2, yieldStress_undamaged, ep, Q1f, triax, dx, damage);
       i++;
     }
 
