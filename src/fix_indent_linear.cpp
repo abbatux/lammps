@@ -228,10 +228,10 @@ void FixIndentLinear::post_force(int vflag)
         r = sqrt(delx*delx + dely*dely + delz*delz);
         if (side == OUTSIDE) {
           dr = r - radius;
-          fmag = k*abs(dr);
+          fmag = -k*dr;
         } else {
           dr = radius - r;
-          fmag = -k*abs(dr);
+          fmag = k*dr;
         }
         if (dr >= 0.0) continue;
         fx = delx*fmag/r;
@@ -306,10 +306,10 @@ void FixIndentLinear::post_force(int vflag)
         r = sqrt(delx*delx + dely*dely + delz*delz);
         if (side == OUTSIDE) {
           dr = r - radius;
-          fmag = k*abs(dr);
+          fmag = -k*dr;
         } else {
           dr = radius - r;
-          fmag = -k*abs(dr);
+          fmag = k*dr;
         }
         if (dr >= 0.0) continue;
         fx = delx*fmag/r;
@@ -345,13 +345,13 @@ void FixIndentLinear::post_force(int vflag)
       if (mask[i] & groupbit) {
         dr = planeside * (plane - x[i][cdim]);
         if (dr >= 0.0) continue;
-        fatom = -planeside * k*abs(dr);
+        fatom = planeside * k*dr;
         f[i][cdim] += fatom;
         indenter[0] = k2 * dr*dr;
         indenter[cdim+1] -= fatom;
       }
   }
-
+      
   if (varflag) modify->addstep_compute(update->ntimestep + 1);
 }
 
@@ -391,7 +391,7 @@ double FixIndentLinear::compute_scalar()
 double FixIndentLinear::compute_vector(int n)
 {
   // only sum across procs one time
-
+      
   if (indenter_flag == 0) {
     MPI_Allreduce(indenter,indenter_all,4,MPI_DOUBLE,MPI_SUM,world);
     indenter_flag = 1;
