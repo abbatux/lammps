@@ -1074,6 +1074,8 @@
 /fix_saed_vtk.h
 /fix_smd_adjust_dt.cpp
 /fix_smd_adjust_dt.h
+/fix_smd_indent.cpp
+/fix_smd_indent.h
 /fix_smd_integrate_tlsph.cpp
 /fix_smd_integrate_tlsph.h
 /fix_smd_integrate_ulsph.cpp
