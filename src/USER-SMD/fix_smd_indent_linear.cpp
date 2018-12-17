@@ -18,7 +18,7 @@
 #include <math.h>
 #include <string.h>
 #include <stdlib.h>
-#include "fix_indent_linear.h"
+#include "fix_smd_indent_linear.h"
 #include "atom.h"
 #include "input.h"
 #include "variable.h"
@@ -39,7 +39,7 @@ enum{INSIDE,OUTSIDE};
 
 /* ---------------------------------------------------------------------- */
 
-FixIndentLinear::FixIndentLinear(LAMMPS *lmp, int narg, char **arg) :
+FixSMDIndentLinear::FixSMDIndentLinear(LAMMPS *lmp, int narg, char **arg) :
   Fix(lmp, narg, arg),
   xstr(NULL), ystr(NULL), zstr(NULL), rstr(NULL), pstr(NULL)
 {
@@ -93,7 +93,7 @@ FixIndentLinear::FixIndentLinear(LAMMPS *lmp, int narg, char **arg) :
 
 /* ---------------------------------------------------------------------- */
 
-FixIndentLinear::~FixIndentLinear()
+FixSMDIndentLinear::~FixSMDIndentLinear()
 {
   delete [] xstr;
   delete [] ystr;
@@ -104,7 +104,7 @@ FixIndentLinear::~FixIndentLinear()
 
 /* ---------------------------------------------------------------------- */
 
-int FixIndentLinear::setmask()
+int FixSMDIndentLinear::setmask()
 {
   int mask = 0;
   mask |= POST_FORCE;
@@ -116,7 +116,7 @@ int FixIndentLinear::setmask()
 
 /* ---------------------------------------------------------------------- */
 
-void FixIndentLinear::init()
+void FixSMDIndentLinear::init()
 {
   if (xstr) {
     xvar = input->variable->find(xstr);
@@ -162,7 +162,7 @@ void FixIndentLinear::init()
 
 /* ---------------------------------------------------------------------- */
 
-void FixIndentLinear::setup(int vflag)
+void FixSMDIndentLinear::setup(int vflag)
 {
   if (strstr(update->integrate_style,"verlet"))
     post_force(vflag);
@@ -175,14 +175,14 @@ void FixIndentLinear::setup(int vflag)
 
 /* ---------------------------------------------------------------------- */
 
-void FixIndentLinear::min_setup(int vflag)
+void FixSMDIndentLinear::min_setup(int vflag)
 {
   post_force(vflag);
 }
 
 /* ---------------------------------------------------------------------- */
 
-void FixIndentLinear::post_force(int vflag)
+void FixSMDIndentLinear::post_force(int vflag)
 {
   // indenter values, 0 = energy, 1-3 = force components
   // wrap variable evaluations with clear/add
@@ -213,11 +213,15 @@ void FixIndentLinear::post_force(int vflag)
     else radius = rvalue;
 
     double **x = atom->x;
+    double **v = atom->v;
     double **f = atom->f;
+    double *rmass = atom->rmass;
     int *mask = atom->mask;
     int nlocal = atom->nlocal;
 
-    double delx,dely,delz,r,dr,fmag,fx,fy,fz;
+    double delx,dely,delz,r,dr,fmag,fx,fy,fz,vel;
+
+    dtCFL = 1.0e22;
 
     for (int i = 0; i < nlocal; i++)
       if (mask[i] & groupbit) {
@@ -244,6 +248,8 @@ void FixIndentLinear::post_force(int vflag)
         indenter[1] -= fx;
         indenter[2] -= fy;
         indenter[3] -= fz;
+	vel = sqrt(v[i][0]*v[i][0] + v[i][1]*v[i][1] + v[i][2]*v[i][2]);
+	dtCFL = MIN(vel * rmass[i] / fmag, dtCFL);
       }
 
   // cylindrical indenter
@@ -357,14 +363,14 @@ void FixIndentLinear::post_force(int vflag)
 
 /* ---------------------------------------------------------------------- */
 
-void FixIndentLinear::post_force_respa(int vflag, int ilevel, int iloop)
+void FixSMDIndentLinear::post_force_respa(int vflag, int ilevel, int iloop)
 {
   if (ilevel == ilevel_respa) post_force(vflag);
 }
 
 /* ---------------------------------------------------------------------- */
 
-void FixIndentLinear::min_post_force(int vflag)
+void FixSMDIndentLinear::min_post_force(int vflag)
 {
   post_force(vflag);
 }
@@ -373,7 +379,7 @@ void FixIndentLinear::min_post_force(int vflag)
    energy of indenter interaction
 ------------------------------------------------------------------------- */
 
-double FixIndentLinear::compute_scalar()
+double FixSMDIndentLinear::compute_scalar()
 {
   // only sum across procs one time
 
@@ -388,7 +394,7 @@ double FixIndentLinear::compute_scalar()
    components of force on indenter
 ------------------------------------------------------------------------- */
 
-double FixIndentLinear::compute_vector(int n)
+double FixSMDIndentLinear::compute_vector(int n)
 {
   // only sum across procs one time
       
@@ -403,7 +409,7 @@ double FixIndentLinear::compute_vector(int n)
    parse optional parameters at end of input line
 ------------------------------------------------------------------------- */
 
-void FixIndentLinear::options(int narg, char **arg)
+void FixSMDIndentLinear::options(int narg, char **arg)
 {
   if (narg < 0) error->all(FLERR,"Illegal fix indent command");
 

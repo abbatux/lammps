@@ -13,21 +13,21 @@
 
 #ifdef FIX_CLASS
 
-FixStyle(indent/linear,FixIndentLinear)
+FixStyle(smd/indent/linear,FixSMDIndentLinear)
 
 #else
 
-#ifndef LMP_FIX_INDENT_LINEAR_H
-#define LMP_FIX_INDENT_LINEAR_H
+#ifndef LMP_FIX_SMD_INDENT_LINEAR_H
+#define LMP_FIX_SMD_INDENT_LINEAR_H
 
 #include "fix.h"
 
 namespace LAMMPS_NS {
 
-class FixIndentLinear : public Fix {
+class FixSMDIndentLinear : public Fix {
  public:
-  FixIndentLinear(class LAMMPS *, int, char **);
-  ~FixIndentLinear();
+  FixSMDIndentLinear(class LAMMPS *, int, char **);
+  ~FixSMDIndentLinear();
   int setmask();
   void init();
   void setup(int);
@@ -37,6 +37,7 @@ class FixIndentLinear : public Fix {
   void min_post_force(int);
   double compute_scalar();
   double compute_vector(int);
+  double dtCFL;
 
  private:
   int istyle,scaleflag,side;

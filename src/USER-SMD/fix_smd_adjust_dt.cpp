@@ -27,6 +27,7 @@
 #include <string.h>
 #include "fix_smd_adjust_dt.h"
 #include "fix_smd_indent.h"
+#include "fix_smd_indent_linear.h"
 #include "atom.h"
 #include "update.h"
 #include "integrate.h"
@@ -116,6 +117,7 @@ void FixSMDTlsphDtReset::end_of_step() {
 	double *dt_HERTZ = (double *) force->pair->extract("smd/hertz/stable_time_increment_ptr", itmp);
 	double *dt_PERI_IPMB = (double *) force->pair->extract("smd/peri_ipmb/stable_time_increment_ptr", itmp);
 	double *dt_FIX_INDENT = NULL;
+	double *dt_FIX_INDENT_LINEAR = NULL;
 	// find associated smd/indent fix that must exist
 	// could have changed locations in fix list since created
 
@@ -127,6 +129,13 @@ void FixSMDTlsphDtReset::end_of_step() {
 	  dt_FIX_INDENT = &((FixSMDIndent *) modify->fix[ifix_indent])->dtCFL;
 	}
 
+	int ifix_indent_linear = -1;
+	for (int i = 0; i < modify->nfix; i++)
+		if (strcmp(modify->fix[i]->style, "smd/indent/linear") == 0)
+			ifix_indent_linear = i;
+	if (ifix_indent_linear != -1) {
+	  dt_FIX_INDENT_LINEAR = &((FixSMDIndentLinear *) modify->fix[ifix_indent_linear])->dtCFL;
+	}
 
 	if ((dtCFL_TLSPH == NULL) && (dtCFL_ULSPH == NULL) && (dt_TRI == NULL) && (dt_HERTZ == NULL)
 			&& (dt_PERI_IPMB == NULL)) {
@@ -155,6 +164,10 @@ void FixSMDTlsphDtReset::end_of_step() {
 
 	if (dt_FIX_INDENT != NULL) {
 	  dtmin = MIN(dtmin, *dt_FIX_INDENT);
+	}
+
+	if (dt_FIX_INDENT_LINEAR != NULL) {
+	  dtmin = MIN(dtmin, *dt_FIX_INDENT_LINEAR);
 	}
 
 //	double **v = atom->v;

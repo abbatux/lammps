@@ -1076,6 +1076,8 @@
 /fix_smd_adjust_dt.h
 /fix_smd_indent.cpp
 /fix_smd_indent.h
+/fix_smd_indent_linear.cpp
+/fix_smd_indent_linear.h
 /fix_smd_integrate_tlsph.cpp
 /fix_smd_integrate_tlsph.h
 /fix_smd_integrate_ulsph.cpp
