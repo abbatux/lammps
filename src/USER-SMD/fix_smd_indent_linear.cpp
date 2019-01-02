@@ -249,7 +249,8 @@ void FixSMDIndentLinear::post_force(int vflag)
         indenter[2] -= fy;
         indenter[3] -= fz;
 	vel = sqrt(v[i][0]*v[i][0] + v[i][1]*v[i][1] + v[i][2]*v[i][2]);
-	dtCFL = MIN(vel * rmass[i] / fmag, dtCFL);
+	dtCFL = MIN(dtCFL, sqrt(rmass[i] / k));
+	//dtCFL = MIN(vel * rmass[i] / fmag, dtCFL);
       }
 
   // cylindrical indenter
