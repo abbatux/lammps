@@ -250,6 +250,9 @@ void FixSMDIndent::post_force(int vflag)
         indenter[3] -= fz;
 	vel = sqrt(v[i][0]*v[i][0] + v[i][1]*v[i][1] + v[i][2]*v[i][2]);
 	dtCFL = MIN(vel * rmass[i] / fmag, dtCFL);
+	if (dtCFL < 1e-12) {
+	  printf("In fix_smd_indent: dtCFL = %.10e, v[i] = [%.10e %.10e %.10e], rmass[i] = %.10e, fmag = %10e\n", dtCFL, v[i][0], v[i][1], v[i][2], rmass[i], fmag);
+	}
       }
     //printf("dtCFL ind = %.10e\n", dtCFL);
 
