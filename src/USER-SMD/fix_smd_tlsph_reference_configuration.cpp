@@ -579,20 +579,27 @@ int FixSMD_TLSPH_ReferenceConfiguration::unpack_exchange(int nlocal, double *buf
  ------------------------------------------------------------------------- */
 
 int FixSMD_TLSPH_ReferenceConfiguration::pack_restart(int i, double *buf) {
-	int m = 0;
-	buf[m++] = 4 * npartner[i] + 2;
-	buf[m++] = npartner[i];
-	for (int n = 0; n < npartner[i]; n++) {
-		buf[m++] = partner[i][n];
-		buf[m++] = wfd_list[i][n];
-		buf[m++] = wf_list[i][n];
-		buf[m++] = degradation_ij[i][n];
-		buf[m++] = energy_per_bond[i][n];
-		buf[m++] = partnerdx[i][n][0];
-		buf[m++] = partnerdx[i][n][1];
-		buf[m++] = partnerdx[i][n][2];
-	}
-	return m;
+	// int m = 0;
+	// buf[m++] = 13 * npartner[i] + 2;
+	// buf[m++] = npartner[i];
+	// for (int n = 0; n < npartner[i]; n++) {
+	// 	buf[m++] = partner[i][n];
+	// 	buf[m++] = wfd_list[i][n];
+	// 	buf[m++] = wf_list[i][n];
+	// 	buf[m++] = degradation_ij[i][n];
+	// 	buf[m++] = energy_per_bond[i][n];
+	// 	buf[m++] = partnerdx[i][n][0];
+	// 	buf[m++] = partnerdx[i][n][1];
+	// 	buf[m++] = partnerdx[i][n][2];
+	// 	buf[m++] = r0[i][n][1];
+	// 	buf[m++] = r0[i][n][2];
+	// 	buf[m++] = r0[i][n][3];
+	// 	buf[m++] = K_g_dot_dx0_normalized[i][n][2];
+	// 	buf[m++] = g_list[i][n][0];
+	// 	buf[m++] = g_list[i][n][1];
+	// 	buf[m++] = g_list[i][n][2];
+	// }
+	// return m;
 }
 
 /* ----------------------------------------------------------------------
@@ -600,23 +607,35 @@ int FixSMD_TLSPH_ReferenceConfiguration::pack_restart(int i, double *buf) {
  ------------------------------------------------------------------------- */
 
 void FixSMD_TLSPH_ReferenceConfiguration::unpack_restart(int nlocal, int nth) {
-// ipage = NULL if being called from granular pair style init()
+// // ipage = NULL if being called from granular pair style init()
 
-// skip to Nth set of extra values
+// // skip to Nth set of extra values
 
-//	double **extra = atom->extra;
-//
-//	int m = 0;
-//	for (int i = 0; i < nth; i++)
-//		m += static_cast<int>(extra[nlocal][m]);
-//	m++;
-//
-//	// allocate new chunks from ipage,dpage for incoming values
-//
-//	npartner[nlocal] = static_cast<int>(extra[nlocal][m++]);
-//	for (int n = 0; n < npartner[nlocal]; n++) {
-//		partner[nlocal][n] = static_cast<tagint>(extra[nlocal][m++]);
-//	}
+// 	double **extra = atom->extra;
+
+// 	int m = 0;
+// 	for (int i = 0; i < nth; i++)
+// 		m += static_cast<int>(extra[nlocal][m]);
+// 	m++;
+
+// 	// allocate new chunks from ipage,dpage for incoming values
+
+// 	npartner[nlocal] = static_cast<int>(extra[nlocal][m++]);
+// 	for (int n = 0; n < npartner[nlocal]; n++) {
+// 		partner[nlocal][n] = static_cast<tagint>(extra[nlocal][m++]);
+// 		wfd_list[nlocal][n] = extra[nlocal][m++];
+// 		wf_list[nlocal][n] = extra[nlocal][m++];
+// 		degradation_ij[nlocal][n] = extra[nlocal][m++];
+// 		energy_per_bond[nlocal][n] = extra[nlocal][m++];
+// 		partnerdx[nlocal][n][0] = extra[nlocal][m++];
+// 		partnerdx[nlocal][n][1] = extra[nlocal][m++];
+// 		partnerdx[nlocal][n][2] = extra[nlocal][m++];
+// 		r0[nlocal][n][2] = extra[nlocal][m++];
+// 		K_g_dot_dx0_normalized[nlocal][n][2] = extra[nlocal][m++];
+// 		g_list[nlocal][n][2] = extra[nlocal][m++];
+// 		g_list[nlocal][n][2] = extra[nlocal][m++];
+// 		g_list[nlocal][n][2] = extra[nlocal][m++];
+// 	}
 }
 
 /* ----------------------------------------------------------------------
@@ -628,7 +647,7 @@ int FixSMD_TLSPH_ReferenceConfiguration::maxsize_restart() {
 
 	int maxtouch_all;
 	MPI_Allreduce(&maxpartner, &maxtouch_all, 1, MPI_INT, MPI_MAX, world);
-	return 4 * maxtouch_all + 2;
+	return 13 * maxtouch_all + 2;
 }
 
 /* ----------------------------------------------------------------------
@@ -636,7 +655,7 @@ int FixSMD_TLSPH_ReferenceConfiguration::maxsize_restart() {
  ------------------------------------------------------------------------- */
 
 int FixSMD_TLSPH_ReferenceConfiguration::size_restart(int nlocal) {
-	return 4 * npartner[nlocal] + 2;
+	return 13 * npartner[nlocal] + 2;
 }
 
 /* ---------------------------------------------------------------------- */
