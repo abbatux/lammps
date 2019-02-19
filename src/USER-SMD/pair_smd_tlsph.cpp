@@ -2930,7 +2930,7 @@ void PairTlsph::read_restart(FILE *fp) {
 void PairTlsph::write_restart_settings(FILE *fp){
   fwrite(&cut_comm,sizeof(double),1,fp);
   fwrite(&update_threshold,sizeof(double),1,fp);
-  fwrite(&update_method,sizeof(double),1,fp);
+  fwrite(&update_method,sizeof(int),1,fp);
 }
 
 void PairTlsph::read_restart_settings(FILE *fp) {
@@ -2938,11 +2938,11 @@ void PairTlsph::read_restart_settings(FILE *fp) {
   if (me == 0) {
     fread(&cut_comm,sizeof(double),1,fp);
     fread(&update_threshold,sizeof(double),1,fp);
-    fread(&update_method,sizeof(double),1,fp);
+    fread(&update_method,sizeof(int),1,fp);
   }
   MPI_Bcast(&cut_comm,1,MPI_DOUBLE,0,world);
   MPI_Bcast(&update_threshold,1,MPI_DOUBLE,0,world);
-  MPI_Bcast(&update_method,1,MPI_DOUBLE,0,world);
+  MPI_Bcast(&update_method,1,MPI_INT,0,world);
   
 }
 
