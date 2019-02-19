@@ -2044,7 +2044,7 @@ void PairTlsph::coeff(int narg, char **arg) {
 
 	}
 
-	setflag[itype][itype] = 1;
+	// setflag[itype][itype] = 1;
 	coeff_init(itype);
 }
 
@@ -2947,6 +2947,8 @@ void PairTlsph::read_restart_settings(FILE *fp) {
 }
 
 void PairTlsph::coeff_init(int itype){
+
+  setflag[itype][itype] = 1;
 
   if (comm->me == 0) {
     printf("\n material unspecific properties for SMD/TLSPH definition of particle type %d:\n", itype);
