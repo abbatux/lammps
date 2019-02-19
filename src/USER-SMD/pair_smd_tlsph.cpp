@@ -2087,6 +2087,7 @@ void PairTlsph::init_style() {
 // request a granular neighbor list
 	int irequest = neighbor->request(this);
 	neighbor->requests[irequest]->size = 1;
+	neighbor->requests[irequest]->total_lagran = 1;
 
 // set maxrad_dynamic and maxrad_frozen for each type
 // include future Fix pour particles as dynamic
@@ -2949,8 +2950,11 @@ void PairTlsph::read_restart_settings(FILE *fp) {
 void PairTlsph::coeff_init(int itype){
 
   setflag[itype][itype] = 1;
-
   if (comm->me == 0) {
+    printf(
+	   "\n>>========>>========>>========>>========>>========>>========>>========>>========>>========>>========>>========>>========\n");
+    printf("SMD / TLSPH PROPERTIES OF PARTICLE TYPE %d:\n", itype);
+
     printf("\n material unspecific properties for SMD/TLSPH definition of particle type %d:\n", itype);
     printf("%60s : %g\n", "reference density", Lookup[REFERENCE_DENSITY][itype]);
     printf("%60s : %g\n", "Young's modulus", Lookup[YOUNGS_MODULUS][itype]);
@@ -3133,5 +3137,11 @@ void PairTlsph::coeff_init(int itype){
       printf("%60s\n", " Cockcroft - Latham failure model");
       printf("%60s : %g\n", "Total plastic work per unit volume: W", Lookup[CL_W][itype]);
     }
+  }
+
+  if (comm->me == 0) {
+    printf("found *END keyword");
+    printf(
+	   "\n>>========>>========>>========>>========>>========>>========>>========>>========>>========>>========>>========>>========\n\n");
   }
 }

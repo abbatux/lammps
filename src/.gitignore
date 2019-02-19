@@ -629,6 +629,9 @@
 /neb.cpp
 /neb.h
 
+/npair_half_size_bin_newtoff_total_lagrangian.cpp
+/npair_half_size_bin_newtoff_total_lagrangian.h
+
 /pair_adp.cpp
 /pair_adp.h
 /pair_agni.cpp
