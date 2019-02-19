@@ -45,13 +45,14 @@ public:
 	virtual void compute(int, int);
 	void settings(int, char **);
 	void coeff(int, char **);
+	void coeff_init(int);
 	double init_one(int, int);
 	void init_style();
 	void init_list(int, class NeighList *);
-	void write_restart_settings(FILE *) {
-	}
-	void read_restart_settings(FILE *) {
-	}
+	void write_restart_settings(FILE *);
+	void read_restart_settings(FILE *);
+	void write_restart(FILE *);
+	void read_restart(FILE *);
 	virtual double memory_usage();
 	void compute_shape_matrix(void);
 	void material_model(void);
@@ -226,6 +227,7 @@ protected:
 			failure_max_plastic_strain = false;
 			failure_johnson_cook = false;
 			failure_gtn = false;
+			failure_cockcroft_latham = false;
 			failure_max_pairwise_strain = false;
 			integration_point_wise = false;
 			failure_energy_release_rate = false;
@@ -233,6 +235,8 @@ protected:
 		}
 	};
 	failure_types *failureModel;
+
+	MPI_Datatype MPI_failure_types;
 
 	int ifix_tlsph;
 	int update_method;

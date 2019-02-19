@@ -607,6 +607,7 @@ int FixSMD_TLSPH_ReferenceConfiguration::pack_restart(int i, double *buf) {
  ------------------------------------------------------------------------- */
 
 void FixSMD_TLSPH_ReferenceConfiguration::unpack_restart(int nlocal, int nth) {
+  printf("In FixSMD_TLSPH_ReferenceConfiguration::unpack_restart()\n");
 // // ipage = NULL if being called from granular pair style init()
 
 // // skip to Nth set of extra values
