@@ -863,7 +863,7 @@ int AtomVecSMD::size_restart() {
 	int i;
 
 	int nlocal = atom->nlocal;
-	int n = 45 * nlocal; // count pack_restart + 1 (size of buffer)
+	int n = 43 * nlocal; // count pack_restart + 1 (size of buffer)
 
 	if (atom->nextra_restart)
 		for (int iextra = 0; iextra < atom->nextra_restart; iextra++)
