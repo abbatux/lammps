@@ -211,7 +211,7 @@ void FixSMDTlsphDtReset::end_of_step() {
 	//printf("dtmin is now: %f, dt is now%f\n", dtmin, dt);
 
 
-	update->dt = dt;
+	if (dt != 0) update->dt = dt; // At restart dt can be null
 	if (force->pair)
 		force->pair->reset_dt();
 	for (int i = 0; i < modify->nfix; i++)
@@ -230,8 +230,9 @@ double FixSMDTlsphDtReset::compute_scalar() {
 
 void FixSMDTlsphDtReset::write_restart(FILE *fp) {
 	int n = 0;
-	double list[1];
+	double list[2];
 	list[n++] = t_elapsed;
+	list[n++] = update->dt;
 
 	if (comm->me == 0) {
 		int size = n * sizeof(double);
@@ -248,5 +249,5 @@ void FixSMDTlsphDtReset::restart(char *buf) {
 	int n = 0;
 	double *list = (double *) buf;
 	t_elapsed = list[n++];
+	update->dt = list[n++];
 }
-
