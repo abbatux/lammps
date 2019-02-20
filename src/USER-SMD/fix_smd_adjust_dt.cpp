@@ -95,9 +95,9 @@ void FixSMDTlsphDtReset::setup(int vflag) {
 
 void FixSMDTlsphDtReset::initial_integrate(int vflag) {
 
-	//printf("in adjust_dt: dt = %20.10f\n", update->dt);
-
 	t_elapsed += update->dt;
+	update->update_time();
+	// printf("in adjust_dt: dt = %.10e, t_elapsed = %.10e\n", update->dt, t_elapsed);
 }
 
 /* ---------------------------------------------------------------------- */
@@ -249,5 +249,7 @@ void FixSMDTlsphDtReset::restart(char *buf) {
 	int n = 0;
 	double *list = (double *) buf;
 	t_elapsed = list[n++];
+	update->atime = t_elapsed;
+	update->atimestep = update->ntimestep;
 	update->dt = list[n++];
 }

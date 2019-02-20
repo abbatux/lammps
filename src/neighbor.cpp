@@ -1742,12 +1742,12 @@ int Neighbor::choose_pair(NeighRequest *rq)
 
   int molecular = atom->molecular;
 
-  printf("PAIR RQ FLAGS: hf %d %d n %d g %d sz %d gos %d r %d b %d o %d i %d "
-         "kk %d %d ss %d sk %d cp %d hf %d oo %d tl %d\n",
-	 rq->half,rq->full,rq->newton,rq->ghost,rq->size,
-	 rq->granonesided,rq->respaouter,rq->bond,rq->omp,rq->intel,
-         rq->kokkos_host,rq->kokkos_device,rq->ssa,
-	 rq->skip,rq->copy,rq->halffull,rq->off2on, rq->total_lagran);
+  // printf("PAIR RQ FLAGS: hf %d %d n %d g %d sz %d gos %d r %d b %d o %d i %d "
+  //        "kk %d %d ss %d sk %d cp %d hf %d oo %d tl %d\n",
+  // 	 rq->half,rq->full,rq->newton,rq->ghost,rq->size,
+  // 	 rq->granonesided,rq->respaouter,rq->bond,rq->omp,rq->intel,
+  //        rq->kokkos_host,rq->kokkos_device,rq->ssa,
+  // 	 rq->skip,rq->copy,rq->halffull,rq->off2on, rq->total_lagran);
 
   // use request and system settings to match exactly one NPair class mask
   // checks are bitwise using NeighConst bit masks
