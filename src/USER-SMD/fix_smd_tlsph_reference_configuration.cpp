@@ -76,6 +76,7 @@ FixSMD_TLSPH_ReferenceConfiguration::FixSMD_TLSPH_ReferenceConfiguration(LAMMPS 
 	K_g_dot_dx0_normalized = NULL;
 	grow_arrays(atom->nmax);
 	atom->add_callback(0);
+	atom->add_callback(1); // To add the fix to atom->extra_restart
 
 	// initialize npartner to 0 so neighbor list creation is OK the 1st time
 	int nlocal = atom->nlocal;
@@ -85,6 +86,8 @@ FixSMD_TLSPH_ReferenceConfiguration::FixSMD_TLSPH_ReferenceConfiguration(LAMMPS 
 
 	comm_forward = 14;
 	updateFlag = 1;
+	restart_global = 1; // this fix stores global (i.e., not per-atom) info needed at restart: maxpartner
+	restart_peratom = 1;
 }
 
 /* ---------------------------------------------------------------------- */
@@ -93,6 +96,7 @@ FixSMD_TLSPH_ReferenceConfiguration::~FixSMD_TLSPH_ReferenceConfiguration() {
 	// unregister this fix so atom class doesn't invoke it any more
 
 	atom->delete_callback(id, 0);
+	atom->delete_callback(id, 1);
 // delete locally stored arrays
 
 	memory->destroy(npartner);
@@ -535,7 +539,6 @@ int FixSMD_TLSPH_ReferenceConfiguration::pack_exchange(int i, double *buf) {
 
 int FixSMD_TLSPH_ReferenceConfiguration::unpack_exchange(int nlocal, double *buf) {
 	if (nlocal == nmax) {
-		//printf("nlocal=%d, nmax=%d\n", nlocal, nmax);
 		nmax = nmax / DELTA * DELTA;
 		nmax += DELTA;
 		grow_arrays(nmax);
@@ -543,7 +546,6 @@ int FixSMD_TLSPH_ReferenceConfiguration::unpack_exchange(int nlocal, double *buf
 		error->message(FLERR,
 				"in Fixtlsph_refconfigNeighGCG::unpack_exchange: local arrays too small for receiving partner information; growing arrays");
 	}
-//printf("nlocal=%d, nmax=%d\n", nlocal, nmax);
 
 	int m = 0;
 	npartner[nlocal] = static_cast<int>(buf[m++]);
@@ -579,27 +581,35 @@ int FixSMD_TLSPH_ReferenceConfiguration::unpack_exchange(int nlocal, double *buf
  ------------------------------------------------------------------------- */
 
 int FixSMD_TLSPH_ReferenceConfiguration::pack_restart(int i, double *buf) {
-	// int m = 0;
-	// buf[m++] = 13 * npartner[i] + 2;
-	// buf[m++] = npartner[i];
-	// for (int n = 0; n < npartner[i]; n++) {
-	// 	buf[m++] = partner[i][n];
-	// 	buf[m++] = wfd_list[i][n];
-	// 	buf[m++] = wf_list[i][n];
-	// 	buf[m++] = degradation_ij[i][n];
-	// 	buf[m++] = energy_per_bond[i][n];
-	// 	buf[m++] = partnerdx[i][n][0];
-	// 	buf[m++] = partnerdx[i][n][1];
-	// 	buf[m++] = partnerdx[i][n][2];
-	// 	buf[m++] = r0[i][n][1];
-	// 	buf[m++] = r0[i][n][2];
-	// 	buf[m++] = r0[i][n][3];
-	// 	buf[m++] = K_g_dot_dx0_normalized[i][n][2];
-	// 	buf[m++] = g_list[i][n][0];
-	// 	buf[m++] = g_list[i][n][1];
-	// 	buf[m++] = g_list[i][n][2];
-	// }
-	// return m;
+
+	int m = 0;
+	buf[m++] = npartner[i];
+	buf[m++] = K[i](0,0);
+	buf[m++] = K[i](0,1);
+	buf[m++] = K[i](0,2);
+	buf[m++] = K[i](1,0);
+	buf[m++] = K[i](1,1);
+	buf[m++] = K[i](1,2);
+	buf[m++] = K[i](2,0);
+	buf[m++] = K[i](2,1);
+	buf[m++] = K[i](2,2);
+
+	for (int n = 0; n < npartner[i]; n++) {
+		buf[m++] = partner[i][n];
+		buf[m++] = wfd_list[i][n];
+		buf[m++] = wf_list[i][n];
+		buf[m++] = degradation_ij[i][n];
+		buf[m++] = energy_per_bond[i][n];
+		buf[m++] = partnerdx[i][n][0];
+		buf[m++] = partnerdx[i][n][1];
+		buf[m++] = partnerdx[i][n][2];
+		buf[m++] = r0[i][n];
+		buf[m++] = K_g_dot_dx0_normalized[i][n];
+		buf[m++] = g_list[i][n][0];
+		buf[m++] = g_list[i][n][1];
+		buf[m++] = g_list[i][n][2];
+	}
+	return m;
 }
 
 /* ----------------------------------------------------------------------
@@ -607,36 +617,44 @@ int FixSMD_TLSPH_ReferenceConfiguration::pack_restart(int i, double *buf) {
  ------------------------------------------------------------------------- */
 
 void FixSMD_TLSPH_ReferenceConfiguration::unpack_restart(int nlocal, int nth) {
-  printf("In FixSMD_TLSPH_ReferenceConfiguration::unpack_restart()\n");
-// // ipage = NULL if being called from granular pair style init()
 
-// // skip to Nth set of extra values
+  // skip to Nth set of extra values
 
-// 	double **extra = atom->extra;
+  double **extra = atom->extra;
 
-// 	int m = 0;
-// 	for (int i = 0; i < nth; i++)
-// 		m += static_cast<int>(extra[nlocal][m]);
-// 	m++;
+  int m = 0;
+  for (int i = 0; i < nth; i++)
+    m += static_cast<int>(extra[nlocal][m]);
 
-// 	// allocate new chunks from ipage,dpage for incoming values
+  npartner[nlocal] = static_cast<int>(extra[nlocal][m++]);
 
-// 	npartner[nlocal] = static_cast<int>(extra[nlocal][m++]);
-// 	for (int n = 0; n < npartner[nlocal]; n++) {
-// 		partner[nlocal][n] = static_cast<tagint>(extra[nlocal][m++]);
-// 		wfd_list[nlocal][n] = extra[nlocal][m++];
-// 		wf_list[nlocal][n] = extra[nlocal][m++];
-// 		degradation_ij[nlocal][n] = extra[nlocal][m++];
-// 		energy_per_bond[nlocal][n] = extra[nlocal][m++];
-// 		partnerdx[nlocal][n][0] = extra[nlocal][m++];
-// 		partnerdx[nlocal][n][1] = extra[nlocal][m++];
-// 		partnerdx[nlocal][n][2] = extra[nlocal][m++];
-// 		r0[nlocal][n][2] = extra[nlocal][m++];
-// 		K_g_dot_dx0_normalized[nlocal][n][2] = extra[nlocal][m++];
-// 		g_list[nlocal][n][2] = extra[nlocal][m++];
-// 		g_list[nlocal][n][2] = extra[nlocal][m++];
-// 		g_list[nlocal][n][2] = extra[nlocal][m++];
-// 	}
+  K[nlocal](0,0) = extra[nlocal][m++];
+  K[nlocal](0,1) = extra[nlocal][m++];
+  K[nlocal](0,2) = extra[nlocal][m++];
+  K[nlocal](1,0) = extra[nlocal][m++];
+  K[nlocal](1,1) = extra[nlocal][m++];
+  K[nlocal](1,2) = extra[nlocal][m++];
+  K[nlocal](2,0) = extra[nlocal][m++];
+  K[nlocal](2,1) = extra[nlocal][m++];
+  K[nlocal](2,2) = extra[nlocal][m++];
+
+
+  for (int n = 0; n < npartner[nlocal]; n++) {
+    partner[nlocal][n] = static_cast<tagint>(extra[nlocal][m++]);
+    wfd_list[nlocal][n] = extra[nlocal][m++];
+    wf_list[nlocal][n] = extra[nlocal][m++];
+    degradation_ij[nlocal][n] = extra[nlocal][m++];
+    energy_per_bond[nlocal][n] = extra[nlocal][m++];
+    partnerdx[nlocal][n][0] = extra[nlocal][m++];
+    partnerdx[nlocal][n][1] = extra[nlocal][m++];
+    partnerdx[nlocal][n][2] = extra[nlocal][m++];
+    r0[nlocal][n] = extra[nlocal][m++];
+    K_g_dot_dx0_normalized[nlocal][n] = extra[nlocal][m++];
+    g_list[nlocal][n][0] = extra[nlocal][m++];
+    g_list[nlocal][n][1] = extra[nlocal][m++];
+    g_list[nlocal][n][2] = extra[nlocal][m++];
+  }
+  updateFlag = 0;
 }
 
 /* ----------------------------------------------------------------------
@@ -648,7 +666,7 @@ int FixSMD_TLSPH_ReferenceConfiguration::maxsize_restart() {
 
 	int maxtouch_all;
 	MPI_Allreduce(&maxpartner, &maxtouch_all, 1, MPI_INT, MPI_MAX, world);
-	return 13 * maxtouch_all + 2;
+	return 13 * maxtouch_all + 10;
 }
 
 /* ----------------------------------------------------------------------
@@ -656,7 +674,7 @@ int FixSMD_TLSPH_ReferenceConfiguration::maxsize_restart() {
  ------------------------------------------------------------------------- */
 
 int FixSMD_TLSPH_ReferenceConfiguration::size_restart(int nlocal) {
-	return 13 * npartner[nlocal] + 2;
+	return 13 * npartner[nlocal] + 10;
 }
 
 /* ---------------------------------------------------------------------- */
@@ -756,3 +774,35 @@ bool FixSMD_TLSPH_ReferenceConfiguration::crack_exclude(int i, int j) {
 }
 
 
+/* ----------------------------------------------------------------------
+ pack entire state of Fix into one write
+ ------------------------------------------------------------------------- */
+
+void FixSMD_TLSPH_ReferenceConfiguration::write_restart(FILE *fp) {
+  // maxtouch_all = max # of touching partners across all procs
+
+  int maxtouch_all;
+  MPI_Allreduce(&maxpartner, &maxtouch_all, 1, MPI_INT, MPI_MAX, world);
+
+  int n = 0;
+  double list[1];
+  list[n++] = maxtouch_all;
+
+  if (comm->me == 0) {
+    int size = n * sizeof(double);
+    fwrite(&size, sizeof(int), 1, fp);
+    fwrite(list, sizeof(double), n, fp);
+  }
+}
+
+/* ----------------------------------------------------------------------
+ use state info from restart file to restart the Fix
+ ------------------------------------------------------------------------- */
+
+void FixSMD_TLSPH_ReferenceConfiguration::restart(char *buf) {
+  int n = 0;
+  double *list = (double *) buf;
+  maxpartner = list[n++]; // Set maxpartner as the # of touching partners across all procs prior to restart to grow_arrays.
+
+  grow_arrays(atom->nmax);
+}

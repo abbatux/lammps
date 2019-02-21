@@ -36,7 +36,6 @@ NPairHalfSizeBinNewtoffTotalLagran::NPairHalfSizeBinNewtoffTotalLagran(LAMMPS *l
 
 void NPairHalfSizeBinNewtoffTotalLagran::build(NeighList *list)
 {
-  printf("In NPairHalfSizeBinNewtoffTotalLagran::build()\n");
   int i,j,k,n,ibin;
   double xtmp,ytmp,ztmp,delx,dely,delz,rsq;
   double radi,radsum,cutsq;
