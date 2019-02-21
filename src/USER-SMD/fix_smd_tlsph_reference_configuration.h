@@ -67,6 +67,9 @@ public:
 	bool crack_exclude(int i, int j);
 	bool get_line_intersection(int i, int j);
 
+	void write_restart(FILE *);
+	void restart(char *);
+
 protected:
 	int updateFlag; // flag to update reference configuration
 	int nmax;

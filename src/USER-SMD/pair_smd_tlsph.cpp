@@ -96,6 +96,13 @@ PairTlsph::PairTlsph(LAMMPS *lmp) :
 	fix_tlsph_reference_configuration = NULL;
 
 	cut_comm = MAX(neighbor->cutneighmax, comm->cutghostuser); // cutoff radius within which ghost atoms are communicated.
+
+	// Create MPI_failure_types:
+	int blockcounts = 10;
+	MPI_Aint offsets = 0;
+	MPI_Datatype oldtypes = MPI_C_BOOL;
+	MPI_Type_struct(1, &blockcounts, &offsets, &oldtypes, &MPI_failure_types);
+	MPI_Type_commit(&MPI_failure_types);
 }
 
 /* ---------------------------------------------------------------------- */
@@ -1089,11 +1096,11 @@ void PairTlsph::coeff(int narg, char **arg) {
 	eos[itype] = EOS_NONE;
 	strengthModel[itype] = STRENGTH_NONE;
 
-	if (comm->me == 0) {
-		printf(
-				"\n>>========>>========>>========>>========>>========>>========>>========>>========>>========>>========>>========>>========\n");
-		printf("SMD / TLSPH PROPERTIES OF PARTICLE TYPE %d:\n", itype);
-	}
+	// if (comm->me == 0) {
+	// 	printf(
+	// 			"\n>>========>>========>>========>>========>>========>>========>>========>>========>>========>>========>>========>>========\n");
+	// 	printf("SMD / TLSPH PROPERTIES OF PARTICLE TYPE %d:\n", itype);
+	// }
 
 	/*
 	 * read parameters which are common -- regardless of material / eos model
@@ -1147,21 +1154,20 @@ void PairTlsph::coeff(int narg, char **arg) {
 	Lookup[LONGITUDINAL_MODULUS][itype] = Lookup[LAME_LAMBDA][itype] + 2.0 * Lookup[SHEAR_MODULUS][itype];
 	Lookup[SIGNAL_VELOCITY_OVER_REFERENCE_DENSITY][itype] = Lookup[SIGNAL_VELOCITY][itype] / Lookup[REFERENCE_DENSITY][itype];
 
-	if (comm->me == 0) {
-		printf("\n material unspecific properties for SMD/TLSPH definition of particle type %d:\n", itype);
-		printf("%60s : %g\n", "reference density", Lookup[REFERENCE_DENSITY][itype]);
-		printf("%60s : %g\n", "Young's modulus", Lookup[YOUNGS_MODULUS][itype]);
-		printf("%60s : %g\n", "Poisson ratio", Lookup[POISSON_RATIO][itype]);
-		printf("%60s : %g\n", "linear viscosity coefficient", Lookup[VISCOSITY_Q1][itype]);
-		printf("%60s : %g\n", "quadratic viscosity coefficient", Lookup[VISCOSITY_Q2][itype]);
-		printf("%60s : %g\n", "hourglass control coefficient", Lookup[HOURGLASS_CONTROL_AMPLITUDE][itype]);
-		printf("%60s : %g\n", "heat capacity [energy / (mass * temperature)]", Lookup[HEAT_CAPACITY][itype]);
-		printf("%60s : %g\n", "Lame constant lambda", Lookup[LAME_LAMBDA][itype]);
-		printf("%60s : %g\n", "shear modulus", Lookup[SHEAR_MODULUS][itype]);
-		printf("%60s : %g\n", "bulk modulus", Lookup[BULK_MODULUS][itype]);
-		printf("%60s : %g\n", "signal velocity", Lookup[SIGNAL_VELOCITY][itype]);
-
-	}
+	// if (comm->me == 0) {
+	// 	printf("\n material unspecific properties for SMD/TLSPH definition of particle type %d:\n", itype);
+	// 	printf("%60s : %g\n", "reference density", Lookup[REFERENCE_DENSITY][itype]);
+	// 	printf("%60s : %g\n", "Young's modulus", Lookup[YOUNGS_MODULUS][itype]);
+	// 	printf("%60s : %g\n", "Poisson ratio", Lookup[POISSON_RATIO][itype]);
+	// 	printf("%60s : %g\n", "linear viscosity coefficient", Lookup[VISCOSITY_Q1][itype]);
+	// 	printf("%60s : %g\n", "quadratic viscosity coefficient", Lookup[VISCOSITY_Q2][itype]);
+	// 	printf("%60s : %g\n", "hourglass control coefficient", Lookup[HOURGLASS_CONTROL_AMPLITUDE][itype]);
+	// 	printf("%60s : %g\n", "heat capacity [energy / (mass * temperature)]", Lookup[HEAT_CAPACITY][itype]);
+	// 	printf("%60s : %g\n", "Lame constant lambda", Lookup[LAME_LAMBDA][itype]);
+	// 	printf("%60s : %g\n", "shear modulus", Lookup[SHEAR_MODULUS][itype]);
+	// 	printf("%60s : %g\n", "bulk modulus", Lookup[BULK_MODULUS][itype]);
+	// 	printf("%60s : %g\n", "signal velocity", Lookup[SIGNAL_VELOCITY][itype]);
+	// }
 
 	/*
 	 * read following material cards
@@ -1173,11 +1179,11 @@ void PairTlsph::coeff(int narg, char **arg) {
 
 	while (true) {
 		if (strcmp(arg[iNextKwd], "*END") == 0) {
-			if (comm->me == 0) {
-				printf("found *END keyword");
-				printf(
-						"\n>>========>>========>>========>>========>>========>>========>>========>>========>>========>>========>>========>>========\n\n");
-			}
+			// if (comm->me == 0) {
+			// 	printf("found *END keyword");
+			// 	printf(
+			// 			"\n>>========>>========>>========>>========>>========>>========>>========>>========>>========>>========>>========>>========\n\n");
+			// }
 			break;
 		}
 
@@ -1188,9 +1194,9 @@ void PairTlsph::coeff(int narg, char **arg) {
 		if (strcmp(arg[ioffset], "*LINEAR_DEFGRAD") == 0) {
 			strengthModel[itype] = LINEAR_DEFGRAD;
 
-			if (comm->me == 0) {
-				printf("reading *LINEAR_DEFGRAD\n");
-			}
+			// if (comm->me == 0) {
+			// 	printf("reading *LINEAR_DEFGRAD\n");
+			// }
 
 			t = string("*");
 			iNextKwd = -1;
@@ -1212,9 +1218,9 @@ void PairTlsph::coeff(int narg, char **arg) {
 				error->all(FLERR, str);
 			}
 
-			if (comm->me == 0) {
-				printf("\n%60s\n", "Linear Elasticity model based on deformation gradient");
-			}
+			// if (comm->me == 0) {
+			// 	printf("\n%60s\n", "Linear Elasticity model based on deformation gradient");
+			// }
 		} else if (strcmp(arg[ioffset], "*STRENGTH_LINEAR") == 0) {
 
 			/*
@@ -1222,9 +1228,9 @@ void PairTlsph::coeff(int narg, char **arg) {
 			 */
 
 			strengthModel[itype] = STRENGTH_LINEAR;
-			if (comm->me == 0) {
-				printf("reading *STRENGTH_LINEAR\n");
-			}
+			// if (comm->me == 0) {
+			// 	printf("reading *STRENGTH_LINEAR\n");
+			// }
 
 			t = string("*");
 			iNextKwd = -1;
@@ -1246,9 +1252,9 @@ void PairTlsph::coeff(int narg, char **arg) {
 				error->all(FLERR, str);
 			}
 
-			if (comm->me == 0) {
-				printf("%60s\n", "Linear Elasticity strength based on strain rate");
-			}
+			// if (comm->me == 0) {
+			// 	printf("%60s\n", "Linear Elasticity strength based on strain rate");
+			// }
 		} // end Linear Elasticity strength only model based on strain rate
 
 		else if (strcmp(arg[ioffset], "*STRENGTH_LINEAR_PLASTIC") == 0) {
@@ -1258,9 +1264,9 @@ void PairTlsph::coeff(int narg, char **arg) {
 			 */
 
 			strengthModel[itype] = STRENGTH_LINEAR_PLASTIC;
-			if (comm->me == 0) {
-				printf("reading *STRENGTH_LINEAR_PLASTIC\n");
-			}
+			// if (comm->me == 0) {
+			// 	printf("reading *STRENGTH_LINEAR_PLASTIC\n");
+			// }
 
 			t = string("*");
 			iNextKwd = -1;
@@ -1286,14 +1292,14 @@ void PairTlsph::coeff(int narg, char **arg) {
 			Lookup[HARDENING_PARAMETER][itype] = force->numeric(FLERR, arg[ioffset + 2]);
 
 			flowstress.linear_plastic(Lookup[YIELD_STRESS][itype], Lookup[HARDENING_PARAMETER][itype]);
-			if (comm->me == 0) {
-				printf("%60s\n", "Linear elastic / perfectly plastic strength based on strain rate");
-				printf("%60s : %g\n", "Young's modulus", Lookup[YOUNGS_MODULUS][itype]);
-				printf("%60s : %g\n", "Poisson ratio", Lookup[POISSON_RATIO][itype]);
-				printf("%60s : %g\n", "shear modulus", Lookup[SHEAR_MODULUS][itype]);
-				printf("%60s : %g\n", "constant yield stress", Lookup[YIELD_STRESS][itype]);
-				printf("%60s : %g\n", "constant hardening parameter", Lookup[HARDENING_PARAMETER][itype]);
-			}
+			// if (comm->me == 0) {
+			// 	printf("%60s\n", "Linear elastic / perfectly plastic strength based on strain rate");
+			// 	printf("%60s : %g\n", "Young's modulus", Lookup[YOUNGS_MODULUS][itype]);
+			// 	printf("%60s : %g\n", "Poisson ratio", Lookup[POISSON_RATIO][itype]);
+			// 	printf("%60s : %g\n", "shear modulus", Lookup[SHEAR_MODULUS][itype]);
+			// 	printf("%60s : %g\n", "constant yield stress", Lookup[YIELD_STRESS][itype]);
+			// 	printf("%60s : %g\n", "constant hardening parameter", Lookup[HARDENING_PARAMETER][itype]);
+			// }
 		} // end Linear Elastic / perfectly plastic strength only model based on strain rate
 
 		else if (strcmp(arg[ioffset], "*JOHNSON_COOK") == 0) {
@@ -1303,9 +1309,9 @@ void PairTlsph::coeff(int narg, char **arg) {
 			 */
 
 			strengthModel[itype] = STRENGTH_JOHNSON_COOK;
-			if (comm->me == 0) {
-				printf("reading *JOHNSON_COOK\n");
-			}
+			// if (comm->me == 0) {
+			// 	printf("reading *JOHNSON_COOK\n");
+			// }
 
 			t = string("*");
 			iNextKwd = -1;
@@ -1340,19 +1346,19 @@ void PairTlsph::coeff(int narg, char **arg) {
 				      Lookup[JC_C][itype], Lookup[JC_epdot0][itype], Lookup[JC_T0][itype],
 				      Lookup[JC_Tmelt][itype], Lookup[JC_M][itype]);
 
-			if (comm->me == 0) {
-				printf("%60s\n", "Johnson Cook material strength model");
-				printf("%60s : %g\n", "A: initial yield stress", Lookup[JC_A][itype]);
-				printf("%60s : %g\n", "B : proportionality factor for plastic strain dependency", Lookup[JC_B][itype]);
-				printf("%60s : %g\n", "a : exponent for plastic strain dependency", Lookup[JC_a][itype]);
-				printf("%60s : %g\n", "C : proportionality factor for logarithmic plastic strain rate dependency",
-						Lookup[JC_C][itype]);
-				printf("%60s : %g\n", "epdot0 : dimensionality factor for plastic strain rate dependency",
-						Lookup[JC_epdot0][itype]);
-				printf("%60s : %g\n", "T0 : reference (room) temperature", Lookup[JC_T0][itype]);
-				printf("%60s : %g\n", "Tmelt : melting temperature", Lookup[JC_Tmelt][itype]);
-				printf("%60s : %g\n", "M : exponent for temperature dependency", Lookup[JC_M][itype]);
-			}
+			// if (comm->me == 0) {
+			// 	printf("%60s\n", "Johnson Cook material strength model");
+			// 	printf("%60s : %g\n", "A: initial yield stress", Lookup[JC_A][itype]);
+			// 	printf("%60s : %g\n", "B : proportionality factor for plastic strain dependency", Lookup[JC_B][itype]);
+			// 	printf("%60s : %g\n", "a : exponent for plastic strain dependency", Lookup[JC_a][itype]);
+			// 	printf("%60s : %g\n", "C : proportionality factor for logarithmic plastic strain rate dependency",
+			// 			Lookup[JC_C][itype]);
+			// 	printf("%60s : %g\n", "epdot0 : dimensionality factor for plastic strain rate dependency",
+			// 			Lookup[JC_epdot0][itype]);
+			// 	printf("%60s : %g\n", "T0 : reference (room) temperature", Lookup[JC_T0][itype]);
+			// 	printf("%60s : %g\n", "Tmelt : melting temperature", Lookup[JC_Tmelt][itype]);
+			// 	printf("%60s : %g\n", "M : exponent for temperature dependency", Lookup[JC_M][itype]);
+			// }
 
 		} else if (strcmp(arg[ioffset], "*LUDWICK_HOLLOMON") == 0) {
 
@@ -1361,9 +1367,9 @@ void PairTlsph::coeff(int narg, char **arg) {
 			 */
 
 			strengthModel[itype] = STRENGTH_LUDWICK_HOLLOMON;
-			if (comm->me == 0) {
-				printf("reading *LUDWICK_HOLLOMON\n");
-			}
+			// if (comm->me == 0) {
+			// 	printf("reading *LUDWICK_HOLLOMON\n");
+			// }
 
 			t = string("*");
 			iNextKwd = -1;
@@ -1391,12 +1397,12 @@ void PairTlsph::coeff(int narg, char **arg) {
 
 			flowstress.LH(Lookup[LH_A][itype], Lookup[LH_B][itype], Lookup[LH_n][itype]);
 
-			if (comm->me == 0) {
-				printf("%60s : %s\n", "Ludwick-Hollomon material strength model","A + B * pow(ep, n)");
-				printf("%60s : %g\n", "A: initial yield stress", Lookup[LH_A][itype]);
-				printf("%60s : %g\n", "B : proportionality factor for plastic strain dependency", Lookup[LH_B][itype]);
-				printf("%60s : %g\n", "n : exponent for plastic strain dependency", Lookup[LH_n][itype]);
-			}
+			// if (comm->me == 0) {
+			// 	printf("%60s : %s\n", "Ludwick-Hollomon material strength model","A + B * pow(ep, n)");
+			// 	printf("%60s : %g\n", "A: initial yield stress", Lookup[LH_A][itype]);
+			// 	printf("%60s : %g\n", "B : proportionality factor for plastic strain dependency", Lookup[LH_B][itype]);
+			// 	printf("%60s : %g\n", "n : exponent for plastic strain dependency", Lookup[LH_n][itype]);
+			// }
 
 		} else if (strcmp(arg[ioffset], "*SWIFT") == 0) {
 
@@ -1405,9 +1411,9 @@ void PairTlsph::coeff(int narg, char **arg) {
 			 */
 
 			strengthModel[itype] = STRENGTH_SWIFT;
-			if (comm->me == 0) {
-				printf("reading *SWIFT\n");
-			}
+			// if (comm->me == 0) {
+			// 	printf("reading *SWIFT\n");
+			// }
 
 			t = string("*");
 			iNextKwd = -1;
@@ -1441,13 +1447,13 @@ void PairTlsph::coeff(int narg, char **arg) {
 			  error->all(FLERR, str);
 			}
 
-			if (comm->me == 0) {
-				printf("%60s : %s\n", "Swift strength model", "A + B * pow(ep - eps0, n)");
-				printf("%60s : %g\n", "A: initial yield stress", Lookup[SWIFT_A][itype]);
-				printf("%60s : %g\n", "B : proportionality factor for plastic strain dependency", Lookup[SWIFT_B][itype]);
-				printf("%60s : %g\n", "n : exponent for plastic strain dependency", Lookup[SWIFT_n][itype]);
-				printf("%60s : %g\n", "eps0 : initial plastic strain", Lookup[SWIFT_eps0][itype]);
-			}
+			// if (comm->me == 0) {
+			// 	printf("%60s : %s\n", "Swift strength model", "A + B * pow(ep - eps0, n)");
+			// 	printf("%60s : %g\n", "A: initial yield stress", Lookup[SWIFT_A][itype]);
+			// 	printf("%60s : %g\n", "B : proportionality factor for plastic strain dependency", Lookup[SWIFT_B][itype]);
+			// 	printf("%60s : %g\n", "n : exponent for plastic strain dependency", Lookup[SWIFT_n][itype]);
+			// 	printf("%60s : %g\n", "eps0 : initial plastic strain", Lookup[SWIFT_eps0][itype]);
+			// }
 
 		}  else if (strcmp(arg[ioffset], "*VOCE") == 0) {
 
@@ -1456,9 +1462,9 @@ void PairTlsph::coeff(int narg, char **arg) {
 			 */
 
 			strengthModel[itype] = STRENGTH_VOCE;
-			if (comm->me == 0) {
-				printf("reading *VOCE\n");
-			}
+			// if (comm->me == 0) {
+			// 	printf("reading *VOCE\n");
+			// }
 
 			t = string("*");
 			iNextKwd = -1;
@@ -1490,17 +1496,17 @@ void PairTlsph::coeff(int narg, char **arg) {
 
 			flowstress.VOCE(Lookup[VOCE_A][itype], Lookup[VOCE_Q1][itype], Lookup[VOCE_n1][itype], Lookup[VOCE_Q2][itype], Lookup[VOCE_n2][itype], Lookup[VOCE_C][itype], Lookup[VOCE_epsdot0][itype]);
 
-			if (comm->me == 0) {
-				printf("%60s : %s\n", "Voce strength model", "A - Q1 * exp(-n1 * ep) - Q2 * exp(-n2 * ep)");
-				printf("%60s : %g\n", "A", Lookup[VOCE_A][itype]);
-				printf("%60s : %g\n", "Q1", Lookup[VOCE_Q1][itype]);
-				printf("%60s : %g\n", "n1", Lookup[VOCE_n1][itype]);
-				printf("%60s : %g\n", "Q2", Lookup[VOCE_Q2][itype]);
-				printf("%60s : %g\n", "n2", Lookup[VOCE_n2][itype]);
-				printf("%60s : %g\n", "initial yield stress sigma0", Lookup[VOCE_A][itype] - Lookup[VOCE_Q1][itype] - Lookup[VOCE_Q2][itype]);
-				printf("%60s : %g\n", "proportionality factor for logarithmic plastic strain rate dependency C", Lookup[VOCE_C][itype]);
-				printf("%60s : %g\n", "dimensionality factor for plastic strain rate dependency epsdot0", Lookup[VOCE_epsdot0][itype]);
-			}
+			// if (comm->me == 0) {
+			// 	printf("%60s : %s\n", "Voce strength model", "A - Q1 * exp(-n1 * ep) - Q2 * exp(-n2 * ep)");
+			// 	printf("%60s : %g\n", "A", Lookup[VOCE_A][itype]);
+			// 	printf("%60s : %g\n", "Q1", Lookup[VOCE_Q1][itype]);
+			// 	printf("%60s : %g\n", "n1", Lookup[VOCE_n1][itype]);
+			// 	printf("%60s : %g\n", "Q2", Lookup[VOCE_Q2][itype]);
+			// 	printf("%60s : %g\n", "n2", Lookup[VOCE_n2][itype]);
+			// 	printf("%60s : %g\n", "initial yield stress sigma0", Lookup[VOCE_A][itype] - Lookup[VOCE_Q1][itype] - Lookup[VOCE_Q2][itype]);
+			// 	printf("%60s : %g\n", "proportionality factor for logarithmic plastic strain rate dependency C", Lookup[VOCE_C][itype]);
+			// 	printf("%60s : %g\n", "dimensionality factor for plastic strain rate dependency epsdot0", Lookup[VOCE_epsdot0][itype]);
+			// }
 			
 			if (Lookup[VOCE_A][itype] - Lookup[VOCE_Q1][itype] - Lookup[VOCE_Q2][itype]  < 0.0 ) {
 			  sprintf(str, "(A - Q1 - Q2) cannot be negative but got %f.\n", Lookup[VOCE_A][itype] - Lookup[VOCE_Q1][itype] - Lookup[VOCE_Q2][itype]);
@@ -1514,9 +1520,9 @@ void PairTlsph::coeff(int narg, char **arg) {
 			 */
 
 			eos[itype] = EOS_NONE;
-			if (comm->me == 0) {
-				printf("reading *EOS_NONE\n");
-			}
+			// if (comm->me == 0) {
+			// 	printf("reading *EOS_NONE\n");
+			// }
 
 			t = string("*");
 			iNextKwd = -1;
@@ -1549,9 +1555,9 @@ void PairTlsph::coeff(int narg, char **arg) {
 			 */
 
 			eos[itype] = EOS_LINEAR;
-			if (comm->me == 0) {
-				printf("reading *EOS_LINEAR\n");
-			}
+			// if (comm->me == 0) {
+			// 	printf("reading *EOS_LINEAR\n");
+			// }
 
 			t = string("*");
 			iNextKwd = -1;
@@ -1573,10 +1579,10 @@ void PairTlsph::coeff(int narg, char **arg) {
 				error->all(FLERR, str);
 			}
 
-			if (comm->me == 0) {
-				printf("\n%60s\n", "linear EOS based on strain rate");
-				printf("%60s : %g\n", "bulk modulus", Lookup[BULK_MODULUS][itype]);
-			}
+			// if (comm->me == 0) {
+			// 	printf("\n%60s\n", "linear EOS based on strain rate");
+			// 	printf("%60s : %g\n", "bulk modulus", Lookup[BULK_MODULUS][itype]);
+			// }
 		} // end linear eos
 		else if (strcmp(arg[ioffset], "*EOS_SHOCK") == 0) {
 
@@ -1585,9 +1591,9 @@ void PairTlsph::coeff(int narg, char **arg) {
 			 */
 
 			eos[itype] = EOS_SHOCK;
-			if (comm->me == 0) {
-				printf("reading *EOS_SHOCK\n");
-			}
+			// if (comm->me == 0) {
+			// 	printf("reading *EOS_SHOCK\n");
+			// }
 
 			t = string("*");
 			iNextKwd = -1;
@@ -1612,12 +1618,12 @@ void PairTlsph::coeff(int narg, char **arg) {
 			Lookup[EOS_SHOCK_C0][itype] = force->numeric(FLERR, arg[ioffset + 1]);
 			Lookup[EOS_SHOCK_S][itype] = force->numeric(FLERR, arg[ioffset + 2]);
 			Lookup[EOS_SHOCK_GAMMA][itype] = force->numeric(FLERR, arg[ioffset + 3]);
-			if (comm->me == 0) {
-				printf("\n%60s\n", "shock EOS based on strain rate");
-				printf("%60s : %g\n", "reference speed of sound", Lookup[EOS_SHOCK_C0][itype]);
-				printf("%60s : %g\n", "Hugoniot parameter S", Lookup[EOS_SHOCK_S][itype]);
-				printf("%60s : %g\n", "Grueneisen Gamma", Lookup[EOS_SHOCK_GAMMA][itype]);
-			}
+			// if (comm->me == 0) {
+			// 	printf("\n%60s\n", "shock EOS based on strain rate");
+			// 	printf("%60s : %g\n", "reference speed of sound", Lookup[EOS_SHOCK_C0][itype]);
+			// 	printf("%60s : %g\n", "Hugoniot parameter S", Lookup[EOS_SHOCK_S][itype]);
+			// 	printf("%60s : %g\n", "Grueneisen Gamma", Lookup[EOS_SHOCK_GAMMA][itype]);
+			// }
 		} // end shock eos
 
 		else if (strcmp(arg[ioffset], "*EOS_POLYNOMIAL") == 0) {
@@ -1626,9 +1632,9 @@ void PairTlsph::coeff(int narg, char **arg) {
 			 */
 
 			eos[itype] = EOS_POLYNOMIAL;
-			if (comm->me == 0) {
-				printf("reading *EOS_POLYNOMIAL\n");
-			}
+			// if (comm->me == 0) {
+			// 	printf("reading *EOS_POLYNOMIAL\n");
+			// }
 
 			t = string("*");
 			iNextKwd = -1;
@@ -1657,16 +1663,16 @@ void PairTlsph::coeff(int narg, char **arg) {
 			Lookup[EOS_POLYNOMIAL_C4][itype] = force->numeric(FLERR, arg[ioffset + 5]);
 			Lookup[EOS_POLYNOMIAL_C5][itype] = force->numeric(FLERR, arg[ioffset + 6]);
 			Lookup[EOS_POLYNOMIAL_C6][itype] = force->numeric(FLERR, arg[ioffset + 7]);
-			if (comm->me == 0) {
-				printf("\n%60s\n", "polynomial EOS based on strain rate");
-				printf("%60s : %g\n", "parameter c0", Lookup[EOS_POLYNOMIAL_C0][itype]);
-				printf("%60s : %g\n", "parameter c1", Lookup[EOS_POLYNOMIAL_C1][itype]);
-				printf("%60s : %g\n", "parameter c2", Lookup[EOS_POLYNOMIAL_C2][itype]);
-				printf("%60s : %g\n", "parameter c3", Lookup[EOS_POLYNOMIAL_C3][itype]);
-				printf("%60s : %g\n", "parameter c4", Lookup[EOS_POLYNOMIAL_C4][itype]);
-				printf("%60s : %g\n", "parameter c5", Lookup[EOS_POLYNOMIAL_C5][itype]);
-				printf("%60s : %g\n", "parameter c6", Lookup[EOS_POLYNOMIAL_C6][itype]);
-			}
+			// if (comm->me == 0) {
+			// 	printf("\n%60s\n", "polynomial EOS based on strain rate");
+			// 	printf("%60s : %g\n", "parameter c0", Lookup[EOS_POLYNOMIAL_C0][itype]);
+			// 	printf("%60s : %g\n", "parameter c1", Lookup[EOS_POLYNOMIAL_C1][itype]);
+			// 	printf("%60s : %g\n", "parameter c2", Lookup[EOS_POLYNOMIAL_C2][itype]);
+			// 	printf("%60s : %g\n", "parameter c3", Lookup[EOS_POLYNOMIAL_C3][itype]);
+			// 	printf("%60s : %g\n", "parameter c4", Lookup[EOS_POLYNOMIAL_C4][itype]);
+			// 	printf("%60s : %g\n", "parameter c5", Lookup[EOS_POLYNOMIAL_C5][itype]);
+			// 	printf("%60s : %g\n", "parameter c6", Lookup[EOS_POLYNOMIAL_C6][itype]);
+			// }
 		} // end polynomial eos
 
 		else if (strcmp(arg[ioffset], "*FAILURE_MAX_PLASTIC_STRAIN") == 0) {
@@ -1675,9 +1681,9 @@ void PairTlsph::coeff(int narg, char **arg) {
 			 * maximum plastic strain failure criterion
 			 */
 
-			if (comm->me == 0) {
-				printf("reading *FAILURE_MAX_PLASTIC_SRTRAIN\n");
-			}
+			// if (comm->me == 0) {
+			// 	printf("reading *FAILURE_MAX_PLASTIC_SRTRAIN\n");
+			// }
 
 			t = string("*");
 			iNextKwd = -1;
@@ -1704,11 +1710,11 @@ void PairTlsph::coeff(int narg, char **arg) {
 			failureModel[itype].failure_none = false;
 			Lookup[FAILURE_MAX_PLASTIC_STRAIN_THRESHOLD][itype] = force->numeric(FLERR, arg[ioffset + 1]);
 
-			if (comm->me == 0) {
-				printf("\n%60s\n", "maximum plastic strain failure criterion");
-				printf("%60s : %g\n", "failure occurs when plastic strain reaches limit",
-						Lookup[FAILURE_MAX_PLASTIC_STRAIN_THRESHOLD][itype]);
-			}
+			// if (comm->me == 0) {
+			// 	printf("\n%60s\n", "maximum plastic strain failure criterion");
+			// 	printf("%60s : %g\n", "failure occurs when plastic strain reaches limit",
+			// 			Lookup[FAILURE_MAX_PLASTIC_STRAIN_THRESHOLD][itype]);
+			// }
 		} // end maximum plastic strain failure criterion
 		else if (strcmp(arg[ioffset], "*FAILURE_MAX_PAIRWISE_STRAIN") == 0) {
 
@@ -1716,9 +1722,9 @@ void PairTlsph::coeff(int narg, char **arg) {
 			 * failure criterion based on maximum strain between a pair of TLSPH particles.
 			 */
 
-			if (comm->me == 0) {
-				printf("reading *FAILURE_MAX_PAIRWISE_STRAIN\n");
-			}
+			// if (comm->me == 0) {
+			// 	printf("reading *FAILURE_MAX_PAIRWISE_STRAIN\n");
+			// }
 
 			if (update_method != UPDATE_NONE) {
 				error->all(FLERR, "cannot use *FAILURE_MAX_PAIRWISE_STRAIN with updated Total-Lagrangian formalism");
@@ -1749,11 +1755,11 @@ void PairTlsph::coeff(int narg, char **arg) {
 			failureModel[itype].failure_none = false;
 			Lookup[FAILURE_MAX_PAIRWISE_STRAIN_THRESHOLD][itype] = force->numeric(FLERR, arg[ioffset + 1]);
 
-			if (comm->me == 0) {
-				printf("\n%60s\n", "maximum pairwise strain failure criterion");
-				printf("%60s : %g\n", "failure occurs when pairwise strain reaches limit",
-						Lookup[FAILURE_MAX_PAIRWISE_STRAIN_THRESHOLD][itype]);
-			}
+			// if (comm->me == 0) {
+			// 	printf("\n%60s\n", "maximum pairwise strain failure criterion");
+			// 	printf("%60s : %g\n", "failure occurs when pairwise strain reaches limit",
+			// 			Lookup[FAILURE_MAX_PAIRWISE_STRAIN_THRESHOLD][itype]);
+			// }
 		} // end pair based maximum strain failure criterion
 		else if (strcmp(arg[ioffset], "*FAILURE_MAX_PRINCIPAL_STRAIN") == 0) {
 			error->all(FLERR, "this failure model is currently unsupported");
@@ -1761,9 +1767,9 @@ void PairTlsph::coeff(int narg, char **arg) {
 			/*
 			 * maximum principal strain failure criterion
 			 */
-			if (comm->me == 0) {
-				printf("reading *FAILURE_MAX_PRINCIPAL_STRAIN\n");
-			}
+			// if (comm->me == 0) {
+			// 	printf("reading *FAILURE_MAX_PRINCIPAL_STRAIN\n");
+			// }
 
 			t = string("*");
 			iNextKwd = -1;
@@ -1790,17 +1796,17 @@ void PairTlsph::coeff(int narg, char **arg) {
 			failureModel[itype].failure_none = false;
 			Lookup[FAILURE_MAX_PRINCIPAL_STRAIN_THRESHOLD][itype] = force->numeric(FLERR, arg[ioffset + 1]);
 
-			if (comm->me == 0) {
-				printf("\n%60s\n", "maximum principal strain failure criterion");
-				printf("%60s : %g\n", "failure occurs when principal strain reaches limit",
-						Lookup[FAILURE_MAX_PRINCIPAL_STRAIN_THRESHOLD][itype]);
-			}
+			// if (comm->me == 0) {
+			// 	printf("\n%60s\n", "maximum principal strain failure criterion");
+			// 	printf("%60s : %g\n", "failure occurs when principal strain reaches limit",
+			// 			Lookup[FAILURE_MAX_PRINCIPAL_STRAIN_THRESHOLD][itype]);
+			// }
 		} // end maximum principal strain failure criterion
 		else if (strcmp(arg[ioffset], "*FAILURE_JOHNSON_COOK") == 0) {
 		  //error->all(FLERR, "this failure model is currently unsupported");
-			if (comm->me == 0) {
-				printf("reading *FAILURE_JOHNSON_COOK\n");
-			}
+			// if (comm->me == 0) {
+			// 	printf("reading *FAILURE_JOHNSON_COOK\n");
+			// }
 
 			t = string("*");
 			iNextKwd = -1;
@@ -1832,14 +1838,14 @@ void PairTlsph::coeff(int narg, char **arg) {
 			Lookup[FAILURE_JC_D4][itype] = force->numeric(FLERR, arg[ioffset + 4]);
 			Lookup[FAILURE_JC_EPDOT0][itype] = force->numeric(FLERR, arg[ioffset + 5]);
 
-			if (comm->me == 0) {
-				printf("\n%60s\n", "Johnson-Cook failure criterion");
-				printf("%60s : %g\n", "parameter d1", Lookup[FAILURE_JC_D1][itype]);
-				printf("%60s : %g\n", "parameter d2", Lookup[FAILURE_JC_D2][itype]);
-				printf("%60s : %g\n", "parameter d3", Lookup[FAILURE_JC_D3][itype]);
-				printf("%60s : %g\n", "parameter d4", Lookup[FAILURE_JC_D4][itype]);
-				printf("%60s : %g\n", "reference plastic strain rate", Lookup[FAILURE_JC_EPDOT0][itype]);
-			}
+			// if (comm->me == 0) {
+			// 	printf("\n%60s\n", "Johnson-Cook failure criterion");
+			// 	printf("%60s : %g\n", "parameter d1", Lookup[FAILURE_JC_D1][itype]);
+			// 	printf("%60s : %g\n", "parameter d2", Lookup[FAILURE_JC_D2][itype]);
+			// 	printf("%60s : %g\n", "parameter d3", Lookup[FAILURE_JC_D3][itype]);
+			// 	printf("%60s : %g\n", "parameter d4", Lookup[FAILURE_JC_D4][itype]);
+			// 	printf("%60s : %g\n", "reference plastic strain rate", Lookup[FAILURE_JC_EPDOT0][itype]);
+			// }
 
 		} else if (strcmp(arg[ioffset], "*FAILURE_MAX_PRINCIPAL_STRESS") == 0) {
 			error->all(FLERR, "this failure model is currently unsupported");
@@ -1848,9 +1854,9 @@ void PairTlsph::coeff(int narg, char **arg) {
 			 * maximum principal stress failure criterion
 			 */
 
-			if (comm->me == 0) {
-				printf("reading *FAILURE_MAX_PRINCIPAL_STRESS\n");
-			}
+			// if (comm->me == 0) {
+			// 	printf("reading *FAILURE_MAX_PRINCIPAL_STRESS\n");
+			// }
 
 			t = string("*");
 			iNextKwd = -1;
@@ -1877,17 +1883,17 @@ void PairTlsph::coeff(int narg, char **arg) {
 			failureModel[itype].failure_none = false;
 			Lookup[FAILURE_MAX_PRINCIPAL_STRESS_THRESHOLD][itype] = force->numeric(FLERR, arg[ioffset + 1]);
 
-			if (comm->me == 0) {
-				printf("\n%60s\n", "maximum principal stress failure criterion");
-				printf("%60s : %g\n", "failure occurs when principal stress reaches limit",
-						Lookup[FAILURE_MAX_PRINCIPAL_STRESS_THRESHOLD][itype]);
-			}
+			// if (comm->me == 0) {
+			// 	printf("\n%60s\n", "maximum principal stress failure criterion");
+			// 	printf("%60s : %g\n", "failure occurs when principal stress reaches limit",
+			// 			Lookup[FAILURE_MAX_PRINCIPAL_STRESS_THRESHOLD][itype]);
+			// }
 		} // end maximum principal stress failure criterion
 
 		else if (strcmp(arg[ioffset], "*FAILURE_ENERGY_RELEASE_RATE") == 0) {
-			if (comm->me == 0) {
-				printf("reading *FAILURE_ENERGY_RELEASE_RATE\n");
-			}
+			// if (comm->me == 0) {
+			// 	printf("reading *FAILURE_ENERGY_RELEASE_RATE\n");
+			// }
 
 			t = string("*");
 			iNextKwd = -1;
@@ -1913,11 +1919,11 @@ void PairTlsph::coeff(int narg, char **arg) {
 			failureModel[itype].failure_none = false;
 			Lookup[CRITICAL_ENERGY_RELEASE_RATE][itype] = force->numeric(FLERR, arg[ioffset + 1]);
 
-			if (comm->me == 0) {
-				printf("\n%60s\n", "critical energy release rate failure criterion");
-				printf("%60s : %g\n", "failure occurs when energy release rate reaches limit",
-						Lookup[CRITICAL_ENERGY_RELEASE_RATE][itype]);
-			}
+			// if (comm->me == 0) {
+			// 	printf("\n%60s\n", "critical energy release rate failure criterion");
+			// 	printf("%60s : %g\n", "failure occurs when energy release rate reaches limit",
+			// 			Lookup[CRITICAL_ENERGY_RELEASE_RATE][itype]);
+			// }
 		} // end energy release rate failure criterion
 
 		else if (strcmp(arg[ioffset], "*GURSON_TVERGAARD_NEEDLEMAN") == 0) {
@@ -1926,9 +1932,9 @@ void PairTlsph::coeff(int narg, char **arg) {
 			 * GURSON - TVERGAARD - NEEDLEMAN Model
 			 */
 		  
-			if (comm->me == 0) {
-				printf("reading *GURSON_TVERGAARD_NEEDLEMAN\n");
-			}
+			// if (comm->me == 0) {
+			// 	printf("reading *GURSON_TVERGAARD_NEEDLEMAN\n");
+			// }
 
 			t = string("*");
 			iNextKwd = -1;
@@ -1968,22 +1974,22 @@ void PairTlsph::coeff(int narg, char **arg) {
 			Lookup[GTN_fF][itype] = force->numeric(FLERR, arg[ioffset + 8]);
 			Lookup[GTN_Komega][itype] = force->numeric(FLERR, arg[ioffset + 9]);
 
-			if (comm->me == 0) {
-				printf("%60s\n", " Gurson - Tvergaard - Needleman failure model");
-				printf("%60s : %g\n", "Q1", Lookup[GTN_Q1][itype]);
-				printf("%60s : %g\n", "Q2", Lookup[GTN_Q2][itype]);
-				if (Lookup[GTN_inverse_sN][itype] == 0.0) {
-				  printf("%60s : %g\n", "AN", Lookup[GTN_FN][itype]);
-				} else {
-				  printf("%60s : %g\n", "FN", Lookup[GTN_FN][itype]);
-				  printf("%60s : %g\n", "sN", 1.0/Lookup[GTN_inverse_sN][itype]);
-				  printf("%60s : %g\n", "epsN", Lookup[GTN_epsN][itype]);
-				}
-				printf("%60s : %g\n", "Initial void fraction f0", Lookup[GTN_f0][itype]);
-				printf("%60s : %g\n", "Critical void fraction", Lookup[GTN_fcr][itype]);
-				printf("%60s : %g\n", "Void fraction at failure", Lookup[GTN_fF][itype]);
-				printf("%60s : %g\n", "Komega: magnitude of the damage growth rate in pure shear states (from Nahshon and Hutchinson, 2008)", Lookup[GTN_Komega][itype]);
-			}
+			// if (comm->me == 0) {
+			// 	printf("%60s\n", " Gurson - Tvergaard - Needleman failure model");
+			// 	printf("%60s : %g\n", "Q1", Lookup[GTN_Q1][itype]);
+			// 	printf("%60s : %g\n", "Q2", Lookup[GTN_Q2][itype]);
+			// 	if (Lookup[GTN_inverse_sN][itype] == 0.0) {
+			// 	  printf("%60s : %g\n", "AN", Lookup[GTN_FN][itype]);
+			// 	} else {
+			// 	  printf("%60s : %g\n", "FN", Lookup[GTN_FN][itype]);
+			// 	  printf("%60s : %g\n", "sN", 1.0/Lookup[GTN_inverse_sN][itype]);
+			// 	  printf("%60s : %g\n", "epsN", Lookup[GTN_epsN][itype]);
+			// 	}
+			// 	printf("%60s : %g\n", "Initial void fraction f0", Lookup[GTN_f0][itype]);
+			// 	printf("%60s : %g\n", "Critical void fraction", Lookup[GTN_fcr][itype]);
+			// 	printf("%60s : %g\n", "Void fraction at failure", Lookup[GTN_fF][itype]);
+			// 	printf("%60s : %g\n", "Komega: magnitude of the damage growth rate in pure shear states (from Nahshon and Hutchinson, 2008)", Lookup[GTN_Komega][itype]);
+			// }
 
 		} // End of GURSON_TVERGAARD_NEEDLEMAN
 
@@ -1993,9 +1999,9 @@ void PairTlsph::coeff(int narg, char **arg) {
 			 * COCKCROFT - LATHAMGURSON Model
 			 */
 		  
-			if (comm->me == 0) {
-				printf("reading *COCKCROFT_LATHAM\n");
-			}
+			// if (comm->me == 0) {
+			// 	printf("reading *COCKCROFT_LATHAM\n");
+			// }
 
 			t = string("*");
 			iNextKwd = -1;
@@ -2023,10 +2029,10 @@ void PairTlsph::coeff(int narg, char **arg) {
 			
 			Lookup[CL_W][itype] = force->numeric(FLERR, arg[ioffset + 1]);
 
-			if (comm->me == 0) {
-				printf("%60s\n", " Cockcroft - Latham failure model");
-				printf("%60s : %g\n", "Total plastic work per unit volume: W", Lookup[CL_W][itype]);
-			}
+			// if (comm->me == 0) {
+			// 	printf("%60s\n", " Cockcroft - Latham failure model");
+			// 	printf("%60s : %g\n", "Total plastic work per unit volume: W", Lookup[CL_W][itype]);
+			// }
 
 		} 
 
@@ -2037,8 +2043,8 @@ void PairTlsph::coeff(int narg, char **arg) {
 
 	}
 
-	setflag[itype][itype] = 1;
-
+	// setflag[itype][itype] = 1;
+	coeff_init(itype);
 }
 
 /* ----------------------------------------------------------------------
@@ -2080,6 +2086,7 @@ void PairTlsph::init_style() {
 // request a granular neighbor list
 	int irequest = neighbor->request(this);
 	neighbor->requests[irequest]->size = 1;
+	neighbor->requests[irequest]->total_lagran = 1;
 
 // set maxrad_dynamic and maxrad_frozen for each type
 // include future Fix pour particles as dynamic
@@ -2584,7 +2591,7 @@ void PairTlsph::ComputeDamage(const int i, const Matrix3d strain, const Matrix3d
 
 	  damage_init[i] += damage_increment[i];
 	  
-	  double deltat_damage;
+	  double deltat_damage = particle_dt[i];
 
 	  if (damage_init[i] >= 1.0) {
 	    if (damage_increment[i] > 0.0) deltat_damage = dt / (100 * damage_increment[i]);
@@ -2883,5 +2890,257 @@ void PairTlsph::AdjustStressForZeroForceBC(const Matrix3d sigma, const Vector3d 
     cout << "Here is P.transpose() * sigmaBC * P :" << endl << P.transpose() * sigmaBC * P << endl;
     cout << "Here is P.transpose() * sU :" << endl << P.transpose() * sU << endl;
     cout << "Here is P :" << endl << P << endl;
+  }
+}
+
+
+void PairTlsph::write_restart(FILE *fp){
+
+  // Save all the settings, eos, strengthModel, Lookup and failureModel vectors in the restart file.
+  write_restart_settings(fp);
+  fwrite(&eos[1],sizeof(int),atom->ntypes,fp); // Do not save eos[0] as it is not used
+  fwrite(&strengthModel[1],sizeof(int),atom->ntypes,fp);
+  for (int ikey = 0; ikey<MAX_KEY_VALUE; ikey++)
+    fwrite(&Lookup[ikey][1],sizeof(double),atom->ntypes,fp);
+  fwrite(&failureModel[1],sizeof(struct failure_types),atom->ntypes,fp);
+}
+
+void PairTlsph::read_restart(FILE *fp) {
+  read_restart_settings(fp);
+  allocate();
+
+  int me = comm->me;
+  if (me == 0) {
+    fread(&eos[1],sizeof(int),atom->ntypes,fp);
+    fread(&strengthModel[1],sizeof(int),atom->ntypes,fp);
+    for (int ikey = 0; ikey<MAX_KEY_VALUE; ikey++)
+      fread(&Lookup[ikey][1],sizeof(double),atom->ntypes,fp);
+    fread(&failureModel[1],sizeof(struct failure_types),atom->ntypes,fp);
+  }
+  
+  MPI_Bcast(eos,atom->ntypes+1,MPI_INT,0,world);
+  MPI_Bcast(strengthModel,atom->ntypes+1,MPI_INT,0,world);
+  for (int ikey = 0; ikey<MAX_KEY_VALUE; ikey++)
+    MPI_Bcast(Lookup[ikey],atom->ntypes+1,MPI_DOUBLE,0,world);
+  MPI_Bcast(failureModel,atom->ntypes+1,MPI_failure_types,0,world);
+
+  for (int itype=1; itype<=atom->ntypes; itype++)
+    coeff_init(itype);
+}
+
+void PairTlsph::write_restart_settings(FILE *fp){
+  fwrite(&cut_comm,sizeof(double),1,fp);
+  fwrite(&update_threshold,sizeof(double),1,fp);
+  fwrite(&update_method,sizeof(int),1,fp);
+}
+
+void PairTlsph::read_restart_settings(FILE *fp) {
+  int me = comm->me;
+  if (me == 0) {
+    fread(&cut_comm,sizeof(double),1,fp);
+    fread(&update_threshold,sizeof(double),1,fp);
+    fread(&update_method,sizeof(int),1,fp);
+  }
+  MPI_Bcast(&cut_comm,1,MPI_DOUBLE,0,world);
+  MPI_Bcast(&update_threshold,1,MPI_DOUBLE,0,world);
+  MPI_Bcast(&update_method,1,MPI_INT,0,world);
+  
+}
+
+void PairTlsph::coeff_init(int itype){
+
+  setflag[itype][itype] = 1;
+  if (comm->me == 0) {
+    printf(
+	   "\n>>========>>========>>========>>========>>========>>========>>========>>========>>========>>========>>========>>========\n");
+    printf("SMD / TLSPH PROPERTIES OF PARTICLE TYPE %d:\n", itype);
+
+    printf("\n material unspecific properties for SMD/TLSPH definition of particle type %d:\n", itype);
+    printf("%60s : %g\n", "reference density", Lookup[REFERENCE_DENSITY][itype]);
+    printf("%60s : %g\n", "Young's modulus", Lookup[YOUNGS_MODULUS][itype]);
+    printf("%60s : %g\n", "Poisson ratio", Lookup[POISSON_RATIO][itype]);
+    printf("%60s : %g\n", "linear viscosity coefficient", Lookup[VISCOSITY_Q1][itype]);
+    printf("%60s : %g\n", "quadratic viscosity coefficient", Lookup[VISCOSITY_Q2][itype]);
+    printf("%60s : %g\n", "hourglass control coefficient", Lookup[HOURGLASS_CONTROL_AMPLITUDE][itype]);
+    printf("%60s : %g\n", "heat capacity [energy / (mass * temperature)]", Lookup[HEAT_CAPACITY][itype]);
+    printf("%60s : %g\n", "Lame constant lambda", Lookup[LAME_LAMBDA][itype]);
+    printf("%60s : %g\n", "shear modulus", Lookup[SHEAR_MODULUS][itype]);
+    printf("%60s : %g\n", "bulk modulus", Lookup[BULK_MODULUS][itype]);
+    printf("%60s : %g\n", "signal velocity", Lookup[SIGNAL_VELOCITY][itype]);  
+  }
+
+  if (strengthModel[itype] == STRENGTH_LINEAR_PLASTIC) {
+
+    flowstress.linear_plastic(Lookup[YIELD_STRESS][itype], Lookup[HARDENING_PARAMETER][itype]);
+
+    if (comm->me == 0) {
+      printf("\n%60s\n", "Linear elastic / perfectly plastic strength based on strain rate");
+      printf("%60s : %g\n", "Young's modulus", Lookup[YOUNGS_MODULUS][itype]);
+      printf("%60s : %g\n", "Poisson ratio", Lookup[POISSON_RATIO][itype]);
+      printf("%60s : %g\n", "shear modulus", Lookup[SHEAR_MODULUS][itype]);
+      printf("%60s : %g\n", "constant yield stress", Lookup[YIELD_STRESS][itype]);
+      printf("%60s : %g\n", "constant hardening parameter", Lookup[HARDENING_PARAMETER][itype]);
+    }
+  } else if (strengthModel[itype] == STRENGTH_JOHNSON_COOK) {
+    
+    flowstress.JC(Lookup[JC_A][itype], Lookup[JC_B][itype], Lookup[JC_a][itype],
+		  Lookup[JC_C][itype], Lookup[JC_epdot0][itype], Lookup[JC_T0][itype],
+		  Lookup[JC_Tmelt][itype], Lookup[JC_M][itype]);
+
+    if (comm->me == 0) {
+      printf("\n%60s\n", "Johnson Cook material strength model");
+      printf("%60s : %g\n", "A: initial yield stress", Lookup[JC_A][itype]);
+      printf("%60s : %g\n", "B : proportionality factor for plastic strain dependency", Lookup[JC_B][itype]);
+      printf("%60s : %g\n", "a : exponent for plastic strain dependency", Lookup[JC_a][itype]);
+      printf("%60s : %g\n", "C : proportionality factor for logarithmic plastic strain rate dependency",
+	     Lookup[JC_C][itype]);
+      printf("%60s : %g\n", "epdot0 : dimensionality factor for plastic strain rate dependency",
+	     Lookup[JC_epdot0][itype]);
+      printf("%60s : %g\n", "T0 : reference (room) temperature", Lookup[JC_T0][itype]);
+      printf("%60s : %g\n", "Tmelt : melting temperature", Lookup[JC_Tmelt][itype]);
+      printf("%60s : %g\n", "M : exponent for temperature dependency", Lookup[JC_M][itype]);
+    }
+  } else if (strengthModel[itype] == STRENGTH_LUDWICK_HOLLOMON) {
+    
+    flowstress.LH(Lookup[LH_A][itype], Lookup[LH_B][itype], Lookup[LH_n][itype]);
+
+    if (comm->me == 0) {
+      printf("\n%60s : %s\n", "Ludwick-Hollomon material strength model","A + B * pow(ep, n)");
+      printf("%60s : %g\n", "A: initial yield stress", Lookup[LH_A][itype]);
+      printf("%60s : %g\n", "B : proportionality factor for plastic strain dependency", Lookup[LH_B][itype]);
+      printf("%60s : %g\n", "n : exponent for plastic strain dependency", Lookup[LH_n][itype]);
+    }
+  } else if (strengthModel[itype] == STRENGTH_SWIFT) {
+
+    flowstress.SWIFT(Lookup[SWIFT_A][itype], Lookup[SWIFT_B][itype], Lookup[SWIFT_n][itype], Lookup[SWIFT_eps0][itype]);
+
+    if (comm->me == 0) {
+      printf("\n%60s : %s\n", "Swift strength model", "A + B * pow(ep - eps0, n)");
+      printf("%60s : %g\n", "A: initial yield stress", Lookup[SWIFT_A][itype]);
+      printf("%60s : %g\n", "B : proportionality factor for plastic strain dependency", Lookup[SWIFT_B][itype]);
+      printf("%60s : %g\n", "n : exponent for plastic strain dependency", Lookup[SWIFT_n][itype]);
+      printf("%60s : %g\n", "eps0 : initial plastic strain", Lookup[SWIFT_eps0][itype]);
+    }
+  } else if (strengthModel[itype] == STRENGTH_VOCE) {
+    flowstress.VOCE(Lookup[VOCE_A][itype], Lookup[VOCE_Q1][itype], Lookup[VOCE_n1][itype], Lookup[VOCE_Q2][itype], Lookup[VOCE_n2][itype], Lookup[VOCE_C][itype], Lookup[VOCE_epsdot0][itype]);
+
+    if (comm->me == 0) {
+      printf("\n%60s : %s\n", "Voce strength model", "A - Q1 * exp(-n1 * ep) - Q2 * exp(-n2 * ep)");
+      printf("%60s : %g\n", "A", Lookup[VOCE_A][itype]);
+      printf("%60s : %g\n", "Q1", Lookup[VOCE_Q1][itype]);
+      printf("%60s : %g\n", "n1", Lookup[VOCE_n1][itype]);
+      printf("%60s : %g\n", "Q2", Lookup[VOCE_Q2][itype]);
+      printf("%60s : %g\n", "n2", Lookup[VOCE_n2][itype]);
+      printf("%60s : %g\n", "initial yield stress sigma0", Lookup[VOCE_A][itype] - Lookup[VOCE_Q1][itype] - Lookup[VOCE_Q2][itype]);
+      printf("%60s : %g\n", "proportionality factor for logarithmic plastic strain rate dependency C", Lookup[VOCE_C][itype]);
+      printf("%60s : %g\n", "dimensionality factor for plastic strain rate dependency epsdot0", Lookup[VOCE_epsdot0][itype]);
+    }
+  }
+
+  if (eos[itype] == EOS_LINEAR) {
+    if (comm->me == 0) {
+      printf("\n%60s\n", "linear EOS based on strain rate");
+      printf("%60s : %g\n", "bulk modulus", Lookup[BULK_MODULUS][itype]);
+    }
+  } else if (eos[itype] == EOS_SHOCK) {
+    if (comm->me == 0) {
+      printf("\n%60s\n", "shock EOS based on strain rate");
+      printf("%60s : %g\n", "reference speed of sound", Lookup[EOS_SHOCK_C0][itype]);
+      printf("%60s : %g\n", "Hugoniot parameter S", Lookup[EOS_SHOCK_S][itype]);
+      printf("%60s : %g\n", "Grueneisen Gamma", Lookup[EOS_SHOCK_GAMMA][itype]);
+    }
+  } else if (eos[itype] == EOS_POLYNOMIAL) {
+    if (comm->me == 0) {
+      printf("\n%60s\n", "polynomial EOS based on strain rate");
+      printf("%60s : %g\n", "parameter c0", Lookup[EOS_POLYNOMIAL_C0][itype]);
+      printf("%60s : %g\n", "parameter c1", Lookup[EOS_POLYNOMIAL_C1][itype]);
+      printf("%60s : %g\n", "parameter c2", Lookup[EOS_POLYNOMIAL_C2][itype]);
+      printf("%60s : %g\n", "parameter c3", Lookup[EOS_POLYNOMIAL_C3][itype]);
+      printf("%60s : %g\n", "parameter c4", Lookup[EOS_POLYNOMIAL_C4][itype]);
+      printf("%60s : %g\n", "parameter c5", Lookup[EOS_POLYNOMIAL_C5][itype]);
+      printf("%60s : %g\n", "parameter c6", Lookup[EOS_POLYNOMIAL_C6][itype]);
+    }
+  }
+
+  if (failureModel[itype].failure_max_plastic_strain) {
+    if (comm->me == 0) {
+      printf("\n%60s\n", "maximum plastic strain failure criterion");
+      printf("%60s : %g\n", "failure occurs when plastic strain reaches limit",
+	     Lookup[FAILURE_MAX_PLASTIC_STRAIN_THRESHOLD][itype]);
+    }
+  }
+
+  if (failureModel[itype].failure_max_pairwise_strain) {
+    if (comm->me == 0) {
+      printf("\n%60s\n", "maximum pairwise strain failure criterion");
+      printf("%60s : %g\n", "failure occurs when pairwise strain reaches limit",
+	     Lookup[FAILURE_MAX_PAIRWISE_STRAIN_THRESHOLD][itype]);
+    }
+  }
+
+  if (failureModel[itype].failure_max_principal_strain) {
+    if (comm->me == 0) {
+      printf("\n%60s\n", "maximum principal strain failure criterion");
+      printf("%60s : %g\n", "failure occurs when principal strain reaches limit",
+	     Lookup[FAILURE_MAX_PRINCIPAL_STRAIN_THRESHOLD][itype]);
+    }
+  }
+
+  if (failureModel[itype].failure_johnson_cook) {
+    if (comm->me == 0) {
+      printf("\n%60s\n", "Johnson-Cook failure criterion");
+      printf("%60s : %g\n", "parameter d1", Lookup[FAILURE_JC_D1][itype]);
+      printf("%60s : %g\n", "parameter d2", Lookup[FAILURE_JC_D2][itype]);
+      printf("%60s : %g\n", "parameter d3", Lookup[FAILURE_JC_D3][itype]);
+      printf("%60s : %g\n", "parameter d4", Lookup[FAILURE_JC_D4][itype]);
+      printf("%60s : %g\n", "reference plastic strain rate", Lookup[FAILURE_JC_EPDOT0][itype]);
+    }
+  }
+
+  if (failureModel[itype].failure_max_principal_stress) {
+    if (comm->me == 0) {
+      printf("\n%60s\n", "maximum principal stress failure criterion");
+      printf("%60s : %g\n", "failure occurs when principal stress reaches limit",
+	     Lookup[FAILURE_MAX_PRINCIPAL_STRESS_THRESHOLD][itype]);
+    }
+  }
+
+  if (failureModel[itype].failure_energy_release_rate) {
+    if (comm->me == 0) {
+      printf("\n%60s\n", "critical energy release rate failure criterion");
+      printf("%60s : %g\n", "failure occurs when energy release rate reaches limit",
+	     Lookup[CRITICAL_ENERGY_RELEASE_RATE][itype]);
+    }
+  }
+
+  if (failureModel[itype].failure_gtn) {
+    if (comm->me == 0) {
+      printf("\n%60s\n", " Gurson - Tvergaard - Needleman failure model");
+      printf("%60s : %g\n", "Q1", Lookup[GTN_Q1][itype]);
+      printf("%60s : %g\n", "Q2", Lookup[GTN_Q2][itype]);
+      if (Lookup[GTN_inverse_sN][itype] == 0.0) {
+	printf("%60s : %g\n", "AN", Lookup[GTN_FN][itype]);
+      } else {
+	printf("%60s : %g\n", "FN", Lookup[GTN_FN][itype]);
+	printf("%60s : %g\n", "sN", 1.0/Lookup[GTN_inverse_sN][itype]);
+	printf("%60s : %g\n", "epsN", Lookup[GTN_epsN][itype]);
+      }
+      printf("%60s : %g\n", "Initial void fraction f0", Lookup[GTN_f0][itype]);
+      printf("%60s : %g\n", "Critical void fraction", Lookup[GTN_fcr][itype]);
+      printf("%60s : %g\n", "Void fraction at failure", Lookup[GTN_fF][itype]);
+      printf("%60s : %g\n", "Komega: magnitude of the damage growth rate in pure shear states (from Nahshon and Hutchinson, 2008)", Lookup[GTN_Komega][itype]);
+    }
+  }
+
+  if (failureModel[itype].failure_cockcroft_latham) {
+    if (comm->me == 0) {
+      printf("\n%60s\n", " Cockcroft - Latham failure model");
+      printf("%60s : %g\n", "Total plastic work per unit volume: W", Lookup[CL_W][itype]);
+    }
+  }
+
+  if (comm->me == 0) {
+    printf(
+	   "\n>>========>>========>>========>>========>>========>>========>>========>>========>>========>>========>>========>>========\n\n");
   }
 }

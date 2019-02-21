@@ -278,6 +278,7 @@ namespace NeighConst {
   static const int NP_SKIP          = 1<<22;
   static const int NP_HALF_FULL     = 1<<23;
   static const int NP_OFF2ON        = 1<<24;
+  static const int NP_TOTAL_LAGRAN  = 1<<25;
 }
 
 }

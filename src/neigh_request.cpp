@@ -62,6 +62,7 @@ NeighRequest::NeighRequest(LAMMPS *lmp) : Pointers(lmp)
   respainner = respamiddle = respaouter = 0;
   bond = 0;
   omp = 0;
+  total_lagran = 0;
   intel = 0;
   kokkos_host = kokkos_device = 0;
   ssa = 0;
@@ -144,6 +145,7 @@ int NeighRequest::identical(NeighRequest *other)
   if (respaouter != other->respaouter) same = 0;
   if (bond != other->bond) same = 0;
   if (omp != other->omp) same = 0;
+  if (total_lagran != other->total_lagran) same = 0;
   if (intel != other->intel) same = 0;
   if (kokkos_host != other->kokkos_host) same = 0;
   if (kokkos_device != other->kokkos_device) same = 0;
@@ -210,6 +212,7 @@ void NeighRequest::copy_request(NeighRequest *other, int skipflag)
   respaouter = other->respaouter;
   bond = other->bond;
   omp = other->omp;
+  total_lagran = other->total_lagran;
   intel = other->intel;
   kokkos_host = other->kokkos_host;
   kokkos_device = other->kokkos_device;
