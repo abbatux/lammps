@@ -143,6 +143,7 @@ PairTlsph::~PairTlsph() {
 
 		delete[] failureModel;
 	}
+	MPI_Type_free(&MPI_failure_types);
 }
 
 /* ----------------------------------------------------------------------
@@ -1092,6 +1093,10 @@ void PairTlsph::coeff(int narg, char **arg) {
 	}
 	itype = force->inumeric(FLERR, arg[0]);
 
+	// Initialize all Lookup variables to 0:
+	for (int ikey = 0; ikey<MAX_KEY_VALUE; ikey++)
+	  Lookup[ikey][itype] = 0;
+
 // set all eos, strength and failure models to inactive by default
 	eos[itype] = EOS_NONE;
 	strengthModel[itype] = STRENGTH_NONE;
@@ -1153,6 +1158,7 @@ void PairTlsph::coeff(int narg, char **arg) {
 	Lookup[HOURGLASS_CONTROL_AMPLITUDE_times_YOUNGS_MODULUS][itype] = Lookup[HOURGLASS_CONTROL_AMPLITUDE][itype] * Lookup[YOUNGS_MODULUS][itype];
 	Lookup[LONGITUDINAL_MODULUS][itype] = Lookup[LAME_LAMBDA][itype] + 2.0 * Lookup[SHEAR_MODULUS][itype];
 	Lookup[SIGNAL_VELOCITY_OVER_REFERENCE_DENSITY][itype] = Lookup[SIGNAL_VELOCITY][itype] / Lookup[REFERENCE_DENSITY][itype];
+
 
 	// if (comm->me == 0) {
 	// 	printf("\n material unspecific properties for SMD/TLSPH definition of particle type %d:\n", itype);
@@ -2918,11 +2924,11 @@ void PairTlsph::read_restart(FILE *fp) {
     fread(&failureModel[1],sizeof(struct failure_types),atom->ntypes,fp);
   }
   
-  MPI_Bcast(eos,atom->ntypes+1,MPI_INT,0,world);
-  MPI_Bcast(strengthModel,atom->ntypes+1,MPI_INT,0,world);
+  MPI_Bcast(&eos[1],atom->ntypes,MPI_INT,0,world);
+  MPI_Bcast(&strengthModel[1],atom->ntypes,MPI_INT,0,world);
   for (int ikey = 0; ikey<MAX_KEY_VALUE; ikey++)
-    MPI_Bcast(Lookup[ikey],atom->ntypes+1,MPI_DOUBLE,0,world);
-  MPI_Bcast(failureModel,atom->ntypes+1,MPI_failure_types,0,world);
+    MPI_Bcast(&Lookup[ikey][1],atom->ntypes,MPI_DOUBLE,0,world);
+  MPI_Bcast(&failureModel[1],atom->ntypes,MPI_failure_types,0,world);
 
   for (int itype=1; itype<=atom->ntypes; itype++)
     coeff_init(itype);
