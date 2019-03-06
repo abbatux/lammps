@@ -204,6 +204,18 @@ void FixSMD_TLSPH_ReferenceConfiguration::pre_exchange() {
 		comm->forward_comm_fix(this);
 
 		setup(0);
+	} else {
+	  // Check if Lagrangian connection between particles is lost:
+
+	  int jnum, jj;
+
+	  for (i = 0; i < nlocal; i++) {
+	    jnum = npartner[i];
+	    for (jj = 0; jj < jnum; jj++) {
+	      if (atom->map(partner[i][jj]) < 0) {
+		printf("Connection lost between particle %d and %d in CPU %d\n", atom->tag[i], partner[i][jj], comm->me);
+	      }
+	  }
 	}
 }
 
