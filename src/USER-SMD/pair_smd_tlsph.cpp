@@ -233,6 +233,7 @@ void PairTlsph::PreCompute() {
 				j = atom->map(partner[i][jj]);
 				if (j < 0) { //			// check if lost a partner without first breaking bond
 				  printf("Link between %d and %d destroyed without first breaking bond! Damage level in the link was: %f\n", tag[i], partner[i][jj], degradation_ij[i][jj]);
+				  error->all(FLERR, "Bond broken");
 				  degradation_ij[i][jj] = 1.0;
 				  continue;
 				}
@@ -3149,4 +3150,8 @@ void PairTlsph::coeff_init(int itype){
     printf(
 	   "\n>>========>>========>>========>>========>>========>>========>>========>>========>>========>>========>>========>>========\n\n");
   }
+}
+
+void PairTlsph::setup() {
+  printf("In PairTlsph::setup()\n");
 }

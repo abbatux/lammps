@@ -96,6 +96,8 @@ class AtomVecSMD : public AtomVec {
   double *eff_plastic_strain_rate;
   double *rho;
 
+  int *n_lagrange_partner;
+
 };
 
 }

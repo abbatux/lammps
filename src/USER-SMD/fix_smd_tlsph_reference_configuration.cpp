@@ -30,6 +30,7 @@
 #include <stdio.h>
 #include "fix_smd_tlsph_reference_configuration.h"
 #include "atom.h"
+#include "atom_vec.h"
 #include "comm.h"
 #include "neighbor.h"
 #include "neigh_list.h"
@@ -50,7 +51,10 @@ using namespace FixConst;
 using namespace SMD_Kernels;
 using namespace std;
 using namespace SMD_Math;
+
 #define DELTA 16384
+
+#define BUFEXTRA 1000
 
 #define INSERT_PREDEFINED_CRACKS false
 
@@ -117,6 +121,7 @@ FixSMD_TLSPH_ReferenceConfiguration::~FixSMD_TLSPH_ReferenceConfiguration() {
 int FixSMD_TLSPH_ReferenceConfiguration::setmask() {
 	int mask = 0;
 	mask |= PRE_EXCHANGE;
+	mask |= POST_NEIGHBOR;
 	return mask;
 }
 
@@ -204,18 +209,6 @@ void FixSMD_TLSPH_ReferenceConfiguration::pre_exchange() {
 		comm->forward_comm_fix(this);
 
 		setup(0);
-	} else {
-	  // Check if Lagrangian connection between particles is lost:
-
-	  int jnum, jj;
-
-	  for (i = 0; i < nlocal; i++) {
-	    jnum = npartner[i];
-	    for (jj = 0; jj < jnum; jj++) {
-	      if (atom->map(partner[i][jj]) < 0) {
-		printf("Connection lost between particle %d and %d in CPU %d\n", atom->tag[i], partner[i][jj], comm->me);
-	      }
-	  }
 	}
 }
 
@@ -229,6 +222,7 @@ void FixSMD_TLSPH_ReferenceConfiguration::setup(int vflag) {
 	int *ilist, *jlist, *numneigh, **firstneigh;
 	double r, h, wf, wfd;
 	Vector3d dx;
+	int *n_lagrange_partner = atom->n_lagrange_partner;
 
 	if (updateFlag == 0)
 		return;
@@ -255,8 +249,10 @@ void FixSMD_TLSPH_ReferenceConfiguration::setup(int vflag) {
 	Vector3d x0i, x0j;
 
 	// zero npartner for all current atoms
-	for (i = 0; i < nlocal; i++)
-		npartner[i] = 0;
+	for (i = 0; i < nlocal; i++){
+	  npartner[i] = 0;
+	  n_lagrange_partner[i] = 0;
+	}
 
 	for (ii = 0; ii < inum; ii++) {
 		i = ilist[ii];
@@ -280,8 +276,10 @@ void FixSMD_TLSPH_ReferenceConfiguration::setup(int vflag) {
 
 			if (r <= h) {
 				npartner[i]++;
+				n_lagrange_partner[i]++;
 				if (j < nlocal) {
 					npartner[j]++;
+					n_lagrange_partner[j]++;
 				}
 			}
 		}
@@ -298,6 +296,7 @@ void FixSMD_TLSPH_ReferenceConfiguration::setup(int vflag) {
 
 	for (i = 0; i < nlocal; i++) {
 		npartner[i] = 0;
+		n_lagrange_partner[i] = 0;
 		K[i].setZero();
 
 		for (jj = 0; jj < maxpartner; jj++) {
@@ -347,6 +346,7 @@ void FixSMD_TLSPH_ReferenceConfiguration::setup(int vflag) {
 				g_list[i][npartner[i]] = wfd * dx / r;
 				K[i] -= vfrac[j] * g_list[i][npartner[i]] * dx.transpose();
 				npartner[i]++;
+				n_lagrange_partner[i]++;
 
 				if (j < nlocal) {
 					partner[j][npartner[j]] = tag[i];
@@ -358,6 +358,7 @@ void FixSMD_TLSPH_ReferenceConfiguration::setup(int vflag) {
 					g_list[j][npartner[j]] = -wfd * dx / r;
 					K[j] += vfrac[i] * g_list[j][npartner[j]] * dx.transpose();
 					npartner[j]++;
+					n_lagrange_partner[j]++;
 				}
 			}
 		}
@@ -366,6 +367,7 @@ void FixSMD_TLSPH_ReferenceConfiguration::setup(int vflag) {
 	for (i = 0; i < nlocal; i++) {
 	  pseudo_inverse_SVD(K[i]);
 	  npartner[i] = 0;
+	  n_lagrange_partner[i] = 0;
 	}
 	
 	Vector3d dx0_normalized;
@@ -393,9 +395,12 @@ void FixSMD_TLSPH_ReferenceConfiguration::setup(int vflag) {
 			  dx0_normalized = dx / r;
 			  K_g_dot_dx0_normalized[i][npartner[i]] = dx0_normalized.dot(K[i] * g_list[i][npartner[i]]);
 			  npartner[i]++;
+			  n_lagrange_partner[i]++;
+
 			  if (j < nlocal) {
 			    K_g_dot_dx0_normalized[j][npartner[j]] = -dx0_normalized.dot(K[j] * g_list[j][npartner[j]]);
 			    npartner[j]++;
+			    n_lagrange_partner[j]++;
 			  }
 			}
 		}
@@ -818,3 +823,205 @@ void FixSMD_TLSPH_ReferenceConfiguration::restart(char *buf) {
 
   grow_arrays(atom->nmax);
 }
+
+
+void FixSMD_TLSPH_ReferenceConfiguration::post_neighbor() {
+  printf("In FixSMD_TLSPH_ReferenceConfiguration::post_neighbor()\n");
+  // Check if Lagrangian connection between particles is lost:
+  printf("Check if connectivity lost\n");
+
+  int i, jnum, jj, j;
+  int *n_lagrange_partner = atom->n_lagrange_partner;
+
+  // Create the list of missing particles
+  
+  int **missing = NULL;
+  int n_missing = 0;
+  int max_missing = 1;
+  bool already_missing;
+  int imissing;
+
+  memory->grow(missing, comm->nprocs, max_missing,"tlsph_refconfig_neigh:missing");
+  
+  for (i = 0; i < atom->nlocal; i++) {
+    jnum = npartner[i];
+    for (jj = 0; jj < jnum; jj++) {
+      
+      j = atom->map(partner[i][jj]);
+      if (j < 0) {
+	printf("Connection lost between particle %d and %d in CPU %d\n", atom->tag[i], partner[i][jj], comm->me);
+
+	// Check if the particle was already reported as missing:
+	already_missing = false;
+
+	if (n_missing > 0) {
+	  for (imissing=0; imissing < n_missing; imissing++) {
+	    printf("missing[comm->me][imissing] = %d, partner[i][jj] = %d\n", missing[comm->me][imissing], partner[i][jj]);
+	    if (missing[comm->me][imissing] == partner[i][jj]) {
+	      already_missing = true;
+	      break;
+	    }
+	  }
+	}
+
+	// If the particle was not already reported missing, report it as such:
+	if (!already_missing) {
+	  n_missing++;
+
+	  if (n_missing > max_missing) {
+	    max_missing = n_missing;
+	    PROBLEM HERE!!! memory->grow(missing, comm->nprocs, max_missing,"tlsph_refconfig_neigh:missing"); THIS DOES NOT PRESERVE DATA!! SHOULD DO LIKE FOR sendlist
+	  }
+	  missing[comm->me][n_missing - 1] = partner[i][jj];
+	  printf("Proc %d: # %d missing particle %d\n", comm->me, n_missing, missing[comm->me][n_missing - 1]);
+	}
+      }
+    }
+  }
+
+  int n_missing_all;
+  MPI_Allreduce(&n_missing, &n_missing_all, 1, MPI_INT, MPI_MAX, world);
+
+  if (n_missing_all > 0){
+    int count, nsend, n, nrecv_tot, nrecv_pos;   // counter and # of particle to send
+    int *nrecv = NULL;
+    int **sendlist = NULL;            // list of particles to be sent to each CPU
+    int *maxsendlist = NULL;          // max # of memory slots allocated for sendlist
+    double *buf_send = NULL;          // send buffer
+    double *buf_recv = NULL;          // recv buffer
+    int maxsend = 1;                  // max # of memory slots allocated for buf_send
+    int maxrecv = 1;                  // max # of memory slots allocated for buf_recv
+
+
+    sendlist = (int **) memory->smalloc(comm->nprocs*sizeof(int *),"tlsph_refconfig_neigh:sendlist");
+    nrecv = (int *) memory->smalloc(comm->nprocs*sizeof(int),"tlsph_refconfig_neigh:nrecv");
+    memory->create(maxsendlist,comm->nprocs,"tlsph_refconfig_neigh:maxsendlist");
+    memory->create(buf_send,maxsend + BUFEXTRA,"tlsph_refconfig_neigh:buf_send");
+    memory->create(buf_recv,maxrecv + BUFEXTRA,"tlsph_refconfig_neigh:buf_recv");
+
+    nrecv_tot = 0;
+
+    for (int proc_i = 0; proc_i < comm->nprocs; proc_i++) {
+      maxsendlist[proc_i] = 1;
+      memory->create(sendlist[proc_i],1,"tlsph_refconfig_neigh:sendlist[i]");
+
+      // Send the local list of missing particles to other CPUs:
+      count = n_missing;
+
+      MPI_Bcast(&count, 1, MPI_INT, proc_i, world);
+
+      printf("Proc %d is missing %d particles\n", proc_i, count);
+
+      // If proc_i is not missing any particle, look at the next:
+      if (count == 0) continue;
+
+      if (count > max_missing) {
+	max_missing = count;
+	memory->grow(missing, comm->nprocs, max_missing,"tlsph_refconfig_neigh:missing");
+      }
+
+      MPI_Bcast(missing[proc_i], count, MPI_INT, proc_i, world);
+
+      if (proc_i != comm->me) {
+	nsend = 0;
+	n = 0;
+
+	// Check if the missing particles are located on this CPU:
+	for (i=0; i<count; i++) {
+	  j = atom->map(missing[proc_i][i]);
+	  if ( j>=0 ) {
+	    printf("Particle %d asked by CPU %d is located on CPU %d\n", missing[proc_i][i], proc_i, comm->me);
+
+	    // Send the particle over as ghost atom to the right CPU:
+	    if (nsend == maxsendlist[proc_i]) {
+	      maxsendlist[proc_i] = nsend + 1;
+	      memory->grow(sendlist[proc_i],maxsendlist[proc_i],"tlsph_refconfig_neigh:sendlist[i]");
+	    }
+	    sendlist[proc_i][nsend++] = j;
+	  }
+	}
+
+	if (nsend) {
+	  // Now that the sendlist is created, pack attributes:
+	  if (nsend*comm->size_border_() > maxsend) {
+	    maxsend = nsend*comm->size_border_();
+	    memory->grow(buf_send,maxsend + BUFEXTRA,"tlsph_refconfig_neigh:buf_send");
+	  }
+
+	  if (comm->ghost_velocity)
+	    n = atom->avec->pack_border_vel(nsend,sendlist[proc_i],buf_send,0,NULL);
+	  else
+	    n = atom->avec->pack_border(nsend,sendlist[proc_i],buf_send,0,NULL);
+	}
+
+	// Send particles to the CPU that is missing them:
+	// First send the number of particles found:
+
+	printf("I (%d) have %d particles to send to proc %d\n", comm->me, nsend, proc_i);
+	MPI_Send(&nsend, 1, MPI_INT, proc_i, 0, world);
+	if (nsend) {
+	  printf("I (%d) am sending %d particles to send to proc %d, n=%d\n", comm->me, nsend, proc_i, n);
+	  MPI_Send(buf_send, n, MPI_DOUBLE, proc_i, 0, world);
+	  printf("I (%d) am done sending %d particles to send to proc %d\n", comm->me, nsend, proc_i);
+	  
+	}
+
+      } else {
+
+	// If I am proc_i:
+
+	nrecv_pos = 0;
+
+	for (int proc_j = 0; proc_j < comm->nprocs; proc_j++) {
+	  if (proc_j != comm->me) {
+	    MPI_Recv(&nrecv[proc_j], 1, MPI_INT, proc_j, 0, world, MPI_STATUS_IGNORE);
+
+	    if (nrecv[proc_j] == 0) continue;
+
+	    nrecv_tot += nrecv[proc_j];
+	    printf("Proc %d has %d particles to send to me (%d)\n", proc_j, nrecv[proc_j], comm->me);
+
+
+	    if (nrecv_tot*comm->size_border_() > maxrecv) {
+	      maxrecv = nrecv_tot*comm->size_border_();
+	      memory->grow(buf_recv,maxrecv + BUFEXTRA,"tlsph_refconfig_neigh:buf_recv");
+	    }
+
+	    printf("Proc %d receives from %d, n=%d\n", comm->me, proc_j, nrecv[proc_j]*comm->size_border_());
+
+	    if (nrecv[proc_j]) {
+	      MPI_Recv(&buf_recv[nrecv_pos], nrecv[proc_j]*comm->size_border_(),MPI_DOUBLE, proc_j, 0, world, MPI_STATUS_IGNORE);
+	      nrecv_pos += nrecv[proc_j]*comm->size_border_();
+	    }
+
+	    printf("Proc %d reception from %d done\n", comm->me, proc_j);
+	  }
+	}
+      }
+      MPI_Barrier(world);
+    }
+
+    printf("Proc %d unpacks, nrecv_tot=%d\n", comm->me, nrecv_tot);
+
+    if (nrecv_tot) {
+      // unpack buffer
+      if (comm->ghost_velocity)
+	atom->avec->unpack_border_vel(nrecv_tot,atom->nlocal+atom->nghost,buf_recv);
+      else
+	atom->avec->unpack_border(nrecv_tot,atom->nlocal+atom->nghost,buf_recv);
+
+      atom->nghost += nrecv_tot;
+      atom->map_set();
+    }
+    
+    
+    if (sendlist) for (i = 0; i < comm->nprocs; i++) memory->destroy(sendlist[i]);
+    memory->sfree(sendlist);
+    memory->destroy(maxsendlist);
+
+    memory->destroy(buf_send);
+    memory->destroy(buf_recv);
+  }
+  memory->destroy(missing);
+}
+

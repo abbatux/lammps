@@ -43,6 +43,7 @@ public:
 	PairTlsph(class LAMMPS *);
 	virtual ~PairTlsph();
 	virtual void compute(int, int);
+        void setup();
 	void settings(int, char **);
 	void coeff(int, char **);
 	void coeff_init(int);

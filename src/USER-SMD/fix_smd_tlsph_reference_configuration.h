@@ -51,6 +51,7 @@ public:
 	void init();
 	void setup(int);
 	void pre_exchange();
+        void post_neighbor();
 	int pack_forward_comm(int, int *, double *, int, int *);
 	void unpack_forward_comm(int, int, double *);
 

@@ -109,6 +109,7 @@ class Comm : protected Pointers {
             void *, void *, int self = 1);
   int read_lines_from_file(FILE *, int, int, char *);
   int read_lines_from_file_universe(FILE *, int, int, char *);
+  int size_border_() {return size_border;};
 
  protected:
   int bordergroup;           // only communicate this group in borders
