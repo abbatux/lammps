@@ -837,12 +837,14 @@ void FixSMD_TLSPH_ReferenceConfiguration::post_neighbor() {
   
   int **missing = NULL;
   int n_missing = 0;
-  int max_missing = 1;
+  int *max_missing = NULL;
   bool already_missing;
   int imissing;
-
-  memory->grow(missing, comm->nprocs, max_missing,"tlsph_refconfig_neigh:missing");
   
+  missing = (int **) memory->smalloc(comm->nprocs*sizeof(int *),"tlsph_refconfig_neigh:missing");
+  memory->create(max_missing, comm->nprocs,"tlsph_refconfig_neigh:max_missing");
+  memset(&max_missing[0], 0, comm->nprocs*sizeof(int));
+
   for (i = 0; i < atom->nlocal; i++) {
     jnum = npartner[i];
     for (jj = 0; jj < jnum; jj++) {
@@ -856,7 +858,7 @@ void FixSMD_TLSPH_ReferenceConfiguration::post_neighbor() {
 
 	if (n_missing > 0) {
 	  for (imissing=0; imissing < n_missing; imissing++) {
-	    printf("missing[comm->me][imissing] = %d, partner[i][jj] = %d\n", missing[comm->me][imissing], partner[i][jj]);
+	    printf("missing[comm->me][%d] = %d, partner[i][jj] = %d\n", imissing, missing[comm->me][imissing], partner[i][jj]);
 	    if (missing[comm->me][imissing] == partner[i][jj]) {
 	      already_missing = true;
 	      break;
@@ -868,12 +870,18 @@ void FixSMD_TLSPH_ReferenceConfiguration::post_neighbor() {
 	if (!already_missing) {
 	  n_missing++;
 
-	  if (n_missing > max_missing) {
-	    max_missing = n_missing;
-	    PROBLEM HERE!!! memory->grow(missing, comm->nprocs, max_missing,"tlsph_refconfig_neigh:missing"); THIS DOES NOT PRESERVE DATA!! SHOULD DO LIKE FOR sendlist
+	  if (n_missing > max_missing[comm->me]) {
+	    if (max_missing[comm->me] == 0) memory->create(missing[comm->me],n_missing,"tlsph_refconfig_neigh:missing[i]");
+	    else memory->grow(missing[comm->me],n_missing,"tlsph_refconfig_neigh:missing[i]");
+	    max_missing[comm->me] = n_missing;
 	  }
 	  missing[comm->me][n_missing - 1] = partner[i][jj];
 	  printf("Proc %d: # %d missing particle %d\n", comm->me, n_missing, missing[comm->me][n_missing - 1]);
+
+	  // Check:
+	  for (int kk=0; kk<max_missing[comm->me]; kk++) {
+	    printf("missing[comm->me][%d] = %d\n", kk, missing[comm->me][kk]);
+	  }
 	}
       }
     }
@@ -915,9 +923,10 @@ void FixSMD_TLSPH_ReferenceConfiguration::post_neighbor() {
       // If proc_i is not missing any particle, look at the next:
       if (count == 0) continue;
 
-      if (count > max_missing) {
-	max_missing = count;
-	memory->grow(missing, comm->nprocs, max_missing,"tlsph_refconfig_neigh:missing");
+      if (count > max_missing[proc_i]) {
+	if (max_missing[proc_i] == 0) memory->create(missing[proc_i], count,"tlsph_refconfig_neigh:missing[i]");
+	else memory->grow(missing[proc_i], count,"tlsph_refconfig_neigh:missing[i]");
+	max_missing[proc_i] = count;
       }
 
       MPI_Bcast(missing[proc_i], count, MPI_INT, proc_i, world);
@@ -1016,12 +1025,15 @@ void FixSMD_TLSPH_ReferenceConfiguration::post_neighbor() {
     
     
     if (sendlist) for (i = 0; i < comm->nprocs; i++) memory->destroy(sendlist[i]);
+    if (missing) for (i = 0; i < comm->nprocs; i++) memory->destroy(missing[i]);
     memory->sfree(sendlist);
+    memory->sfree(missing);
+
     memory->destroy(maxsendlist);
 
     memory->destroy(buf_send);
     memory->destroy(buf_recv);
   }
-  memory->destroy(missing);
+  memory->destroy(max_missing);
 }
 
