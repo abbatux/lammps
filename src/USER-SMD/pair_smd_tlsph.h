@@ -61,6 +61,7 @@ public:
 	int pack_forward_comm(int, int *, double *, int, int *);
 	void unpack_forward_comm(int, int, double *);
 	void AssembleStress();
+	void forward_comm_pair_tl();
 
 	void PreCompute();
 	void ComputeForces(int eflag, int vflag);
@@ -248,6 +249,14 @@ private:
 	double **Lookup; // holds per-type material parameters for the quantities defined in enum statement above.
 	bool first; // if first is true, do not perform any computations, beacuse reference configuration is not ready yet.
 	FlowStress flowstress; // holds the flow stress equations
+
+  	int *nrecv;                // # of particles received
+  	int maxsend;               // max # of memory slots allocated for buf_send
+	int maxrecv;               // max # of memory slots allocated for buf_recv
+	double *buf_send;          // send buffer
+	double *buf_recv;          // recv buffer
+
+
 };
 
 }

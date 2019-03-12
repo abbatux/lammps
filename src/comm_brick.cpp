@@ -587,7 +587,6 @@ void CommBrick::reverse_comm()
 
 void CommBrick::exchange()
 {
-  printf("In CommBrick::exchange()\n");
   int i,m,nsend,nrecv,nrecv1,nrecv2,nlocal;
   double lo,hi,value;
   double **x;
@@ -712,7 +711,6 @@ void CommBrick::exchange()
 
 void CommBrick::borders()
 {
-  printf("In CommBrick::borders()\n");
   int i,n,itype,iswap,dim,ineed,twoneed;
   int nsend,nrecv,sendflag,nfirst,nlast,ngroup;
   double lo,hi;

@@ -61,6 +61,7 @@ using namespace SMD_Math;
 #define DETF_MAX 200.0 // maximum tension deformation allowed
 #define TLSPH_DEBUG 0
 #define PLASTIC_STRAIN_AVERAGE_WINDOW 100.0
+#define BUFEXTRA 1000
 
 /* ---------------------------------------------------------------------- */
 
@@ -103,6 +104,9 @@ PairTlsph::PairTlsph(LAMMPS *lmp) :
 	MPI_Datatype oldtypes = MPI_C_BOOL;
 	MPI_Type_struct(1, &blockcounts, &offsets, &oldtypes, &MPI_failure_types);
 	MPI_Type_commit(&MPI_failure_types);
+
+	maxsend = 0;
+	maxrecv = 0;
 }
 
 /* ---------------------------------------------------------------------- */
@@ -142,6 +146,9 @@ PairTlsph::~PairTlsph() {
 		delete[] shepardWeightInv;
 
 		delete[] failureModel;
+		memory->destroy(nrecv);
+		memory->destroy(buf_send);
+		memory->destroy(buf_recv);
 	}
 	MPI_Type_free(&MPI_failure_types);
 }
@@ -192,7 +199,6 @@ void PairTlsph::PreCompute() {
 		itype = type[i];
 		
 		if (setflag[itype][itype] == 1) {
-
 			Fincr[i].setZero();
 			Fdot[i].setZero();
 			numNeighsRefConfig[i] = 0;
@@ -441,6 +447,8 @@ void PairTlsph::compute(int eflag, int vflag) {
 		return;
 	}
 
+	fix_tlsph_reference_configuration->forward_comm_tl();
+
 	/*
 	 * calculate deformations and rate-of-deformations
 	 */
@@ -456,6 +464,7 @@ void PairTlsph::compute(int eflag, int vflag) {
 	 * NEED TO DO A FORWARD COMMUNICATION TO GHOST ATOMS NOW
 	 */
 	comm->forward_comm_pair(this);
+	forward_comm_pair_tl();
 
 	/*
 	 * compute forces between particles
@@ -464,7 +473,7 @@ void PairTlsph::compute(int eflag, int vflag) {
 	ComputeForces(eflag, vflag);
 
 	UpdateDegradation();
-	
+        fix_tlsph_reference_configuration->need_forward_comm = true;
 }
 
 void PairTlsph::ComputeForces(int eflag, int vflag) {
@@ -981,6 +990,10 @@ void PairTlsph::allocate() {
 	onerad_frozen = new double[n + 1];
 	maxrad_dynamic = new double[n + 1];
 	maxrad_frozen = new double[n + 1];
+
+	memory->create(nrecv,comm->nprocs,"pair_tlsph:nrecv");
+	memory->create(buf_send,maxsend + BUFEXTRA,"pair_tlsph:buf_send");
+	memory->create(buf_recv,maxrecv + BUFEXTRA,"pair_tlsph:buf_recv");
 
 }
 
@@ -3153,5 +3166,73 @@ void PairTlsph::coeff_init(int itype){
 }
 
 void PairTlsph::setup() {
-  printf("In PairTlsph::setup()\n");
+  //printf("In PairTlsph::setup()\n");
+}
+
+
+void PairTlsph::forward_comm_pair_tl() {
+  int n_missing_all = ((FixSMD_TLSPH_ReferenceConfiguration *) modify->fix[ifix_tlsph])->n_missing_all;
+  int *nsendlist = ((FixSMD_TLSPH_ReferenceConfiguration *) modify->fix[ifix_tlsph])->nsendlist;
+  int **sendlist = ((FixSMD_TLSPH_ReferenceConfiguration *) modify->fix[ifix_tlsph])->sendlist;
+  int firstrecv = ((FixSMD_TLSPH_ReferenceConfiguration *) modify->fix[ifix_tlsph])->firstrecv;
+  int nprocs = comm->nprocs;
+
+  if (n_missing_all == 0) return;
+
+  // printf("In PairTlsph::forward_comm_tl()\n");
+
+  int n, nrecv_tot, nrecv_pos;
+
+  nrecv_tot = 0;
+
+  for (int proc_i = 0; proc_i < nprocs; proc_i++) {
+    
+    if (proc_i != comm->me) {
+      if (nsendlist[proc_i]) {
+	// Now that the sendlist is created, pack attributes:
+	if (nsendlist[proc_i]*comm_forward > maxsend) {
+	  maxsend = nsendlist[proc_i]*comm_forward;
+	  memory->grow(buf_send,maxsend + BUFEXTRA,"pair_smd_tlsph:buf_send");
+	}
+
+	n = pack_forward_comm(nsendlist[proc_i],sendlist[proc_i],buf_send,0,NULL);
+      }
+
+      MPI_Send(&nsendlist[proc_i], 1, MPI_INT, proc_i, 0, world);
+
+      if (nsendlist[proc_i]) {
+	MPI_Send(buf_send, n, MPI_DOUBLE, proc_i, 0, world);
+      }
+    } else {
+
+      // If I am proc_i:
+
+      nrecv_pos = 0;
+
+      for (int proc_j = 0; proc_j < nprocs; proc_j++) {
+	if (proc_j != comm->me) {
+	  MPI_Recv(&nrecv[proc_j], 1, MPI_INT, proc_j, 0, world, MPI_STATUS_IGNORE);
+
+	  if (nrecv[proc_j] == 0) continue;
+
+	  nrecv_tot += nrecv[proc_j];
+
+
+	  if (nrecv_tot*comm_forward > maxrecv) {
+	    maxrecv = nrecv_tot*comm_forward;
+	    memory->grow(buf_recv,maxrecv + BUFEXTRA,"pair_smd_tlsph:buf_recv");
+	  }
+
+	  if (nrecv[proc_j]) {
+	    MPI_Recv(&buf_recv[nrecv_pos], nrecv[proc_j]*comm_forward,MPI_DOUBLE, proc_j, 0, world, MPI_STATUS_IGNORE);
+	    nrecv_pos += nrecv[proc_j]*comm_forward;
+	  }
+	}
+      }
+    }
+    MPI_Barrier(world);
+  }
+
+  // unpack buffer
+  if (nrecv_tot) unpack_forward_comm(nrecv_tot,firstrecv,buf_recv);
 }
