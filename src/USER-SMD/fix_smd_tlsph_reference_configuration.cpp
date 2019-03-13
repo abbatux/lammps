@@ -103,6 +103,11 @@ FixSMD_TLSPH_ReferenceConfiguration::FixSMD_TLSPH_ReferenceConfiguration(LAMMPS 
 	n_missing_all = 0;
 	need_forward_comm = true;
 	nprocs = comm->nprocs;
+
+	if (update->ntimestep) {
+	  force_reneighbor = 1;
+	  next_reneighbor = update->ntimestep + 1;
+	}
 }
 
 /* ---------------------------------------------------------------------- */
@@ -857,6 +862,7 @@ void FixSMD_TLSPH_ReferenceConfiguration::restart(char *buf) {
 
 
 void FixSMD_TLSPH_ReferenceConfiguration::post_neighbor() {
+  // printf("In FixSMD_TLSPH_ReferenceConfiguration::post_neighbor()\n");
   // Check if Lagrangian connection between particles is lost:
 
   int i, jnum, jj, j;
@@ -930,7 +936,10 @@ void FixSMD_TLSPH_ReferenceConfiguration::post_neighbor() {
       // printf("Proc %d is missing %d particles\n", proc_i, count);
 
       // If proc_i is not missing any particle, look at the next:
-      if (count == 0) continue;
+      if (count == 0) {
+	nsendlist[proc_i] = 0;
+	continue;
+      }
 
       if (count > max_missing[proc_i]) {
 	if (max_missing[proc_i] == 0) memory->create(missing[proc_i], count,"tlsph_refconfig_neigh:missing[i]");
@@ -947,7 +956,7 @@ void FixSMD_TLSPH_ReferenceConfiguration::post_neighbor() {
 	// Check if the missing particles are located on this CPU:
 	for (i=0; i<count; i++) {
 	  j = atom->map(missing[proc_i][i]);
-	  if ( j>=0 ) {
+	  if ( j>=0 && j<atom->nlocal) {
 	    // printf("Particle %d asked by CPU %d is located on CPU %d\n", missing[proc_i][i], proc_i, comm->me);
 
 	    // Send the particle over as ghost atom to the right CPU:
@@ -986,7 +995,6 @@ void FixSMD_TLSPH_ReferenceConfiguration::post_neighbor() {
 
 	// Store the number of particles that I (comm->me) have to send to proc_i:
 	nsendlist[proc_i] = nsend;
-
       } else {
 
 	// If I am proc_i:
@@ -1022,8 +1030,6 @@ void FixSMD_TLSPH_ReferenceConfiguration::post_neighbor() {
       MPI_Barrier(world);
     }
 
-    // printf("Proc %d unpacks, nrecv_tot=%d\n", comm->me, nrecv_tot);
-
     firstrecv = atom->nlocal+atom->nghost;
 
     if (nrecv_tot) {
@@ -1043,6 +1049,7 @@ void FixSMD_TLSPH_ReferenceConfiguration::post_neighbor() {
 
   memory->destroy(max_missing);
   need_forward_comm = false;
+  force_reneighbor = 0;
 }
 
 

@@ -2229,8 +2229,6 @@ int PairTlsph::pack_forward_comm(int n, int *list, double *buf, int pbc_flag, in
 	double *eff_plastic_strain_rate = atom->eff_plastic_strain_rate;
 	int *npartner = ((FixSMD_TLSPH_ReferenceConfiguration *) modify->fix[ifix_tlsph])->npartner;
 
-	//printf("in PairTlsph::pack_forward_comm\n");
-
 	m = 0;
 	for (i = 0; i < n; i++) {
 		j = list[i];
