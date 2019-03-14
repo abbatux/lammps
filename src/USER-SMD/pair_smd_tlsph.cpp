@@ -463,6 +463,7 @@ void PairTlsph::compute(int eflag, int vflag) {
 	 * QUANTITIES ABOVE HAVE ONLY BEEN CALCULATED FOR NLOCAL PARTICLES.
 	 * NEED TO DO A FORWARD COMMUNICATION TO GHOST ATOMS NOW
 	 */
+	printf("I PairTlsph::compute(), calling forward_comm_pair, for step %d\n", update->ntimestep);
 	comm->forward_comm_pair(this);
 	forward_comm_pair_tl();
 
