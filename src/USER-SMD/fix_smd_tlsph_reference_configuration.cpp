@@ -102,7 +102,6 @@ FixSMD_TLSPH_ReferenceConfiguration::FixSMD_TLSPH_ReferenceConfiguration(LAMMPS 
 	maxrecv = 0;
 	n_missing_all = 0;
 	need_forward_comm = true;
-	printf("Set need_forward_comm to true (%d)\n", need_forward_comm);
 	nprocs = comm->nprocs;
 
 	if (update->ntimestep) {
@@ -861,6 +860,10 @@ void FixSMD_TLSPH_ReferenceConfiguration::restart(char *buf) {
   grow_arrays(atom->nmax);
 }
 
+void FixSMD_TLSPH_ReferenceConfiguration::setup_post_neighbor() {
+  printf("In FixSMD_TLSPH_ReferenceConfiguration::setup_post_neighbor(), step %d, need_forward_comm = %d\n", update->ntimestep, need_forward_comm);
+  post_neighbor();
+}
 
 void FixSMD_TLSPH_ReferenceConfiguration::post_neighbor() {
   printf("In FixSMD_TLSPH_ReferenceConfiguration::post_neighbor(), step %d\n", update->ntimestep);
@@ -935,7 +938,7 @@ void FixSMD_TLSPH_ReferenceConfiguration::post_neighbor() {
 
       MPI_Bcast(&count, 1, MPI_INT, proc_i, world);
 
-      printf("Proc %d is missing %d particles\n", proc_i, count);
+      // printf("Proc %d is missing %d particles\n", proc_i, count);
 
       // If proc_i is not missing any particle, look at the next:
       if (count == 0) continue;
@@ -956,7 +959,7 @@ void FixSMD_TLSPH_ReferenceConfiguration::post_neighbor() {
 	for (i=0; i<count; i++) {
 	  j = atom->map(missing[proc_i][i]);
 	  if ( j>=0 && j<atom->nlocal) {
-	    printf("Particle %d asked by CPU %d is located on CPU %d\n", missing[proc_i][i], proc_i, comm->me);
+	    // printf("Particle %d asked by CPU %d is located on CPU %d\n", missing[proc_i][i], proc_i, comm->me);
 
 	    // Send the particle over as ghost atom to the right CPU:
 	    if (nsendlist[proc_i] == maxsendlist[proc_i]) {
@@ -983,12 +986,12 @@ void FixSMD_TLSPH_ReferenceConfiguration::post_neighbor() {
 	// Send particles to the CPU that is missing them:
 	// First send the number of particles found:
 
-	printf("I (%d) have %d particles to send to proc %d\n", comm->me, nsendlist[proc_i], proc_i);
+	// printf("I (%d) have %d particles to send to proc %d\n", comm->me, nsendlist[proc_i], proc_i);
 	MPI_Send(&nsendlist[proc_i], 1, MPI_INT, proc_i, 0, world);
 	if (nsendlist[proc_i]) {
-	  printf("I (%d) am sending %d particles to send to proc %d, n=%d\n", comm->me, nsendlist[proc_i], proc_i, n);
+	  // printf("I (%d) am sending %d particles to send to proc %d, n=%d\n", comm->me, nsendlist[proc_i], proc_i, n);
 	  MPI_Send(buf_send, n, MPI_DOUBLE, proc_i, 0, world);
-	  printf("I (%d) am done sending %d particles to send to proc %d\n", comm->me, nsendlist[proc_i], proc_i);
+	  // printf("I (%d) am done sending %d particles to send to proc %d\n", comm->me, nsendlist[proc_i], proc_i);
 	  
 	}
       } else {
@@ -1004,7 +1007,7 @@ void FixSMD_TLSPH_ReferenceConfiguration::post_neighbor() {
 	    if (nrecv[proc_j] == 0) continue;
 
 	    nrecv_tot += nrecv[proc_j];
-	    printf("Proc %d has %d particles to send to me (%d)\n", proc_j, nrecv[proc_j], comm->me);
+	    // printf("Proc %d has %d particles to send to me (%d)\n", proc_j, nrecv[proc_j], comm->me);
 
 
 	    if (nrecv_tot*comm->size_border_() > maxrecv) {
@@ -1012,14 +1015,14 @@ void FixSMD_TLSPH_ReferenceConfiguration::post_neighbor() {
 	      memory->grow(buf_recv,maxrecv + BUFEXTRA,"tlsph_refconfig_neigh:buf_recv");
 	    }
 
-	    printf("Proc %d receives from %d, n=%d\n", comm->me, proc_j, nrecv[proc_j]*comm->size_border_());
+	    // printf("Proc %d receives from %d, n=%d\n", comm->me, proc_j, nrecv[proc_j]*comm->size_border_());
 
 	    if (nrecv[proc_j]) {
 	      MPI_Recv(&buf_recv[nrecv_pos], nrecv[proc_j]*comm->size_border_(),MPI_DOUBLE, proc_j, 0, world, MPI_STATUS_IGNORE);
 	      nrecv_pos += nrecv[proc_j]*comm->size_border_();
 	    }
 
-	    printf("Proc %d reception from %d done\n", comm->me, proc_j);
+	    // printf("Proc %d reception from %d done\n", comm->me, proc_j);
 	  }
 	}
       }
@@ -1044,6 +1047,7 @@ void FixSMD_TLSPH_ReferenceConfiguration::post_neighbor() {
   for (i=0; i<n_missing; i++) {
     if (atom->map(missing[comm->me][i]) < 0) {
       printf("Error: particle %d still missing on proc %d\n", missing[comm->me][i], comm->me);
+      error->all(FLERR, "Missing particle");
     }
   }
 
@@ -1052,7 +1056,7 @@ void FixSMD_TLSPH_ReferenceConfiguration::post_neighbor() {
 
   memory->destroy(max_missing);
   need_forward_comm = false;
-  printf("Set need_forward_comm to false (%d)\n", need_forward_comm);
+  // printf("Set need_forward_comm to false (%d)\n", need_forward_comm);
   force_reneighbor = 0;
 }
 
@@ -1061,7 +1065,7 @@ void FixSMD_TLSPH_ReferenceConfiguration::forward_comm_tl() {
   if (!need_forward_comm) return;
   if (n_missing_all == 0) return;
 
-  printf("In FixSMD_TLSPH_ReferenceConfiguration::forward_comm_tl()\n");
+  // printf("In FixSMD_TLSPH_ReferenceConfiguration::forward_comm_tl()\n");
 
   int n, nrecv_tot, nrecv_pos;
 
@@ -1126,5 +1130,5 @@ void FixSMD_TLSPH_ReferenceConfiguration::forward_comm_tl() {
       atom->avec->unpack_border(nrecv_tot,firstrecv,buf_recv);
   }
   need_forward_comm = false;
-  printf("Set need_forward_comm to false (%d)\n", need_forward_comm);
+  // printf("Set need_forward_comm to false (%d)\n", need_forward_comm);
 }
