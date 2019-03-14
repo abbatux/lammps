@@ -879,6 +879,7 @@ void FixSMD_TLSPH_ReferenceConfiguration::post_neighbor() {
   missing = (int **) memory->smalloc(nprocs*sizeof(int *),"tlsph_refconfig_neigh:missing");
   memory->create(max_missing, nprocs,"tlsph_refconfig_neigh:max_missing");
   memset(&max_missing[0], 0, nprocs*sizeof(int));
+  memset(&nsendlist[0], 0, nprocs*sizeof(int));
 
   for (i = 0; i < atom->nlocal; i++) {
     jnum = npartner[i];
@@ -936,10 +937,7 @@ void FixSMD_TLSPH_ReferenceConfiguration::post_neighbor() {
       // printf("Proc %d is missing %d particles\n", proc_i, count);
 
       // If proc_i is not missing any particle, look at the next:
-      if (count == 0) {
-	nsendlist[proc_i] = 0;
-	continue;
-      }
+      if (count == 0) continue;
 
       if (count > max_missing[proc_i]) {
 	if (max_missing[proc_i] == 0) memory->create(missing[proc_i], count,"tlsph_refconfig_neigh:missing[i]");
