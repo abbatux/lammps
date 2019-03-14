@@ -861,12 +861,12 @@ void FixSMD_TLSPH_ReferenceConfiguration::restart(char *buf) {
 }
 
 void FixSMD_TLSPH_ReferenceConfiguration::setup_post_neighbor() {
-  printf("In FixSMD_TLSPH_ReferenceConfiguration::setup_post_neighbor(), step %d, need_forward_comm = %d\n", update->ntimestep, need_forward_comm);
+  // printf("In FixSMD_TLSPH_ReferenceConfiguration::setup_post_neighbor(), step %d, need_forward_comm = %d\n", update->ntimestep, need_forward_comm);
   post_neighbor();
 }
 
 void FixSMD_TLSPH_ReferenceConfiguration::post_neighbor() {
-  printf("In FixSMD_TLSPH_ReferenceConfiguration::post_neighbor(), step %d\n", update->ntimestep);
+  // printf("In FixSMD_TLSPH_ReferenceConfiguration::post_neighbor(), step %d\n", update->ntimestep);
   // Check if Lagrangian connection between particles is lost:
 
   int i, jnum, jj, j;
