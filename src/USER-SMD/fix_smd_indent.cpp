@@ -220,7 +220,7 @@ void FixSMDIndent::post_force(int vflag)
     int *mask = atom->mask;
     int nlocal = atom->nlocal;
 
-    double delx,dely,delz,r,dr,fmag,fx,fy,fz,vel, delvx, delvy, delvz, delv;
+    double delx,dely,delz,r,dr,fmag,fx,fy,fz,vel;
 
     dtCFL = 1.0e22;
 
@@ -236,10 +236,6 @@ void FixSMDIndent::post_force(int vflag)
         delz = x[i][2] - ctr[2];
         domain->minimum_image(delx,dely,delz);
         r = sqrt(delx*delx + dely*dely + delz*delz);
-	delvx = v[i][0] - vxvalue;
-	delvy = v[i][1] - vyvalue;
-	delvz = v[i][2] - vzvalue;
-	delv = sqrt(delvx*delvx + delvy*delvy + delvz*delvz);
         if (side == OUTSIDE) {
           dr = r - radius;
           fmag = k*dr*dr;
@@ -258,9 +254,9 @@ void FixSMDIndent::post_force(int vflag)
         indenter[1] -= fx;
         indenter[2] -= fy;
         indenter[3] -= fz;
-	if (damage[i] < 1.0) {
+	if (atom->damage[i] < 1.0) {
 	  dtCFL = MIN(sqrt(sqrt(rSqmin[i])*rmass[i]/fmag), dtCFL);
-	  dtCFL = MIN(sqrt(rSqmin[i])/MAX(dvMax[i],delv), dtCFL);
+	  dtCFL = MIN(sqrt(rSqmin[i])/dvMax[i], dtCFL);
 	}
 	// vel = sqrt(v[i][0]*v[i][0] + v[i][1]*v[i][1] + v[i][2]*v[i][2]);
 	// if (vel > 1.0e-15) {
@@ -432,15 +428,15 @@ void FixSMDIndent::options(int narg, char **arg)
   if (narg < 0) error->all(FLERR,"Illegal fix indent command");
 
   istyle = NONE;
-  xstr = ystr = zstr = rstr = pstr = vxstr = vystr = vzstr = NULL;
-  xvalue = yvalue = zvalue = rvalue = pvalue = vxvalue = vyvalue = vzvalue = 0.0;
+  xstr = ystr = zstr = rstr = pstr = NULL;
+  xvalue = yvalue = zvalue = rvalue = pvalue = 0.0;
   scaleflag = 1;
   side = OUTSIDE;
 
   int iarg = 0;
   while (iarg < narg) {
     if (strcmp(arg[iarg],"sphere") == 0) {
-      if (iarg+8 > narg) error->all(FLERR,"Illegal fix indent command");
+      if (iarg+5 > narg) error->all(FLERR,"Illegal fix indent command");
 
       if (strstr(arg[iarg+1],"v_") == arg[iarg+1]) {
         int n = strlen(&arg[iarg+1][2]) + 1;
@@ -462,24 +458,9 @@ void FixSMDIndent::options(int narg, char **arg)
         rstr = new char[n];
         strcpy(rstr,&arg[iarg+4][2]);
       } else rvalue = force->numeric(FLERR,arg[iarg+4]);
-      if (strstr(arg[iarg+5],"v_") == arg[iarg+5]) {
-        int n = strlen(&arg[iarg+5][2]) + 1;
-        vxstr = new char[n];
-        strcpy(vxstr,&arg[iarg+5][2]);
-      } else vxvalue = force->numeric(FLERR,arg[iarg+5]);
-      if (strstr(arg[iarg+6],"v_") == arg[iarg+6]) {
-        int n = strlen(&arg[iarg+6][2]) + 1;
-        vystr = new char[n];
-        strcpy(vystr,&arg[iarg+6][2]);
-      } else vyvalue = force->numeric(FLERR,arg[iarg+6]);
-      if (strstr(arg[iarg+7],"v_") == arg[iarg+7]) {
-        int n = strlen(&arg[iarg+7][2]) + 1;
-        vzstr = new char[n];
-        strcpy(vzstr,&arg[iarg+7][2]);
-      } else vzvalue = force->numeric(FLERR,arg[iarg+7]);
 
       istyle = SPHERE;
-      iarg += 8;
+      iarg += 5;
 
     } else if (strcmp(arg[iarg],"cylinder") == 0) {
       if (iarg+5 > narg) error->all(FLERR,"Illegal fix indent command");
