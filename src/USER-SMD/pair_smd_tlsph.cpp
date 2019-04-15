@@ -294,7 +294,7 @@ void PairTlsph::PreCompute() {
 				}
 				rSq = dx.squaredNorm(); // current distance
 				rSqMin[i] = MIN(rSq,rSqMin[i]);
-				dvMax[i] = MAX(dv.norm(),dvMax[i]);
+				dvMax[i] = MAX(fabs(dv.dot(dx))/dx.norm(),dvMax[i]);
 
 				if (periodic)
 					domain->minimum_image(dx0(0), dx0(1), dx0(2));

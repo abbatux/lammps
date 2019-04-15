@@ -42,9 +42,9 @@ class FixSMDIndent : public Fix {
  private:
   int istyle,scaleflag,side;
   double k,k3;
-  char *xstr,*ystr,*zstr,*rstr,*pstr;
-  int xvar,yvar,zvar,rvar,pvar;
-  double xvalue,yvalue,zvalue,rvalue,pvalue;
+  char *xstr,*ystr,*zstr,*rstr,*pstr,*vxstr,*vystr,*vzstr;
+  int xvar,yvar,zvar,rvar,pvar,vxvar,vyvar,vzvar;
+  double xvalue,yvalue,zvalue,rvalue,pvalue,vxvalue,vyvalue,vzvalue;
   int indenter_flag,planeside;
   double indenter[4],indenter_all[4];
   int cdim,varflag;
