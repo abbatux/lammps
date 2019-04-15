@@ -239,7 +239,7 @@ void FixSMDIndent::post_force(int vflag)
 	delvx = v[i][0] - vxvalue;
 	delvy = v[i][1] - vyvalue;
 	delvz = v[i][2] - vzvalue;
-	delv = fabs(delx*delvx + dely*delvy + delz*delvz)/r;
+	delv = sqrt(delvx*delvx + delvy*delvy + delvz*delvz);
         if (side == OUTSIDE) {
           dr = r - radius;
           fmag = k*dr*dr;
