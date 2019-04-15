@@ -101,7 +101,7 @@ protected:
 	double *hourglass_error;
 	int *numNeighsRefConfig;
 	double *damage_increment;
-	double* rSqMin;
+	double *rSqMin, *dvMax;
 	double* flowstress_slope;
 	double* shepardWeightInv;
 

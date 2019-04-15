@@ -90,6 +90,7 @@ PairTlsph::PairTlsph(LAMMPS *lmp) :
 	first = true;
 	dtCFL = 0.0; // initialize dtCFL so it is set to safe value if extracted on zero-th timestep
 	rSqMin = NULL;
+	dvMax = NULL;
 	flowstress_slope = NULL;
 	shepardWeightInv = NULL;
 
@@ -142,6 +143,7 @@ PairTlsph::~PairTlsph() {
 		delete[] vijSq_max;
 		delete[] damage_increment;
 		delete[] rSqMin;
+		delete[] dvMax;
 		delete[] flowstress_slope;
 		delete[] shepardWeightInv;
 
@@ -231,6 +233,7 @@ void PairTlsph::PreCompute() {
 			//gradAbsX.setZero();
 
 			rSqMin[i] = 1.0e22;
+			dvMax[i] = 1.0e-15;
 
 			for (jj = 0; jj < jnum; jj++) {
 
@@ -291,6 +294,7 @@ void PairTlsph::PreCompute() {
 				}
 				rSq = dx.squaredNorm(); // current distance
 				rSqMin[i] = MIN(rSq,rSqMin[i]);
+				dvMax[i] = MAX(dv.norm(),dvMax[i]);
 
 				if (periodic)
 					domain->minimum_image(dx0(0), dx0(1), dx0(2));
@@ -422,6 +426,8 @@ void PairTlsph::compute(int eflag, int vflag) {
 		damage_increment = new double[nmax];
 		delete[] rSqMin;
 		rSqMin = new double[nmax];
+		delete[] dvMax;
+		dvMax = new double[nmax];
 		delete[] flowstress_slope;
 		flowstress_slope = new double[nmax];
 		delete[] shepardWeightInv;
@@ -2210,6 +2216,8 @@ void *PairTlsph::extract(const char *str, int &i) {
 		return (void *) damage_increment;
 	} else if (strcmp(str, "smd/tlsph/rSqMin") == 0) {
 	  return (void *) rSqMin;
+	} else if (strcmp(str, "smd/tlsph/dvMax") == 0) {
+	  return (void *) dvMax;
 	} else if (strcmp(str, "smd/tlsph/flowstress_slope") == 0) {
 	  return (void *) flowstress_slope;
 	} else if (strcmp(str, "smd/tlsph/shepardWeightInv") == 0) {
