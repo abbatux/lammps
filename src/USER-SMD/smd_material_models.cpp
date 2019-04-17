@@ -376,7 +376,7 @@ void JohnsonCookStrength(const double G, const double cp, const double espec, co
 
 	double yieldStress;
 
-	if (damage[i] == 0) {
+	if (damage == 0) {
 	  double TH = espec / (cp * (Tmelt - T0));
 	  TH = MAX(TH, 0.0);
 	  double epdot_ratio = epdot / epdot0;
@@ -384,11 +384,14 @@ void JohnsonCookStrength(const double G, const double cp, const double espec, co
 	  //printf("current temperature delta is %f, TH=%f\n", deltaT, TH);
 	
 	  yieldStress = (A + B * pow(ep, a)) * pow(1.0 + epdot_ratio, C); // * (1.0 - pow(TH, M));
+	  if (isnan(yieldStress)){
+	    printf("yieldStress = %f, ep = %f, epdot_ratio = %f, epdot = %f, epdot0 = %f\n", yieldStress,ep,epdot_ratio, epdot, epdot0);
+	  }
 	} else {
 	  yieldStress = stress_at_failure_init;
-	}
-	if (isnan(yieldStress)){
-	  printf("yieldStress = %f, ep = %f, epdot_ratio = %f, epdot = %f, epdot0 = %f\n", yieldStress,ep,epdot_ratio, epdot, epdot0);
+	  if (isnan(yieldStress)){
+	    printf("yieldStress = %f, stress_at_failure = %f\n", yieldStress, stress_at_failure);
+	  }
 	}
 	
 	LinearPlasticStrength(G, yieldStress, sigmaInitial_dev, d_dev, dt, sigmaFinal_dev__, sigma_dev_rate__, plastic_strain_increment, damage);

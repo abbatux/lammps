@@ -457,7 +457,7 @@ void PairTlsph::compute(int eflag, int vflag) {
 			vijSq_max[i] = 0.0;
 			damage_increment[i] = 0.0;
 			eff_plastic_strain_at_failure_init[i] = 0.0;
-			stress_at_failure_init;[i] = 0.0;
+			stress_at_failure_init[i] = 0.0;
 		}
 
 		return;
@@ -2328,8 +2328,8 @@ void PairTlsph::unpack_forward_comm(int n, int first, double *buf) {
 
 		npartner[i] = static_cast<int>(buf[m++]); //24
 		flowstress_slope[i] = buf[m++]; //25
-		eff_plastic_strain_at_failure_init[j] = buf[m++]; //26
-		stress_at_failure_init[j] = buf[m++]; //27
+		eff_plastic_strain_at_failure_init[i] = buf[m++]; //26
+		stress_at_failure_init[i] = buf[m++]; //27
 	}
 }
 
@@ -2653,7 +2653,7 @@ void PairTlsph::ComputeDamage(const int i, const Matrix3d strain, const Matrix3d
 	    stress_at_failure_init[i] = sqrt(3. / 2.) * stress_deviator.norm();
 	  }
 
-	  if ((eff_plastic_strain_at_failure_init[i] > 0) && (damage_init[i] >= 1.0) && (damage[i] < 1.0) {
+	  if ((eff_plastic_strain_at_failure_init[i] > 0) && (damage_init[i] >= 1.0) && (damage[i] < 1.0)) {
 	    // Damage has started:
 	    damage[i] = 10.0*(eff_plastic_strain[i] - eff_plastic_strain_at_failure_init[i]);
 	    damage[i] = MIN(1.0, damage[i]);
