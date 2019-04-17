@@ -390,7 +390,7 @@ void JohnsonCookStrength(const double G, const double cp, const double espec, co
 	} else {
 	  yieldStress = stress_at_failure_init;
 	  if (isnan(yieldStress)){
-	    printf("yieldStress = %f, stress_at_failure = %f\n", yieldStress, stress_at_failure);
+	    printf("yieldStress = %f, stress_at_failure_init = %f\n", yieldStress, stress_at_failure_init);
 	  }
 	}
 	
