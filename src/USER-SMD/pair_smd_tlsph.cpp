@@ -942,7 +942,7 @@ void PairTlsph::AssembleStress() {
 				  vi(idim) = v[i][idim];
 				}
 				//double max_damage = max(0.0001, 1 - f);
-				particle_dt[i] = 2.0 * radius[i] / (p_wave_speed + sqrt(vijSq_max[i])); //* max(0.0001, 1 - fx * vi.norm()*dt/radius[i]);
+				particle_dt[i] = sqrt(rSqMin[i]) / (p_wave_speed + sqrt(vijSq_max[i])); //* max(0.0001, 1 - fx * vi.norm()*dt/radius[i]);
 				dtCFL = MIN(dtCFL, particle_dt[i]);
 
 				//Determine the derivative of the flowstress with respect to the strain:
