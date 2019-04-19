@@ -2622,7 +2622,7 @@ void PairTlsph::ComputeDamage(const int i, const Matrix3d strain, const Matrix3d
 	  if (damage_init[i] >= 1.0) {
 	    if (damage_increment[i] > 0.0) deltat_damage = dt / (1000 * damage_increment[i]);
 	    // double damage_old = damage[i];
-	    damage[i] = MIN(damage_init[i]-1.0, 1.0);
+	    damage[i] = MIN(10*(damage_init[i]-1.0), 1.0);
 	    // damage_increment[i] = damage[i] - damage_old;
 	  } else {
 	    if (damage_increment[i] > 0.0) deltat_damage = dt / (10 * damage_increment[i]);
@@ -2651,7 +2651,7 @@ void PairTlsph::ComputeDamage(const int i, const Matrix3d strain, const Matrix3d
 	  if (damage_init[i] >= 1.0) {
 	    if (damage_increment[i] > 0.0) deltat_damage = dt / (100 * damage_increment[i]);
 	    double damage_old = damage[i];
-	    damage[i] = MIN(damage_init[i]-1.0, 1.0);
+	    damage[i] = MIN(10*(damage_init[i]-1.0), 1.0);
 	    damage_increment[i] = damage[i] - damage_old;
 	  } else {
 	    if (damage_increment[i] > 0.0) deltat_damage = dt / (10 * damage_increment[i]);
