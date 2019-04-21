@@ -2617,18 +2617,18 @@ void PairTlsph::ComputeDamage(const int i, const Matrix3d strain, const Matrix3d
 
 	  damage_init[i] += damage_increment[i];
 	  
-	  double deltat_damage = particle_dt[i];
+	  // double deltat_damage = particle_dt[i];
 
 	  if (damage_init[i] >= 1.0) {
-	    if (damage_increment[i] > 0.0) deltat_damage = dt / (1000 * damage_increment[i]);
+	    // if (damage_increment[i] > 0.0) deltat_damage = dt / (1000 * damage_increment[i]);
 	    // double damage_old = damage[i];
 	    damage[i] = MIN(10*(damage_init[i]-1.0), 1.0);
 	    // damage_increment[i] = damage[i] - damage_old;
-	  } else {
-	    if (damage_increment[i] > 0.0) deltat_damage = dt / (10 * damage_increment[i]);
-	  }
+	  }//  else {
+	  //   if (damage_increment[i] > 0.0) deltat_damage = dt / (10 * damage_increment[i]);
+	  // }
 
-	  particle_dt[i] = MIN(particle_dt[i], deltat_damage);
+	  // particle_dt[i] = MIN(particle_dt[i], deltat_damage);
 
 	} else if (failureModel[itype].failure_gtn) {
 
@@ -2646,18 +2646,18 @@ void PairTlsph::ComputeDamage(const int i, const Matrix3d strain, const Matrix3d
 	  damage_increment[i] = CockcroftLathamDamageIncrement(stress, Lookup[CL_W][itype], plastic_strain_increment);
 	  damage_init[i] += damage_increment[i];
 
-	  double deltat_damage;
+	  // double deltat_damage;
 
 	  if (damage_init[i] >= 1.0) {
-	    if (damage_increment[i] > 0.0) deltat_damage = dt / (100 * damage_increment[i]);
+	    // if (damage_increment[i] > 0.0) deltat_damage = dt / (100 * damage_increment[i]);
 	    double damage_old = damage[i];
 	    damage[i] = MIN(10*(damage_init[i]-1.0), 1.0);
 	    damage_increment[i] = damage[i] - damage_old;
-	  } else {
-	    if (damage_increment[i] > 0.0) deltat_damage = dt / (10 * damage_increment[i]);
-	  }
+	  }//  else {
+	  //   if (damage_increment[i] > 0.0) deltat_damage = dt / (10 * damage_increment[i]);
+	  // }
 
-	  particle_dt[i] = MIN(particle_dt[i], deltat_damage);
+	  // particle_dt[i] = MIN(particle_dt[i], deltat_damage);
 	}
 
 	damage[i] = MIN(damage[i], 1.0);
