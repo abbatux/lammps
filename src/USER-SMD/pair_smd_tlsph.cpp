@@ -749,6 +749,10 @@ void PairTlsph::ComputeForces(int eflag, int vflag) {
 		particle_dt[i] = MIN(particle_dt[i], deltat_2);
 		dtCFL = MIN(dtCFL, particle_dt[i]);
 
+		if (dtCFL < 1e-12) {
+		  printf("dtCFL = %.10e, i = %d, particle_dt[i] = %f, rSqMin[i] = %.10e, rmass[i] = %.10e, deltat_1 = %.10e, deltat_2 = %.10e\n", dtCFL, tag[i], particle_dt[i], rSqMin[i], rmass[i], deltat_1, deltat_2);
+		}
+
 	} // end loop over i
 
 	//cout << "Here is sumf_stress.norm(): " << sumf_stress.norm() << endl;
@@ -785,7 +789,7 @@ void PairTlsph::AssembleStress() {
 	Matrix3d *K = ((FixSMD_TLSPH_ReferenceConfiguration *) modify->fix[ifix_tlsph])->K;
 
 	eye.setIdentity();
-	//dtCFL = 1.0e22;
+	dtCFL = 1.0e22;
 	pFinal = 0.0;
 
 	for (i = 0; i < nlocal; i++) {

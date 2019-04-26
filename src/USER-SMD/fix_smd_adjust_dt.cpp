@@ -214,10 +214,15 @@ void FixSMDTlsphDtReset::end_of_step() {
 
 	dtmin *= safety_factor; // apply safety factor
 	// Limit the increase to 10% of previous time step:
+
+	if (dtmin < 1e-12) {
+	  printf("dtmin = %.10e\n", dtmin);
+	}
+
 	dtmin = MIN(dtmin, 1.1 * update->dt);
 	MPI_Allreduce(&dtmin, &dt, 1, MPI_DOUBLE, MPI_MIN, world);
 
-	if (update->ntimestep == 0) {
+	if (update->ntimestep == 0 || update->dt < 1.0e-16) {
 		dt = 1.0e-16;
 	}
 

@@ -258,13 +258,7 @@ void FixSMDIndent::post_force(int vflag)
 	  dtCFL = MIN(sqrt(sqrt(rSqmin[i])*rmass[i]/fmag), dtCFL);
 	  dtCFL = MIN(sqrt(rSqmin[i])/dvMax[i], dtCFL);
 	}
-	// vel = sqrt(v[i][0]*v[i][0] + v[i][1]*v[i][1] + v[i][2]*v[i][2]);
-	// if (vel > 1.0e-15) {
-	//   //dtCFL = MIN(vel * rmass[i] / fmag, dtCFL);
-	//   dtCFL = MIN(rmass[i] / (-dr * k), dtCFL);
-	// }
       }
-    //printf("dtCFL ind = %.10e\n", dtCFL);
 
   // cylindrical indenter
 
