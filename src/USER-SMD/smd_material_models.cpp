@@ -662,11 +662,11 @@ double JohnsonCookDamageIncrement(const double p, const Matrix3d Sdev, const dou
 	double jc_failure_strain = d1 + d2 * exp(d3 * triax);
 
 	// include strain rate dependency if parameter d4 is defined and current plastic strain rate exceeds reference strain rate
-	if (d4 > 0.0) { //
+	if (d4 != 0.0) { //
 	    if (epdot > epdot0) {
 	      double epdot_ratio = epdot / epdot0;
-	      jc_failure_strain *= (1.0 + d4 * log(epdot_ratio));
-	      //printf("epsdot=%f, epsdot0=%f, factor = %f\n", epdot, epdot0, (1.0 + d4 * log(epdot_ratio)));
+	      jc_failure_strain *= pow(1.0 + epdot_ratio, d4);
+	      //printf("epsdot=%f, epsdot0=%f, factor = %f\n", epdot, epdot0, pow(1.0 + epdot_ratio, d4)));
 	      //exit(1);
 	      
 	    }
