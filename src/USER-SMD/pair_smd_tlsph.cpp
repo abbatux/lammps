@@ -665,7 +665,7 @@ void PairTlsph::ComputeForces(int eflag, int vflag) {
 			   */
 
 			  gamma_dot_dx = gamma.dot(dx); // project hourglass error vector onto pair distance vector
-			  LimitDoubleMagnitude(gamma_dot_dx, 0.1 * r); // limit projected vector to avoid numerical instabilities
+			  //LimitDoubleMagnitude(gamma_dot_dx, 0.1 * r); // limit projected vector to avoid numerical instabilities
 			  delta = 0.5 * gamma_dot_dx / (r + 0.1 * h); // delta has dimensions of [m]
 			  hg_mag = Lookup[HOURGLASS_CONTROL_AMPLITUDE][itype] * delta / (r0_*r0_ + 0.01 * h * h); // hg_mag has dimensions [m^(-1)]
 			  hg_mag *= -voli * volj * wf * Lookup[YOUNGS_MODULUS][itype]; // hg_mag has dimensions [J*m^(-1)] = [N]
