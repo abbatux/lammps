@@ -641,7 +641,7 @@ void PairTlsph::ComputeForces(int eflag, int vflag) {
 			r0_ = r0[i][jj];
                         gamma = 0.5 * (Fincr[i] + Fincr[j]) * dx0 - dx;
                         hg_err = gamma.norm() / r0_;
-                        hourglass_error[i] += volj * wf * hg_err;
+                        hourglass_error[i] += vwf * hg_err;
 
                         /* SPH-like hourglass formulation */
 
