@@ -660,6 +660,8 @@ void PairTlsph::ComputeForces(int eflag, int vflag) {
 			  f_hg = rmass[i] * rmass[j] * hg_mag * wfd * dx / (r + 1.0e-2 * h);
 
                         } else {
+			  f_hg.setZero();
+			}
 			  /*
 			   * stiffness hourglass formulation for particle in the elastic regime
 			   */
@@ -668,9 +670,13 @@ void PairTlsph::ComputeForces(int eflag, int vflag) {
 			  //LimitDoubleMagnitude(gamma_dot_dx, 0.1 * r); // limit projected vector to avoid numerical instabilities
 			  delta = 0.5 * gamma_dot_dx / (r + 0.1 * h); // delta has dimensions of [m]
 			  hg_mag = Lookup[HOURGLASS_CONTROL_AMPLITUDE][itype] * delta / (r0_*r0_ + 0.01 * h * h); // hg_mag has dimensions [m^(-1)]
-			  hg_mag *= -voli * volj * wf * Lookup[YOUNGS_MODULUS][itype]; // hg_mag has dimensions [J*m^(-1)] = [N]
-			  f_hg = (hg_mag / (r + 0.01 * h)) * dx;
-                        }
+			  if (MAX(plastic_strain[i], plastic_strain[j]) > 1.0e-3) {
+			    hg_mag *= -voli * volj * wf * 0.5 * (flowstress_slope[i] + flowstress_slope[j]); // hg_mag has dimensions [J*m^(-1)] = [N]
+			    
+			  } else {
+			    hg_mag *= -voli * volj * wf * Lookup[YOUNGS_MODULUS][itype]; // hg_mag has dimensions [J*m^(-1)] = [N]
+			  }
+			  f_hg += (hg_mag / (r + 0.01 * h)) * dx;
 
                         // scale hourglass force with damage
 			f_hg *= (1.0 - damage[i]) * (1.0 - damage[j]);
