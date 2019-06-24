@@ -931,13 +931,13 @@ void PairTlsph::AssembleStress() {
 				} else {
 				  f = damage[i];
 				}
-				// effective_longitudinal_modulus(itype, dt, d_iso, p_rate, d_dev, sigma_dev_rate, f, K_eff, mu_eff, M_eff);
+				  effective_longitudinal_modulus(itype, dt, d_iso, p_rate, d_dev, sigma_dev_rate, f, K_eff, mu_eff, M_eff);
 
 				// if ((damage[i] > 0.0) && (pFinal > 0.0)) {
 				//   // If the particle is under tension, voids are open:
 				//   p_wave_speed = sqrt(M_eff * (1.0 - damage[i]) / (rho[i]*(1.0 - f) + Lookup[REFERENCE_DENSITY][itype] * f));
 				// } else {
-				  p_wave_speed = sqrt(Lookup[M_MODULUS][itype] / rho[i]);
+				  p_wave_speed = sqrt(M_eff / rho[i]);
 				// }
 
 				if (mol[i] < 0) {
