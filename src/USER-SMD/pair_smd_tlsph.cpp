@@ -2649,7 +2649,7 @@ void PairTlsph::ComputeDamage(const int i, const Matrix3d strain, const Matrix3d
 
 	  if ((eff_plastic_strain_at_failure_init[i] == 0) && (damage_init[i] >= 1.0) && (damage_increment[i] != 0)) {
 	    // Save damage initiation stresses and strains
-	    eff_plastic_strain_at_failure_init[i] = eff_plastic_strain[i] + eff_plastic_strain[i]/damage_increment[i] * (1.0 - damage_init[i]);
+	    eff_plastic_strain_at_failure_init[i] = eff_plastic_strain[i] + plastic_strain_increment/damage_increment[i] * (1.0 - damage_init[i]);
 	    stress_at_failure_init[i] = sqrt(3. / 2.) * stress_deviator.norm();
 	  }
 
@@ -2657,6 +2657,11 @@ void PairTlsph::ComputeDamage(const int i, const Matrix3d strain, const Matrix3d
 	    // Damage has started:
 	    damage[i] = 10.0*(eff_plastic_strain[i] - eff_plastic_strain_at_failure_init[i]);
 	    damage[i] = MIN(1.0, damage[i]);
+	  }
+
+	  if (atom->tag[i]==126592 || atom->tag[i]==103154) {
+	    printf("Particle %d: eff_plastic_strain_at_failure_init = %.10e, eff_plastic_strain = %.10e, damage_init = %.10e, damage = %.10e, damage_increment = %.10e\n", 
+		   atom->tag[i], eff_plastic_strain_at_failure_init[i],eff_plastic_strain[i], damage_init[i], damage[i], damage_increment[i]);
 	  }
 
 	} else if (failureModel[itype].failure_gtn) {
