@@ -143,7 +143,7 @@ void FixSMDTlsphDtReset::end_of_step() {
 	}
 
 	if (dtCFL_TLSPH != NULL) {
-		dtmin = MIN(dtmin, *dtCFL_TLSPH);		
+		dtmin = MIN(dtmin, *dtCFL_TLSPH);
 	}
 
 	if (dtCFL_ULSPH != NULL) {

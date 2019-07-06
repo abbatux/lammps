@@ -97,7 +97,7 @@ protected:
 	Eigen::Vector3d *smoothVelDifference;
 	Eigen::Matrix3d *CauchyStress;
 	double *detF, *particle_dt;
-	double *vijSq_max;
+	double *vijSq_max, *max_mu_ij;
 	double *hourglass_error;
 	int *numNeighsRefConfig;
 	double *damage_increment;

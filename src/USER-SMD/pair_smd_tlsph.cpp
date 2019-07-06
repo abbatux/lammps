@@ -84,6 +84,7 @@ PairTlsph::PairTlsph(LAMMPS *lmp) :
 	Lookup = NULL;
 	particle_dt = NULL;
 	vijSq_max = NULL;
+	max_mu_ij = NULL;
 	damage_increment = NULL;
 	eff_plastic_strain_at_failure_init = NULL;
 	stress_at_failure_init = NULL;
@@ -143,6 +144,7 @@ PairTlsph::~PairTlsph() {
 		delete[] hourglass_error;
 		delete[] particle_dt;
 		delete[] vijSq_max;
+		delete[] max_mu_ij;
 		delete[] damage_increment;
 		delete[] eff_plastic_strain_at_failure_init;
 		delete[] stress_at_failure_init;
@@ -305,6 +307,7 @@ void PairTlsph::PreCompute() {
 
 
 				vijSq_max[i] = MAX(dv.squaredNorm(), vijSq_max[i]);
+				vijSq_max[i] = MAX(dvint.squaredNorm(), vijSq_max[i]);
 
 				vwf = volj * wf_list[i][jj];
 				g = volj * g_list[i][jj];
@@ -426,6 +429,8 @@ void PairTlsph::compute(int eflag, int vflag) {
 		particle_dt = new double[nmax];
 		delete[] vijSq_max;
 		vijSq_max = new double[nmax];
+		delete[] max_mu_ij;
+		max_mu_ij = new double[nmax];
 		delete[] damage_increment;
 		damage_increment = new double[nmax];
 		delete[] eff_plastic_strain_at_failure_init;
@@ -455,6 +460,7 @@ void PairTlsph::compute(int eflag, int vflag) {
 			hourglass_error[i] = 0.0;
 			particle_dt[i] = 0.0;
 			vijSq_max[i] = 0.0;
+			max_mu_ij[i] = 0.0;
 			damage_increment[i] = 0.0;
 			eff_plastic_strain_at_failure_init[i] = 0.0;
 			stress_at_failure_init[i] = 0.0;
@@ -530,7 +536,7 @@ void PairTlsph::ComputeForces(int eflag, int vflag) {
 	double **K_g_dot_dx0_normalized = ((FixSMD_TLSPH_ReferenceConfiguration *) modify->fix[ifix_tlsph])->K_g_dot_dx0_normalized;
 	Matrix3d eye, sigmaBC_i;
 
-	double deltat_1, deltat_2;
+	double deltat_1, deltat_2, deltat_3;
 	eye.setIdentity();
 
 	if (eflag || vflag)
@@ -556,6 +562,7 @@ void PairTlsph::ComputeForces(int eflag, int vflag) {
 		jnum = npartner[i];
 		irad = radius[i];
 		voli = vfrac[i];
+		max_mu_ij[i] = 0.0;
 
 		for (idim = 0; idim < 3; idim++) {
 			x0i(idim) = x0[i][idim];
@@ -604,15 +611,15 @@ void PairTlsph::ComputeForces(int eflag, int vflag) {
 			vj(2) = v[j][2];
 			dv = vj - vi;
 
+			if (failureModel[itype].integration_point_wise == true) {
+			  if (damage[j] > 0.0) {
+			    dv *= (1-damage[j]);
+			    dx = partnerdx[i][jj];
+			  }
+			}
 
 			r = dx.norm(); // current distance
 
-			// if (failureModel[itype].integration_point_wise == true) {
-			//   if (degradation_ij[i][jj] > 0.0) {
-			//     dx = partnerdx[i][jj];
-			//     dv *= (1-damage[j]);
-			//   }
-			// }
 			vwf = volj * wf_list[i][jj];
 			wfd = wfd_list[i][jj];
 			g = g_list[i][jj]; // uncorrected kernel gradient
@@ -630,7 +637,7 @@ void PairTlsph::ComputeForces(int eflag, int vflag) {
 			  f_stress.setZero();
 			}
 
-			// if ((tag[i] == 18268 && tag[j] == 17854)||(tag[i] == 17854 && tag[j] == 18268)||(tag[i] == 17853 && tag[j] == 17854)||(tag[i] == 17854 && tag[j] == 17853)||(tag[i] == 18268 && tag[j] == 18267)||(tag[i] == 18267 && tag[j] == 18268)||(tag[i] == 17854 && tag[j] == 17440) || (tag[i] == 17025 && tag[j] == 17439) || (tag[i] == 17439 && tag[j] == 17025)) {
+			// if (tag[i] == 122951) {
 			//   printf("Step %d FORCE,  %d-%d: f_stress = [%.10e %.10e %.10e] damage_i=%.10e damage_j=%.10e\n",update->ntimestep, tag[i], tag[j], f_stress(0), f_stress(1), f_stress(2), damage[i], damage[j]);
 			// }
 
@@ -652,6 +659,7 @@ void PairTlsph::ComputeForces(int eflag, int vflag) {
                         gamma = 0.5 * (Fincr[i] + Fincr[j]) * dx0 - dx;
                         hg_err = gamma.norm() / r0_;
                         hourglass_error[i] += vwf * hg_err;
+			max_mu_ij[i] = MAX(max_mu_ij[i], (Lookup[VISCOSITY_Q1][itype] + hg_err * Lookup[HOURGLASS_CONTROL_AMPLITUDE][itype])*fabs(mu_ij));
 
                         /* SPH-like hourglass formulation */
 
@@ -741,18 +749,25 @@ void PairTlsph::ComputeForces(int eflag, int vflag) {
 		  }
 		}
 
-		deltat_1 = sqrt(sqrt(rSqMin[i]) * rmass[i]/ sqrt( f[i][0]*f[i][0] + f[i][1]*f[i][1] + f[i][2]*f[i][2] ));
+		deltat_1 = 0.01 * sqrt(sqrt(rSqMin[i]) * rmass[i]/ sqrt( f[i][0]*f[i][0] + f[i][1]*f[i][1] + f[i][2]*f[i][2] ));
 		// if (particle_dt[i] > deltat_1) {
 		//   printf("particle_dt[%d] > deltat_1 with f = [%f %f %f]\n", tag[i], f[i][0], f[i][1], f[i][2]);
 		// }
 		particle_dt[i] = MIN(particle_dt[i], deltat_1); // Monaghan deltat_1 
 
-		deltat_2 = sqrt(rmass[i]/ (Lookup[YOUNGS_MODULUS][itype] * 2 * irad)); // Make sure that oscillations due to elasticity are well captured. // This needs to be calculated once and for all.
+		deltat_2 = sqrt(rmass[i]/ (Lookup[YOUNGS_MODULUS][itype] * 2 * irad)); // Make sure that oscillations due to elasticity are well captured.
 		particle_dt[i] = MIN(particle_dt[i], deltat_2);
+
+		deltat_3 = sqrt(rSqMin[i])/dvMax[i];
+		// if (particle_dt[i] > deltat_1) {
+		//   printf("particle_dt[%d] > deltat_1 with f = [%f %f %f]\n", tag[i], f[i][0], f[i][1], f[i][2]);
+		// }
+		particle_dt[i] = MIN(particle_dt[i], deltat_3);
+
 		dtCFL = MIN(dtCFL, particle_dt[i]);
 
-		if (dtCFL < 1e-12) {
-		  printf("dtCFL = %.10e, i = %d, particle_dt[i] = %f, rSqMin[i] = %.10e, rmass[i] = %.10e, deltat_1 = %.10e, deltat_2 = %.10e\n", dtCFL, tag[i], particle_dt[i], rSqMin[i], rmass[i], deltat_1, deltat_2);
+		if (particle_dt[i] < 1e-9) {
+		  printf("dtCFL = %.10e, i = %d, particle_dt = %.10e, rSqMin = %.10e, rmass = %.10e, deltat_1 = %.10e, deltat_2 = %.10e, deltat_3 = %.10e, f = [%f %f %f]\n", dtCFL, tag[i], particle_dt[i], rSqMin[i], rmass[i], deltat_1, deltat_2, deltat_3, f[i][0], f[i][1], f[i][2]);
 		}
 
 	} // end loop over i
@@ -937,7 +952,7 @@ void PairTlsph::AssembleStress() {
 				//   // If the particle is under tension, voids are open:
 				//   p_wave_speed = sqrt(M_eff * (1.0 - damage[i]) / (rho[i]*(1.0 - f) + Lookup[REFERENCE_DENSITY][itype] * f));
 				// } else {
-				  p_wave_speed = sqrt(M_eff / rho[i]);
+				  p_wave_speed = sqrt(M_eff / MIN(rho[i], rmass[i] / vfrac[i]));
 				// }
 
 				if (mol[i] < 0) {
@@ -948,7 +963,10 @@ void PairTlsph::AssembleStress() {
 				  vi(idim) = v[i][idim];
 				}
 				//double max_damage = max(0.0001, 1 - f);
-				particle_dt[i] = sqrt(rSqMin[i]) / (p_wave_speed + sqrt(vijSq_max[i])); //* max(0.0001, 1 - fx * vi.norm()*dt/radius[i]);
+				particle_dt[i] = sqrt(rSqMin[i]) / ((1.0 + 1.2*Lookup[VISCOSITY_Q1][itype])*p_wave_speed + 1.2*Lookup[VISCOSITY_Q2][itype]*max_mu_ij[i] + sqrt(vijSq_max[i])); // Monaghan deltat_2
+				if (particle_dt[i] < 1e-9) {
+				  printf("dtCFL = %.10e, i = %d, particle_dt = %.10e, rSqMin = %.10e, p_wave_speed = %.10e, max_mu_ij = %.10e, vijSq_max = %.10e\n", dtCFL, atom->tag[i], particle_dt[i], rSqMin[i], p_wave_speed, max_mu_ij[i], vijSq_max[i]);
+		}
 				dtCFL = MIN(dtCFL, particle_dt[i]);
 
 				//Determine the derivative of the flowstress with respect to the strain:
@@ -2352,7 +2370,7 @@ void PairTlsph::effective_longitudinal_modulus(const int itype, const double dt,
 
 	M0 = Lookup[M_MODULUS][itype];
 
-	if (dt * d_iso > 1.0e-6) {
+	if (dt * d_iso > 1.0e-10) {
 		K_eff = p_rate / d_iso;
 		if (K_eff < 0.0) { // it is possible for K_eff to become negative due to strain softening
 //			if (damage == 0.0) {
@@ -2386,7 +2404,7 @@ void PairTlsph::effective_longitudinal_modulus(const int itype, const double dt,
 		shear_rate_sq = d_dev(0, 1) * d_dev(0, 1);
 	}
 
-	if (dt * dt * shear_rate_sq < 1.0e-8) {
+	if (dt * dt * shear_rate_sq < 1.0e-10) {
 		mu_eff = Lookup[SHEAR_MODULUS][itype];
 	}
 
@@ -2647,22 +2665,18 @@ void PairTlsph::ComputeDamage(const int i, const Matrix3d strain, const Matrix3d
 
 	  damage_init[i] += damage_increment[i];
 
-	  if ((eff_plastic_strain_at_failure_init[i] == 0) && (damage_init[i] >= 1.0) && (damage_increment[i] != 0)) {
+	  if ((eff_plastic_strain_at_failure_init[i] == 0) && (damage_init[i] >= 1.0)) {
 	    // Save damage initiation stresses and strains
-	    eff_plastic_strain_at_failure_init[i] = eff_plastic_strain[i] + plastic_strain_increment/damage_increment[i] * (1.0 - damage_init[i]);
+	    eff_plastic_strain_at_failure_init[i] = MIN(eff_plastic_strain[i], MAX(0.0, eff_plastic_strain[i] + plastic_strain_increment/damage_increment[i] * (1.0 - damage_init[i])));
 	    stress_at_failure_init[i] = sqrt(3. / 2.) * stress_deviator.norm();
 	  }
 
 	  if ((eff_plastic_strain_at_failure_init[i] > 0) && (damage_init[i] >= 1.0) && (damage[i] < 1.0)) {
 	    // Damage has started:
-	    damage[i] = 10.0*(eff_plastic_strain[i] - eff_plastic_strain_at_failure_init[i]);
+	    damage[i] = 10.0*MAX(0.0, eff_plastic_strain[i] - eff_plastic_strain_at_failure_init[i]);
 	    damage[i] = MIN(1.0, damage[i]);
 	  }
 
-	  if (atom->tag[i]==126592 || atom->tag[i]==103154) {
-	    printf("Particle %d: eff_plastic_strain_at_failure_init = %.10e, eff_plastic_strain = %.10e, damage_init = %.10e, damage = %.10e, damage_increment = %.10e\n", 
-		   atom->tag[i], eff_plastic_strain_at_failure_init[i],eff_plastic_strain[i], damage_init[i], damage[i], damage_increment[i]);
-	  }
 
 	} else if (failureModel[itype].failure_gtn) {
 

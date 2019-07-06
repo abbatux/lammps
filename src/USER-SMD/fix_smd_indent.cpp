@@ -228,6 +228,7 @@ void FixSMDIndent::post_force(int vflag)
     int itmp = 0;
     double* rSqmin = (double *) force->pair->extract("smd/tlsph/rSqMin", itmp);
     double* dvMax = (double*) force->pair->extract("smd/tlsph/dvMax", itmp);
+    int *numNeighsRefConfig = (int*) force->pair->extract("smd/tlsph/numNeighsRefConfig_ptr", itmp);
 
     for (int i = 0; i < nlocal; i++)
       if (mask[i] & groupbit) {
@@ -254,9 +255,12 @@ void FixSMDIndent::post_force(int vflag)
         indenter[1] -= fx;
         indenter[2] -= fy;
         indenter[3] -= fz;
-	if (atom->damage[i] < 1.0) {
-	  dtCFL = MIN(sqrt(sqrt(rSqmin[i])*rmass[i]/fmag), dtCFL);
-	  dtCFL = MIN(sqrt(rSqmin[i])/dvMax[i], dtCFL);
+	if (atom->damage[i] < 1.0 && numNeighsRefConfig[i]!=0) {
+	  dtCFL = MIN(0.1*sqrt(sqrt(rSqmin[i])*rmass[i]/sqrt( f[i][0]*f[i][0] + f[i][1]*f[i][1] + f[i][2]*f[i][2] )), dtCFL);
+	  dtCFL = MIN(0.1*sqrt(rSqmin[i])/dvMax[i], dtCFL);
+	  // if (dtCFL < 1e-9) {
+	  //   printf("Indent dtCFL = %.10e, i = %d, rSqMin[i] = %.10e, rmass[i] = %.10e, fmag = %.10e, dvMax = %.10e, dr = %.10e\n", dtCFL, atom->tag[i], rSqmin[i], rmass[i], fmag, dvMax[i], dr);
+	  // }
 	}
       }
 
