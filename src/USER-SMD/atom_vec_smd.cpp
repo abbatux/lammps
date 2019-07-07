@@ -924,9 +924,9 @@ int AtomVecSMD::pack_restart(int i, double *buf) {
 	buf[m++] = v[i][0];
 	buf[m++] = v[i][1];
 	buf[m++] = v[i][2]; // 37
-	buf[m++] = vest[i][0];
-	buf[m++] = vest[i][1];
-	buf[m++] = vest[i][2]; // 40
+	buf[m++] = f[i][0];
+	buf[m++] = f[i][1];
+	buf[m++] = f[i][2]; // 40
 
 	buf[m++] = damage[i]; // 41
 	buf[m++] = damage_init[i]; // 42
@@ -986,9 +986,9 @@ int AtomVecSMD::unpack_restart(double *buf) {
 	v[nlocal][0] = buf[m++];
 	v[nlocal][1] = buf[m++];
 	v[nlocal][2] = buf[m++]; // 37
-	vest[nlocal][0] = buf[m++];
-	vest[nlocal][1] = buf[m++];
-	vest[nlocal][2] = buf[m++]; // 40
+	f[nlocal][0] = buf[m++];
+	f[nlocal][1] = buf[m++];
+	f[nlocal][2] = buf[m++]; // 40
 
 	damage[nlocal] = buf[m++]; //41
 	damage_init[nlocal] = buf[m++]; //42
