@@ -963,7 +963,7 @@ void PairTlsph::AssembleStress() {
 				  vi(idim) = v[i][idim];
 				}
 				//double max_damage = max(0.0001, 1 - f);
-				particle_dt[i] = (1.0-damage[i])*sqrt(rSqMin[i]) / ((1.0 + 1.2*Lookup[VISCOSITY_Q1][itype])*p_wave_speed + 1.2*Lookup[VISCOSITY_Q2][itype]*max_mu_ij[i] + sqrt(vijSq_max[i])); // Monaghan deltat_2
+				particle_dt[i] = MAX(0.01,1.0-damage[i])*sqrt(rSqMin[i]) / ((1.0 + 1.2*Lookup[VISCOSITY_Q1][itype])*p_wave_speed + 1.2*Lookup[VISCOSITY_Q2][itype]*max_mu_ij[i] + sqrt(vijSq_max[i])); // Monaghan deltat_2
 				if (particle_dt[i] < 1e-9) {
 				  printf("dtCFL = %.10e, i = %d, particle_dt = %.10e, rSqMin = %.10e, p_wave_speed = %.10e, max_mu_ij = %.10e, vijSq_max = %.10e\n", dtCFL, atom->tag[i], particle_dt[i], rSqMin[i], p_wave_speed, max_mu_ij[i], vijSq_max[i]);
 		}
