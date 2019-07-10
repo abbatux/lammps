@@ -102,7 +102,7 @@ protected:
 	int *numNeighsRefConfig;
 	double *damage_increment;
 	double *rSqMin, *dvMax;
-	double *eff_plastic_strain_at_failure_init, *stress_at_failure_init;
+	double *eff_plastic_strain_at_failure_init;
 
 	double* flowstress_slope;
 	double* shepardWeightInv;

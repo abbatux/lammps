@@ -372,26 +372,19 @@ void LinearPlasticStrength(const double G, double yieldStress, const Matrix3d si
 void JohnsonCookStrength(const double G, const double cp, const double espec, const double A, const double B, const double a,
 			 const double C, const double epdot0, const double T0, const double Tmelt, const double M, const double dt, const double ep,
 			 const double epdot, const Matrix3d sigmaInitial_dev, const Matrix3d d_dev, Matrix3d &sigmaFinal_dev__,
-			 Matrix3d &sigma_dev_rate__, double &plastic_strain_increment, const double damage, const double stress_at_failure_init) {
+			 Matrix3d &sigma_dev_rate__, double &plastic_strain_increment, const double damage) {
 
 	double yieldStress;
 
-	if (damage == 0) {
-	  double TH = espec / (cp * (Tmelt - T0));
-	  TH = MAX(TH, 0.0);
-	  double epdot_ratio = epdot / epdot0;
-	  epdot_ratio = MAX(epdot_ratio, 1.0);
-	  //printf("current temperature delta is %f, TH=%f\n", deltaT, TH);
+	double TH = espec / (cp * (Tmelt - T0));
+	TH = MAX(TH, 0.0);
+	double epdot_ratio = epdot / epdot0;
+	epdot_ratio = MAX(epdot_ratio, 1.0);
+	//printf("current temperature delta is %f, TH=%f\n", deltaT, TH);
 	
-	  yieldStress = (A + B * pow(ep, a)) * pow(1.0 + epdot_ratio, C); // * (1.0 - pow(TH, M));
-	  if (isnan(yieldStress)){
-	    printf("yieldStress = %f, ep = %f, epdot_ratio = %f, epdot = %f, epdot0 = %f\n", yieldStress,ep,epdot_ratio, epdot, epdot0);
-	  }
-	} else {
-	  yieldStress = stress_at_failure_init;
-	  if (isnan(yieldStress)){
-	    printf("yieldStress = %f, stress_at_failure_init = %f\n", yieldStress, stress_at_failure_init);
-	  }
+	yieldStress = (A + B * pow(ep, a)) * pow(1.0 + epdot_ratio, C); // * (1.0 - pow(TH, M));
+	if (isnan(yieldStress)){
+	  printf("yieldStress = %f, ep = %f, epdot_ratio = %f, epdot = %f, epdot0 = %f\n", yieldStress,ep,epdot_ratio, epdot, epdot0);
 	}
 	
 	LinearPlasticStrength(G, yieldStress, sigmaInitial_dev, d_dev, dt, sigmaFinal_dev__, sigma_dev_rate__, plastic_strain_increment, damage);

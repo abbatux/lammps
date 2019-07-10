@@ -213,9 +213,9 @@ void FixSMDTlsphDtReset::end_of_step() {
 //	}
 
 	dtmin *= safety_factor; // apply safety factor
-	// Limit the increase to 5% of previous time step:
+	// Limit the increase to 0.5% of previous time step:
 
-	dtmin = MIN(dtmin, 1.05 * update->dt);
+	dtmin = MIN(dtmin, 1.001 * update->dt);
 	MPI_Allreduce(&dtmin, &dt, 1, MPI_DOUBLE, MPI_MIN, world);
 
 	if (update->ntimestep == 0 || update->dt < 1.0e-16) {
