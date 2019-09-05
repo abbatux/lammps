@@ -146,9 +146,9 @@ void LinearStrength(const double mu, const Matrix3d sigmaInitial_dev, const Matr
 void LinearPlasticStrength(const double G, double yieldStress, const Matrix3d sigmaInitial_dev, const Matrix3d d_dev,
 			   const double dt, Matrix3d &sigmaFinal_dev__, Matrix3d &sigma_dev_rate__, double &plastic_strain_increment, const double damage);
 void JohnsonCookStrength(const double G, const double cp, const double espec, const double A, const double B, const double a,
-		const double C, const double epdot0, const double T0, const double Tmelt, const double M, const double dt, const double ep,
-		const double epdot, const Matrix3d sigmaInitial_dev, const Matrix3d d_dev, Matrix3d &sigmaFinal_dev__,
-		Matrix3d &sigma_dev_rate__, double &plastic_strain_increment, const double damage);
+			 const double C, const double epdot0, const double T0, const double Tmelt, const double M, const double dt, const double ep,
+			 const double epdot, const Matrix3d sigmaInitial_dev, const Matrix3d d_dev, Matrix3d &sigmaFinal_dev__,
+			 Matrix3d &sigma_dev_rate__, double &plastic_strain_increment, const double damage);
 double GTNStrength(const double G, FlowStress flowstress, const double Q1, const double Q2,
 		   const double fcr, const double fF, const double FN, const double inverse_sN, const double epsN, const double Komega,
 		   const double dt, const double damage, const double ep, const Matrix3d sigmaInitial_dev, const Matrix3d d_dev,

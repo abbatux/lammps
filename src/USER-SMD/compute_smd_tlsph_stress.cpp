@@ -64,7 +64,7 @@ ComputeSMDTLSPHStress::ComputeSMDTLSPHStress(LAMMPS *lmp, int narg, char **arg) 
 /* ---------------------------------------------------------------------- */
 
 ComputeSMDTLSPHStress::~ComputeSMDTLSPHStress() {
-        memory->sfree(stress_array);
+        memory->destroy(stress_array);
 }
 
 /* ---------------------------------------------------------------------- */

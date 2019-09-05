@@ -51,6 +51,8 @@ public:
 	void init();
 	void setup(int);
 	void pre_exchange();
+        void setup_post_neighbor();
+        void post_neighbor();
 	int pack_forward_comm(int, int *, double *, int, int *);
 	void unpack_forward_comm(int, int, double *);
 
@@ -67,6 +69,10 @@ public:
 	bool crack_exclude(int i, int j);
 	bool get_line_intersection(int i, int j);
 
+	void write_restart(FILE *);
+	void restart(char *);
+	void forward_comm_tl();
+
 protected:
 	int updateFlag; // flag to update reference configuration
 	int nmax;
@@ -79,6 +85,19 @@ protected:
 	Eigen::Vector3d **partnerdx, **g_list; // x0 vector of all partners
 	Eigen::Matrix3d *K;
 	class Pair *pair;
+
+	int *nrecv;                // # of particles received
+	int *nsendlist;            // # of particles to send to other CPUs
+	int **sendlist;            // list of particles to be sent to other CPUs
+	int *maxsendlist;          // max # of memory slots allocated for sendlist
+	double *buf_send;          // send buffer
+	double *buf_recv;          // recv buffer
+	int maxsend;               // max # of memory slots allocated for buf_send
+	int maxrecv;               // max # of memory slots allocated for buf_recv
+	int firstrecv;
+	int n_missing_all;
+	bool need_forward_comm;
+	int nprocs;
 
 };
 

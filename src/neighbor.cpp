@@ -1742,12 +1742,12 @@ int Neighbor::choose_pair(NeighRequest *rq)
 
   int molecular = atom->molecular;
 
-  //printf("PAIR RQ FLAGS: hf %d %d n %d g %d sz %d gos %d r %d b %d o %d i %d "
-  //       "kk %d %d ss %d dn %d sk %d cp %d hf %d oo %d\n",
-  //        rq->half,rq->full,rq->newton,rq->ghost,rq->size,
-  //        rq->granonesided,rq->respaouter,rq->bond,rq->omp,rq->intel,
-  //       rq->kokkos_host,rq->kokkos_device,rq->ssa,rq->dnum,
-  //      rq->skip,rq->copy,rq->halffull,rq->off2on);
+  // printf("PAIR RQ FLAGS: hf %d %d n %d g %d sz %d gos %d r %d b %d o %d i %d "
+  //        "kk %d %d ss %d sk %d cp %d hf %d oo %d tl %d\n",
+  // 	 rq->half,rq->full,rq->newton,rq->ghost,rq->size,
+  // 	 rq->granonesided,rq->respaouter,rq->bond,rq->omp,rq->intel,
+  //        rq->kokkos_host,rq->kokkos_device,rq->ssa,
+  // 	 rq->skip,rq->copy,rq->halffull,rq->off2on, rq->total_lagran);
 
   // use request and system settings to match exactly one NPair class mask
   // checks are bitwise using NeighConst bit masks
@@ -1814,6 +1814,8 @@ int Neighbor::choose_pair(NeighRequest *rq)
 
     if (!rq->halffull != !(mask & NP_HALF_FULL)) continue;
     if (!rq->off2on != !(mask & NP_OFF2ON)) continue;
+
+    if (!rq->total_lagran != !(mask & NP_TOTAL_LAGRAN)) continue;
 
     // neighbor style is one of NSQ,BIN,MULTI and must match
 

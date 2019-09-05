@@ -30,6 +30,7 @@
 #include "respa.h"
 #include "error.h"
 #include "force.h"
+#include "pair.h"
 
 using namespace LAMMPS_NS;
 using namespace FixConst;
@@ -223,6 +224,9 @@ void FixSMDIndentLinear::post_force(int vflag)
 
     dtCFL = 1.0e22;
 
+    int itmp = 0;
+    double* rSqmin = (double *) force->pair->extract("smd/tlsph/rSqMin", itmp);
+    
     for (int i = 0; i < nlocal; i++)
       if (mask[i] & groupbit) {
         delx = x[i][0] - ctr[0];
@@ -248,9 +252,13 @@ void FixSMDIndentLinear::post_force(int vflag)
         indenter[1] -= fx;
         indenter[2] -= fy;
         indenter[3] -= fz;
-	vel = sqrt(v[i][0]*v[i][0] + v[i][1]*v[i][1] + v[i][2]*v[i][2]);
-	dtCFL = MIN(dtCFL, sqrt(rmass[i] / k));
-	//dtCFL = MIN(vel * rmass[i] / fmag, dtCFL);
+
+	dtCFL = MIN(sqrt(sqrt(rSqmin[i])*rmass[i]/fmag), dtCFL);
+	// vel = sqrt(v[i][0]*v[i][0] + v[i][1]*v[i][1] + v[i][2]*v[i][2]);
+
+	// dtCFL = MIN(dtCFL, sqrt(rmass[i] / k));
+	// if (vel > 1e-15)
+	//   dtCFL = MIN(vel * rmass[i] / fmag, dtCFL);
       }
 
   // cylindrical indenter

@@ -43,15 +43,17 @@ public:
 	PairTlsph(class LAMMPS *);
 	virtual ~PairTlsph();
 	virtual void compute(int, int);
+        void setup();
 	void settings(int, char **);
 	void coeff(int, char **);
+	void coeff_init(int);
 	double init_one(int, int);
 	void init_style();
 	void init_list(int, class NeighList *);
-	void write_restart_settings(FILE *) {
-	}
-	void read_restart_settings(FILE *) {
-	}
+	void write_restart_settings(FILE *);
+	void read_restart_settings(FILE *);
+	void write_restart(FILE *);
+	void read_restart(FILE *);
 	virtual double memory_usage();
 	void compute_shape_matrix(void);
 	void material_model(void);
@@ -59,6 +61,7 @@ public:
 	int pack_forward_comm(int, int *, double *, int, int *);
 	void unpack_forward_comm(int, int, double *);
 	void AssembleStress();
+	void forward_comm_pair_tl();
 
 	void PreCompute();
 	void ComputeForces(int eflag, int vflag);
@@ -94,11 +97,13 @@ protected:
 	Eigen::Vector3d *smoothVelDifference;
 	Eigen::Matrix3d *CauchyStress;
 	double *detF, *particle_dt;
-	double *vijSq_max;
+	double *vijSq_max, *max_mu_ij;
 	double *hourglass_error;
 	int *numNeighsRefConfig;
 	double *damage_increment;
-	double* rSqMin;
+	double *rSqMin, *dvMax;
+	double *eff_plastic_strain_at_failure_init;
+
 	double* flowstress_slope;
 	double* shepardWeightInv;
 
@@ -226,6 +231,7 @@ protected:
 			failure_max_plastic_strain = false;
 			failure_johnson_cook = false;
 			failure_gtn = false;
+			failure_cockcroft_latham = false;
 			failure_max_pairwise_strain = false;
 			integration_point_wise = false;
 			failure_energy_release_rate = false;
@@ -233,6 +239,8 @@ protected:
 		}
 	};
 	failure_types *failureModel;
+
+	MPI_Datatype MPI_failure_types;
 
 	int ifix_tlsph;
 	int update_method;
@@ -243,6 +251,14 @@ private:
 	double **Lookup; // holds per-type material parameters for the quantities defined in enum statement above.
 	bool first; // if first is true, do not perform any computations, beacuse reference configuration is not ready yet.
 	FlowStress flowstress; // holds the flow stress equations
+
+  	int *nrecv;                // # of particles received
+  	int maxsend;               // max # of memory slots allocated for buf_send
+	int maxrecv;               // max # of memory slots allocated for buf_recv
+	double *buf_send;          // send buffer
+	double *buf_recv;          // recv buffer
+
+
 };
 
 }
