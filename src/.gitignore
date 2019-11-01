@@ -1086,6 +1086,8 @@
 /fix_smd_move_triangulated_surface.h
 /fix_smd_setvel.cpp
 /fix_smd_setvel.h
+/fix_smd_setangularvel.cpp
+/fix_smd_setangularvel.h
 /fix_smd_tlsph_reference_configuration.cpp
 /fix_smd_tlsph_reference_configuration.h
 /fix_smd_wall_surface.cpp
